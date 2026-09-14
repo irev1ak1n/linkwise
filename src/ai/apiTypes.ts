@@ -25,7 +25,10 @@ export interface AiNarrativeDTO {
   strengths: AiStrengthDTO[];
   gaps: AiGapDTO[];
   experienceAssessment: ExperienceLevel;
+  experienceAssessmentReason: string;
   recommendationReason: string;
+  contactRecommendationReason: string;
+  saveRecommendationReason: string;
 }
 
 export type AnalyzeProfileApiResponse =

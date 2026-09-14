@@ -9,6 +9,7 @@
 // all; only invalid IDs are stripped from them, never used as a reason to drop the gap.
 import type { CriterionImportance } from "../../../src/models/goal";
 import type { AnalysisResponse } from "../openai/responseSchema";
+import { normalizeSummaryLength } from "./normalizeSummary";
 
 export interface ValidatedStrength {
   title: string;
@@ -25,12 +26,18 @@ export interface ValidatedGap {
 
 export interface ValidatedNarrative {
   /** undefined when OpenAI's summary was empty/whitespace-only — callers fall back to the
-   * local template summary in that case, never an empty string shown as-is. */
+   * local template summary in that case, never an empty string shown as-is. Length-normalized
+   * (see normalizeSummary.ts) so a summary that ran long never breaks the panel's layout or the
+   * "never exceed 60 words" requirement — a mechanical, sentence-boundary-safe trim, never
+   * another API call. */
   summary: string | undefined;
   strengths: ValidatedStrength[];
   gaps: ValidatedGap[];
   experienceAssessment: AnalysisResponse["experienceAssessment"];
+  experienceAssessmentReason: string;
   recommendationReason: string;
+  contactRecommendationReason: string;
+  saveRecommendationReason: string;
 }
 
 export function validateNarrative(response: AnalysisResponse, suppliedEvidenceIds: ReadonlySet<string>): ValidatedNarrative {
@@ -42,13 +49,16 @@ export function validateNarrative(response: AnalysisResponse, suppliedEvidenceId
     .map((gap) => ({ ...gap, evidenceIds: gap.evidenceIds.filter((id) => suppliedEvidenceIds.has(id)) }))
     .filter((gap) => gap.title.trim().length > 0);
 
-  const trimmedSummary = response.summary.trim();
+  const trimmedSummary = normalizeSummaryLength(response.summary);
 
   return {
     summary: trimmedSummary.length > 0 ? trimmedSummary : undefined,
     strengths,
     gaps,
     experienceAssessment: response.experienceAssessment,
+    experienceAssessmentReason: response.experienceAssessmentReason.trim(),
     recommendationReason: response.recommendationReason.trim(),
+    contactRecommendationReason: response.contactRecommendationReason.trim(),
+    saveRecommendationReason: response.saveRecommendationReason.trim(),
   };
 }

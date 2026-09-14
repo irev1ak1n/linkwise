@@ -10,6 +10,12 @@ export type SaveSignal = "Save" | "Consider saving" | "Skip";
 export interface ContactGuidance {
   contact: ContactSignal;
   save: SaveSignal;
+  /** Short AI-sourced reasons for the guidance above — undefined for local-only analysis
+   * (see src/ai/mergeIntoAnalysis.ts), which has no natural-language generation of its own.
+   * Never changes `contact`/`save` themselves: those stay purely a function of the
+   * deterministic RecommendationLabel, exactly as before. */
+  contactReason?: string;
+  saveReason?: string;
 }
 
 const GUIDANCE_BY_RECOMMENDATION: Record<RecommendationLabel, ContactGuidance> = {

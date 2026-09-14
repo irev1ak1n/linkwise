@@ -80,11 +80,14 @@ export function AnalysisView({ result, goal, profile, aiState }: AnalysisViewPro
             Save: {guidance.save}
           </span>
         </div>
+        {guidance.contactReason && <p className="lw-guidance__reason">{guidance.contactReason}</p>}
+        {guidance.saveReason && <p className="lw-guidance__reason">{guidance.saveReason}</p>}
       </section>
 
       <section className="lw-section">
         <h3>Experience Assessment</h3>
         <p className="lw-experience-level">{EXPERIENCE_LEVEL_LABELS[analysis.experienceLevel]}</p>
+        {analysis.experienceLevelReason && <p className="lw-experience-level__reason">{analysis.experienceLevelReason}</p>}
       </section>
 
       {analysis.strengths.length > 0 && (

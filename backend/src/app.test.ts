@@ -36,10 +36,13 @@ function fakeAnalysisResponse(overrides: Partial<AnalysisResponse> = {}): Analys
     strengths: [{ title: "Strong FRC mentor", explanation: "Mentored a robotics team for 3 years.", evidenceIds: ["experience:0"] }],
     gaps: [],
     experienceAssessment: "relevant",
+    experienceAssessmentReason: "Direct FRC mentoring is real experience relevant to this goal.",
     recommendation: "strong_candidate",
     recommendationReason: "Direct mentoring experience found.",
     contactRecommendation: "recommended",
+    contactRecommendationReason: "Direct mentoring experience makes this worth a message.",
     saveRecommendation: "save",
+    saveRecommendationReason: "Strong match worth keeping.",
     evidenceConfidence: 0.9,
     ...overrides,
   };

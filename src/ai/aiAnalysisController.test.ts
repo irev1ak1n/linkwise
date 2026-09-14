@@ -29,7 +29,15 @@ function readyOutcome(): Extract<AiAnalysisOutcome, { status: "ok" }> {
     status: "ok",
     model: "test-model",
     result: { scorePercent: 80, disqualified: false, reasons: [], missing: [], complete: true, profileExtracted: true, confidence: 1 },
-    narrative: { strengths: [], gaps: [], experienceAssessment: "relevant", recommendationReason: "x" },
+    narrative: {
+      strengths: [],
+      gaps: [],
+      experienceAssessment: "relevant",
+      experienceAssessmentReason: "x",
+      recommendationReason: "x",
+      contactRecommendationReason: "x",
+      saveRecommendationReason: "x",
+    },
   };
 }
 

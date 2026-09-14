@@ -44,17 +44,24 @@ export const saveRecommendationSchema = z.enum(["save", "consider_saving", "skip
 /** The full structured response OpenAI must produce. `criterionAssessments` is what actually
  * feeds the deterministic score (see ../guardrails/mergeCriterionAssessments.ts); everything
  * else here is narrative enrichment, validated separately (../guardrails/validateNarrative.ts)
- * before it's ever shown to a user. */
+ * before it's ever shown to a user. The `*Reason` fields alongside experienceAssessment/
+ * contactRecommendation/saveRecommendation are one-sentence explanations for a human reader —
+ * the enum values themselves are for the deterministic system's own reference; the enums (like
+ * `recommendation`) never override the deterministic label actually shown (see
+ * ../../src/ai/mergeIntoAnalysis.ts). */
 export const analysisResponseSchema = z.object({
   criterionAssessments: z.array(criterionAssessmentSchema),
   summary: z.string(),
   strengths: z.array(strengthSchema),
   gaps: z.array(gapSchema),
   experienceAssessment: experienceAssessmentSchema,
+  experienceAssessmentReason: z.string(),
   recommendation: recommendationSchema,
   recommendationReason: z.string(),
   contactRecommendation: contactRecommendationSchema,
+  contactRecommendationReason: z.string(),
   saveRecommendation: saveRecommendationSchema,
+  saveRecommendationReason: z.string(),
   evidenceConfidence: z.number().min(0).max(1),
 });
 

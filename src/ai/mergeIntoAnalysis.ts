@@ -56,16 +56,29 @@ export function buildFinalAnalysis(
         : templateAnalysis.strengths,
     gaps: ai.narrative.gaps.length > 0 ? ai.narrative.gaps.map((g) => ({ label: g.title, detail: g.explanation })) : templateAnalysis.gaps,
     experienceLevel: ai.narrative.experienceAssessment,
-    // Recommendation is NEVER taken from AI directly — always the deterministic label computed
-    // from the (possibly AI-informed) MatchResult, so a guardrail-capped score can never be
-    // paired with an overly rosy recommendation OpenAI happened to suggest.
-    recommendation: templateAnalysis.recommendation,
+    experienceLevelReason: ai.narrative.experienceAssessmentReason || undefined,
+    recommendation: {
+      // The LABEL is NEVER taken from AI directly — always the deterministic label computed
+      // from the (possibly AI-informed) MatchResult, so a guardrail-capped score can never be
+      // paired with an overly rosy recommendation OpenAI happened to suggest.
+      label: templateAnalysis.recommendation.label,
+      // The REASON *text* alongside that label, however, is free-form narrative — AI's grounded,
+      // goal-specific explanation (naming the strongest reason and the largest gap) is more
+      // useful to the user than the template's generic phrase, and citing it can never change
+      // what recommendation is actually shown.
+      reason: ai.narrative.recommendationReason || templateAnalysis.recommendation.reason,
+    },
   };
 
+  const templateGuidance = buildContactGuidance(analysis.recommendation.label);
   return {
     result,
     analysis,
-    guidance: buildContactGuidance(analysis.recommendation.label),
+    guidance: {
+      ...templateGuidance,
+      contactReason: ai.narrative.contactRecommendationReason || undefined,
+      saveReason: ai.narrative.saveRecommendationReason || undefined,
+    },
     source: "ai",
   };
 }

@@ -20,10 +20,13 @@ function aiResponse(overrides: Partial<AnalysisResponse> = {}): AnalysisResponse
     strengths: [],
     gaps: [],
     experienceAssessment: "relevant",
+    experienceAssessmentReason: "Reason",
     recommendation: "worth_contacting",
     recommendationReason: "Reason",
     contactRecommendation: "maybe",
+    contactRecommendationReason: "Reason",
     saveRecommendation: "consider_saving",
+    saveRecommendationReason: "Reason",
     evidenceConfidence: 0.5,
     ...overrides,
   };

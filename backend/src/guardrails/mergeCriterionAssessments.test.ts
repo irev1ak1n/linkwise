@@ -35,10 +35,13 @@ function aiResponse(assessments: CriterionAssessmentResponse[]): AnalysisRespons
     strengths: [],
     gaps: [],
     experienceAssessment: "relevant",
+    experienceAssessmentReason: "Reason",
     recommendation: "worth_contacting",
     recommendationReason: "Reason",
     contactRecommendation: "maybe",
+    contactRecommendationReason: "Reason",
     saveRecommendation: "consider_saving",
+    saveRecommendationReason: "Reason",
     evidenceConfidence: 0.8,
   };
 }

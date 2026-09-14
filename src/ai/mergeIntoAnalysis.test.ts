@@ -22,7 +22,16 @@ function profile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
 }
 
 function narrative(overrides: Partial<AiNarrativeDTO> = {}): AiNarrativeDTO {
-  return { strengths: [], gaps: [], experienceAssessment: "relevant", recommendationReason: "x", ...overrides };
+  return {
+    strengths: [],
+    gaps: [],
+    experienceAssessment: "relevant",
+    experienceAssessmentReason: "x",
+    recommendationReason: "x",
+    contactRecommendationReason: "x",
+    saveRecommendationReason: "x",
+    ...overrides,
+  };
 }
 
 describe("buildFinalAnalysis - no AI available", () => {
@@ -105,5 +114,49 @@ describe("buildFinalAnalysis - AI available", () => {
 
     const final = buildFinalAnalysis(goal, p, evidence, localResult, { result: localResult, narrative: narrative({ experienceAssessment: "extensive" }) });
     expect(final.analysis.experienceLevel).toBe("extensive");
+  });
+
+  it("uses AI's recommendationReason text for the reason (only the label stays deterministic)", () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+    const p = profile({ skills: ["Python"] });
+    const localResult = scoreProfileAgainstGoal(goal, p);
+    const evidence = buildProfileEvidence(p);
+
+    const final = buildFinalAnalysis(goal, p, evidence, localResult, {
+      result: localResult,
+      narrative: narrative({ recommendationReason: "His Python skill is a strong direct match, with no other gaps found." }),
+    });
+    expect(final.analysis.recommendation.reason).toBe("His Python skill is a strong direct match, with no other gaps found.");
+  });
+
+  it("carries experienceLevelReason and contact/save reasons from AI's narrative", () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+    const p = profile({ skills: ["Python"] });
+    const localResult = scoreProfileAgainstGoal(goal, p);
+    const evidence = buildProfileEvidence(p);
+
+    const final = buildFinalAnalysis(goal, p, evidence, localResult, {
+      result: localResult,
+      narrative: narrative({
+        experienceAssessmentReason: "Direct Python skill is listed on the profile.",
+        contactRecommendationReason: "Worth a quick message to confirm depth.",
+        saveRecommendationReason: "Keep for this search.",
+      }),
+    });
+    expect(final.analysis.experienceLevelReason).toBe("Direct Python skill is listed on the profile.");
+    expect(final.guidance.contactReason).toBe("Worth a quick message to confirm depth.");
+    expect(final.guidance.saveReason).toBe("Keep for this search.");
+  });
+
+  it("leaves experienceLevelReason and contact/save reasons undefined for local-only analysis", () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+    const p = profile({ skills: ["Python"] });
+    const localResult = scoreProfileAgainstGoal(goal, p);
+    const evidence = buildProfileEvidence(p);
+
+    const final = buildFinalAnalysis(goal, p, evidence, localResult);
+    expect(final.analysis.experienceLevelReason).toBeUndefined();
+    expect(final.guidance.contactReason).toBeUndefined();
+    expect(final.guidance.saveReason).toBeUndefined();
   });
 });

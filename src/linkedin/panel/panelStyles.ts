@@ -477,6 +477,18 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 600;
     color: #0a66c2;
   }
+  .lw-experience-level__reason {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #445;
+    line-height: 1.4;
+  }
+  .lw-guidance__reason {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #445;
+    line-height: 1.4;
+  }
 
   .lw-evidence-list {
     list-style: none;

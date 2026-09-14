@@ -56,6 +56,10 @@ export interface ProfileAnalysis {
   strengths: StrengthItem[];
   gaps: GapItem[];
   experienceLevel: ExperienceLevel;
+  /** A one-sentence explanation of the experience level, sourced from the backend's AI
+   * narrative (see src/ai/mergeIntoAnalysis.ts) — undefined for the local-only template, which
+   * has no natural-language generation of its own. */
+  experienceLevelReason?: string;
   recommendation: Recommendation;
 }
 

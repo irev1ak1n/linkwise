@@ -12,10 +12,13 @@ function fakeAnalysisResponse(overrides: Partial<AnalysisResponse> = {}): Analys
     strengths: [],
     gaps: [],
     experienceAssessment: "relevant",
+    experienceAssessmentReason: "Reasonable relevant experience.",
     recommendation: "worth_contacting",
     recommendationReason: "Reasonable match.",
     contactRecommendation: "maybe",
+    contactRecommendationReason: "Worth a message.",
     saveRecommendation: "consider_saving",
+    saveRecommendationReason: "Keep for reference.",
     evidenceConfidence: 0.5,
     ...overrides,
   };
