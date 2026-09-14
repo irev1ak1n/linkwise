@@ -11,7 +11,12 @@
     "dev": "node scripts/build.mjs --watch",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify": "npm run test && npm run typecheck && npm run build && npm --prefix backend run verify",
+    "dev:browser": "node scripts/dev-browser.mjs open",
+    "dev:browser:status": "node scripts/dev-browser.mjs status",
+    "extension:reload": "node scripts/dev-browser.mjs reload",
+    "live:test": "node scripts/dev-browser.mjs smoke"
   },
   "devDependencies": {
     "@types/chrome": "^0.2.9",
@@ -19,6 +24,7 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "^29.1.1",
+    "playwright-core": "^1.63.0",
     "typescript": "^5.6.3",
     "vite": "^8.2.2",
     "vitest": "^5.0.0"

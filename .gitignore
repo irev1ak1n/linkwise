@@ -151,3 +151,8 @@ CLAUDE.local.md
 *.crx
 *.pem
 *.zip
+
+# Persistent local Chrome profile used by scripts/dev-browser.mjs (npm run dev:browser /
+# extension:reload / live:test) — holds a real LinkedIn session cookie once signed in; never
+# shared or committed.
+.dev-chrome-profile/
