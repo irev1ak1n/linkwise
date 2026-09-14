@@ -2,7 +2,12 @@
 // LinkWise has no browser-level UI of its own anymore (no side panel, no popup) — the whole
 // interface (goal setup, profile scanning, match analysis) lives entirely on the LinkedIn page
 // itself (see linkedin/content.ts, linkedin/panel/), an in-page panel the content script mounts
-// directly, with no involvement from this background script at all.
+// directly. The one exception is the AI analysis relay below: the content script can never
+// fetch the LinkWise backend directly (see ai/analyzeProfileClient.ts's doc comment), so this
+// background worker does that one thing on its behalf.
+import { installAiRelay } from "./aiRelay";
+
+installAiRelay();
 
 /**
  * Development-only tooling — both pieces below must be flipped off (DEV_TOOLING_ENABLED =

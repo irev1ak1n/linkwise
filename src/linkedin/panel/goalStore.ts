@@ -18,6 +18,7 @@ import {
   type Criterion,
   type CriterionCategory,
   type CriterionImportance,
+  type CriterionOperator,
   type Goal,
 } from "../../models/goal";
 import { GOALS_STORAGE_KEYS, loadGoals, loadSelectedGoalId, saveGoals, saveSelectedGoalId } from "../../storage/goalsRepository";
@@ -142,6 +143,9 @@ export interface DraftCriterionInput {
   importance: CriterionImportance;
   category?: CriterionCategory;
   groupId?: string;
+  value?: string;
+  operator?: CriterionOperator;
+  sourceText?: string;
 }
 
 /** Commits a reviewed batch of criteria (from the "Your ideal match" card's Create-criteria
@@ -153,7 +157,15 @@ export interface DraftCriterionInput {
  * text changed, so a manually-edited active criterion is never silently replaced by a stale or
  * unreviewed draft. */
 export function setActiveGoalCriteria(name: string, criteria: DraftCriterionInput[]): void {
-  const builtCriteria = criteria.map((c) => createCriterion(c.label, c.importance, { category: c.category, groupId: c.groupId }));
+  const builtCriteria = criteria.map((c) =>
+    createCriterion(c.label, c.importance, {
+      category: c.category,
+      groupId: c.groupId,
+      value: c.value,
+      operator: c.operator,
+      sourceText: c.sourceText,
+    }),
+  );
   const existing = state.goals.find((g) => g.id === state.selectedGoalId);
   if (existing) {
     persistGoals(state.goals.map((g) => (g.id === existing.id ? { ...g, name: name || g.name, criteria: builtCriteria } : g)));

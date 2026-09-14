@@ -387,6 +387,17 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a6d00;
     margin: 8px 0 0;
   }
+  .lw-ai-status {
+    font-size: 11px;
+    font-style: italic;
+    color: #56687a;
+    margin: 6px 0 0;
+  }
+  .lw-ai-status--ai {
+    font-style: normal;
+    font-weight: 600;
+    color: #0a66c2;
+  }
 
   .lw-section {
     margin-bottom: 16px;

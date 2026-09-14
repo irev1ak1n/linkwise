@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCollectionData } from "./useCollectionData";
 import { useGoalStore } from "./useGoalStore";
+import { useAiAnalysis } from "./useAiAnalysis";
 import { GoalSetupSection } from "./GoalSetupSection";
 import { ScanningView } from "./ScanningView";
 import { AnalysisView } from "./AnalysisView";
@@ -17,9 +18,16 @@ interface PanelAppProps {
  * collectionEngine.ts's `onLeaveProfile`) — everywhere else the profile section shows a plain
  * neutral state rather than pretending there's a profile to analyze, while Goal Setup (describe
  * who you're looking for, review the resulting criteria, jot notes) stays fully usable
- * regardless of what page you're on. On a profile, the profile section is exactly two states: Scanning
- * (collection incomplete) and Analysis (collection settled, or the user asked to analyze early)
- * — never a third "in-between" view, and never a final score shown while still Scanning.
+ * regardless of what page you're on. On a profile, the profile section is exactly two states:
+ * Scanning (collection incomplete) and Analysis (collection settled, or the user asked to
+ * analyze early) — never a third "in-between" view, and never a final score shown while still
+ * Scanning.
+ *
+ * Analysis itself is now two-layered: the deterministic local result renders immediately (as
+ * always — LinkWise is never unusable without AI), while `useAiAnalysis` asks the backend's
+ * OpenAI reasoning layer to improve on it in the background. AnalysisView shows the local
+ * result right away and swaps in the AI-enhanced one the moment it's ready, never blocking or
+ * freezing the page in between.
  */
 export function PanelApp({ onClose }: PanelAppProps) {
   const { profileKey, profile, collection } = useCollectionData();
@@ -37,7 +45,12 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const forced = profileKey !== null && forcedKeys.has(profileKey);
   const isFinal = forced || collection?.status === "settled";
 
-  const result = goal && profile ? scoreProfileAgainstGoal(goal, profile) : null;
+  // Memoized so this stays REFERENCE-STABLE across re-renders whenever goal/profile haven't
+  // actually changed — useAiAnalysis's effect depends on it, and an unstable reference here
+  // would re-trigger (and re-debounce) an AI request on every unrelated re-render.
+  const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
+
+  const aiState = useAiAnalysis(goal, profile, result, isFinal);
 
   function handleAnalyzeNow(): void {
     if (!profileKey) return;
@@ -65,7 +78,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
       );
     }
     if (result) {
-      return <AnalysisView result={result} goal={goal} profile={profile} />;
+      return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} />;
     }
     return null;
   }

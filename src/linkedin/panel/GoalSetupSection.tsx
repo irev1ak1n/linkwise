@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { Criterion, CriterionCategory, CriterionImportance, Goal } from "../../models/goal";
-import { GOAL_TEXT_MAX_LENGTH, condenseForGoalText, parseGoalDraftFromText } from "../../nlp/goalTextParser";
+import type { Criterion, CriterionCategory, CriterionImportance, CriterionOperator, Goal } from "../../models/goal";
+import { GOAL_TEXT_MAX_LENGTH, condenseForGoalText } from "../../nlp/goalTextParser";
 import { loadDocumentParser } from "../../documents/loadDocumentParser";
+import { generateCriteria } from "../../ai/generateCriteria";
 import { buildCriterionBullets, type CriterionBullet } from "./criterionDisplay";
 import type { DraftCriterionInput } from "./goalStore";
 
@@ -20,6 +21,9 @@ interface DraftCriterionRow {
   importance: CriterionImportance;
   category?: CriterionCategory;
   groupId?: string;
+  value?: string;
+  operator?: CriterionOperator;
+  sourceText?: string;
 }
 
 let localIdCounter = 0;
@@ -47,6 +51,10 @@ export function GoalSetupSection({ goal, onSetActiveCriteria, onAddCriterion, on
   const [text, setText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileStatus, setFileStatus] = useState<string | null>(null);
+  // True while a "Create criteria" (or document-upload) request is out to the AI generator (or
+  // falling back to the local parser) — see generateFromText. Never left true on completion: the
+  // finally block below always clears it, whichever path produced the result.
+  const [generating, setGenerating] = useState(false);
 
   // Non-null while showing a just-generated, not-yet-committed batch of criteria — the "review
   // before saving" step. While null, the card shows (and directly, live-edits) the ACTIVE
@@ -71,15 +79,36 @@ export function GoalSetupSection({ goal, onSetActiveCriteria, onAddCriterion, on
   const bullets = buildCriterionBullets(displayedCriteria);
   const isStale = isDraft && generatedFromText !== null && generatedFromText !== text;
 
-  function generateFromText(sourceText: string): void {
-    const draft = parseGoalDraftFromText(sourceText);
-    setDraftName(draft.name);
-    setDraftCriteria(
-      draft.criteria.map((c) => ({ id: makeLocalId(), label: c.label, importance: c.importance, category: c.category, groupId: c.groupId })),
-    );
-    setGeneratedFromText(sourceText);
-    setEditingKey(null);
-    setAddingCriterion(false);
+  /**
+   * The "Create criteria" flow: asks the AI backend to turn `sourceText` into structured
+   * criteria, falling back to the local deterministic parser only when AI is unavailable or
+   * returns nothing useful (see ai/generateCriteria.ts) — never the reverse. Either path lands
+   * in the same reviewable draft state; the user always reviews/edits before "Use these
+   * criteria" activates anything, regardless of which path produced the draft.
+   */
+  async function generateFromText(sourceText: string): Promise<void> {
+    setGenerating(true);
+    try {
+      const result = await generateCriteria(sourceText);
+      setDraftName(result.name);
+      setDraftCriteria(
+        result.criteria.map((c) => ({
+          id: makeLocalId(),
+          label: c.label,
+          importance: c.importance,
+          category: c.category,
+          groupId: c.groupId,
+          value: c.value,
+          operator: c.operator,
+          sourceText: c.sourceText,
+        })),
+      );
+      setGeneratedFromText(sourceText);
+      setEditingKey(null);
+      setAddingCriterion(false);
+    } finally {
+      setGenerating(false);
+    }
   }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
@@ -100,7 +129,7 @@ export function GoalSetupSection({ goal, onSetActiveCriteria, onAddCriterion, on
     const fullText = result.text ?? "";
     const condensed = fullText.length > GOAL_TEXT_MAX_LENGTH ? condenseForGoalText(fullText) : fullText;
     setText(condensed);
-    generateFromText(condensed);
+    await generateFromText(condensed);
     setFileStatus(
       fullText.length > GOAL_TEXT_MAX_LENGTH
         ? `Read ${file.name} — condensed the most relevant parts of this longer document into the draft below.`
@@ -112,7 +141,15 @@ export function GoalSetupSection({ goal, onSetActiveCriteria, onAddCriterion, on
     if (!draftCriteria || draftCriteria.length === 0) return;
     onSetActiveCriteria(
       draftName.trim() || text.trim() || "My search",
-      draftCriteria.map((r) => ({ label: r.label, importance: r.importance, category: r.category, groupId: r.groupId })),
+      draftCriteria.map((r) => ({
+        label: r.label,
+        importance: r.importance,
+        category: r.category,
+        groupId: r.groupId,
+        value: r.value,
+        operator: r.operator,
+        sourceText: r.sourceText,
+      })),
     );
     setDraftCriteria(null);
     setDraftName("");
@@ -188,10 +225,9 @@ export function GoalSetupSection({ goal, onSetActiveCriteria, onAddCriterion, on
       <section className="app__section">
         <h2>Describe who you're looking for</h2>
         <p className="section-hint">
-          Plain English is fine, e.g. "I am looking for FRC mentors in Charlotte with mechanical or
-          aerospace engineering experience who could advise our robotics team." LinkWise uses simple,
-          local pattern matching to draft criteria — this is not AI understanding, so always review
-          the result below before using them.
+          Describe the kind of person you're looking for — e.g. "I am looking for FRC mentors in
+          Charlotte with mechanical or aerospace engineering experience." LinkWise will turn your
+          description into criteria you can review before applying.
         </p>
         <textarea
           className="text-area"
@@ -205,8 +241,8 @@ export function GoalSetupSection({ goal, onSetActiveCriteria, onAddCriterion, on
           <span className="char-count">
             {text.length} / {GOAL_TEXT_MAX_LENGTH}
           </span>
-          <button type="button" className="button" disabled={!text.trim()} onClick={() => generateFromText(text)}>
-            Create criteria
+          <button type="button" className="button" disabled={!text.trim() || generating} onClick={() => void generateFromText(text)}>
+            {generating ? "Creating criteria…" : "Create criteria"}
           </button>
         </div>
 

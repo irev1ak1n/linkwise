@@ -26,13 +26,17 @@ export const EXPERIENCE_LEVEL_LABELS: Record<ExperienceLevel, string> = {
 export interface StrengthItem {
   label: string;
   detail: string;
-  reason: MatchReason;
+  /** The local deterministic reason this traces back to — present for every LOCALLY-generated
+   * strength; absent for a strength sourced from the backend's OpenAI narrative instead (see
+   * src/ai/mergeIntoAnalysis.ts), which has no single local MatchReason to point to. */
+  reason?: MatchReason;
 }
 
 export interface GapItem {
   label: string;
   detail?: string;
-  missing: MissingItem;
+  /** See StrengthItem.reason's doc comment — absent for an AI-sourced gap. */
+  missing?: MissingItem;
 }
 
 export type RecommendationLabel =

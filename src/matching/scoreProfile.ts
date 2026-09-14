@@ -1,9 +1,15 @@
-// Deterministic scoring engine — combines semanticMatcher's per-criterion evidence strength
-// into one Match %, with full evidence preserved. Pure function of a Goal and a LinkedInProfile:
-// no AI/LLM call, no network request, no hidden state. The same goal and profile always
-// produce the same MatchResult.
+// Deterministic scoring engine — combines a per-criterion evidence strength into one Match %,
+// with full evidence preserved. The weighting/guardrail core (`computeMatchResult`) is a pure
+// function of a Goal and an already-resolved strength for every criterion — it does not care
+// WHERE that strength came from. `scoreProfileAgainstGoal` is the local, fully-deterministic
+// path (feeds it from semanticMatcher.ts, no network, no AI). The backend's OpenAI integration
+// (see backend/src/scoring.ts) reuses this exact same `computeMatchResult` core, fed instead by
+// AI-assessed + guardrail-merged strengths — so there is only ONE place the weight allocation,
+// Must-Have caps, and Excluded-disqualification logic lives, no matter which path produced the
+// per-criterion strengths. This is what makes "OpenAI improves criterion understanding, but the
+// final Match % stays deterministic" possible without duplicating the scoring math.
 //
-// No neural embedding model is used for the underlying evidence matching (see
+// No neural embedding model is used for the underlying LOCAL evidence matching (see
 // semanticMatcher.ts). Benchmarked before deciding: bundling Transformers.js plus a small
 // quantized embedding model (Xenova/all-MiniLM-L6-v2) would add roughly 30-35MB — the JS
 // runtime package alone is ~9.5MB unpacked, and the model's own quantized ONNX weights are
@@ -12,10 +18,8 @@
 // therefore this scoring engine) runs INSIDE the LinkedIn content script, so a model that size
 // would need to load and run WASM inference on every profile page visit, which is exactly the
 // kind of heavy main-thread work that caused a real page-freeze bug earlier in this project.
-// The deterministic concept graph in semanticMatcher.ts handles every distinction this
-// milestone's own examples call for without that cost; a real embedding-based layer would be a
-// reasonable future addition, but only running in an isolated context (the side panel or a
-// background/offscreen document) reached by message-passing, not inside the content script.
+// Real semantic reasoning is instead done server-side (OpenAI, see backend/), reached only via
+// the extension's own backend — never bundled into the content script.
 import type { Criterion, CriterionImportance, Goal } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 import type { EvidenceStrength } from "../models/evidence";
@@ -89,22 +93,53 @@ function isReasonStrength(strength: EvidenceStrength): strength is "strong" | "m
   return strength === "strong" || strength === "moderate";
 }
 
-export function scoreProfileAgainstGoal(goal: Goal, profile: LinkedInProfile): MatchResult {
-  const evidence = buildProfileEvidence(profile);
+/** One criterion's already-resolved outcome — the input `computeMatchResult` needs for EVERY
+ * criterion in the goal. `evidence` is only meaningful for strong/moderate (becomes a
+ * `MatchReason`); `note` is only meaningful for weak/missing/unknown (becomes a `MissingItem`'s
+ * note) — both may be omitted when there's nothing real to show. */
+export interface CriterionAssessment {
+  strength: EvidenceStrength;
+  evidence?: SemanticEvidence;
+  note?: string;
+  explanation: string;
+}
+
+/**
+ * The deterministic weighting/guardrail core: Must-Have/Preferred/Optional weight allocation,
+ * strength multipliers, Unknown-excluded-from-both-sums, and Excluded-disqualification — a pure
+ * function of a Goal and an already-resolved assessment for every criterion. Doesn't know or
+ * care whether those assessments came from the local semantic matcher (see
+ * `scoreProfileAgainstGoal` below) or from a guardrail-merged OpenAI response (see
+ * backend/src/scoring.ts) — either way, the exact same rules apply, which is what makes "OpenAI
+ * can improve per-criterion understanding but never bypass the Must-Have cap, the Excluded
+ * disqualification, or the Unknown-vs-Missing distinction" true by construction rather than by
+ * convention. A criterion with no entry in `assessments` is treated as "unknown" — never a
+ * silent 0 — since the only honest reading of "nobody assessed this" is "not enough information
+ * to judge," not "confirmed absent."
+ */
+export function computeMatchResult(
+  goal: Goal,
+  assessments: ReadonlyMap<string, CriterionAssessment>,
+  profileExtracted: boolean,
+): MatchResult {
   const reasons: MatchReason[] = [];
   const missing: MissingItem[] = [];
 
+  function assessmentFor(criterion: Criterion): CriterionAssessment {
+    return assessments.get(criterion.id) ?? { strength: "unknown", explanation: "No assessment available for this criterion." };
+  }
+
   const excludedCriteria = goal.criteria.filter((c) => c.importance === "EXCLUDED");
   for (const criterion of excludedCriteria) {
-    const result = evaluateCriterion(criterion, profile, evidence);
-    if (result.strength === "strong" && result.evidence) {
+    const assessment = assessmentFor(criterion);
+    if (assessment.strength === "strong" && assessment.evidence) {
       return {
         scorePercent: 0,
         disqualified: true,
         reasons: [],
         missing: [],
-        complete: profile.extracted,
-        profileExtracted: profile.extracted,
+        complete: profileExtracted,
+        profileExtracted,
         confidence: 1,
       };
     }
@@ -120,8 +155,8 @@ export function scoreProfileAgainstGoal(goal: Goal, profile: LinkedInProfile): M
       disqualified: false,
       reasons,
       missing,
-      complete: profile.extracted,
-      profileExtracted: profile.extracted,
+      complete: profileExtracted,
+      profileExtracted,
       confidence: 0,
     };
   }
@@ -142,22 +177,22 @@ export function scoreProfileAgainstGoal(goal: Goal, profile: LinkedInProfile): M
     const nominalWeight = CATEGORY_WEIGHT[criterion.importance] / countByCategory[criterion.importance];
     totalWeightSum += nominalWeight;
 
-    const result = evaluateCriterion(criterion, profile, evidence);
+    const assessment = assessmentFor(criterion);
 
-    if (isReasonStrength(result.strength)) {
-      reasons.push({ criterion, strength: result.strength, evidence: result.evidence!, explanation: result.explanation });
+    if (isReasonStrength(assessment.strength)) {
+      reasons.push({ criterion, strength: assessment.strength, evidence: assessment.evidence!, explanation: assessment.explanation });
     } else {
-      missing.push({ criterion, strength: result.strength, note: result.partialEvidence?.snippet ?? result.explanation });
+      missing.push({ criterion, strength: assessment.strength, note: assessment.note });
     }
 
-    if (criterion.importance === "MUST_HAVE" && !isReasonStrength(result.strength)) {
+    if (criterion.importance === "MUST_HAVE" && !isReasonStrength(assessment.strength)) {
       mustHaveUnsatisfied = true;
     }
 
-    if (result.strength === "unknown") continue; // excluded from both sums — never a confirmed 0, never free credit
+    if (assessment.strength === "unknown") continue; // excluded from both sums — never a confirmed 0, never free credit
 
     knownWeightSum += nominalWeight;
-    knownEarnedSum += nominalWeight * STRENGTH_MULTIPLIER[result.strength];
+    knownEarnedSum += nominalWeight * STRENGTH_MULTIPLIER[assessment.strength];
   }
 
   const scorePercent = knownWeightSum > 0 ? Math.round((knownEarnedSum / knownWeightSum) * 100) : null;
@@ -168,8 +203,27 @@ export function scoreProfileAgainstGoal(goal: Goal, profile: LinkedInProfile): M
     disqualified: false,
     reasons,
     missing,
-    complete: profile.extracted && !mustHaveUnsatisfied,
-    profileExtracted: profile.extracted,
+    complete: profileExtracted && !mustHaveUnsatisfied,
+    profileExtracted,
     confidence,
   };
+}
+
+/** The fully local, deterministic path — no network, no AI. Evaluates every criterion via the
+ * semantic matcher, then hands the results to the same `computeMatchResult` core the AI-enhanced
+ * backend path also uses. This is also LinkWise's fallback whenever the backend/OpenAI is
+ * unavailable, so its output must stay exactly what it's always been. */
+export function scoreProfileAgainstGoal(goal: Goal, profile: LinkedInProfile): MatchResult {
+  const evidence = buildProfileEvidence(profile);
+  const assessments = new Map<string, CriterionAssessment>();
+  for (const criterion of goal.criteria) {
+    const result = evaluateCriterion(criterion, profile, evidence);
+    assessments.set(criterion.id, {
+      strength: result.strength,
+      evidence: result.evidence,
+      note: result.partialEvidence?.snippet ?? result.explanation,
+      explanation: result.explanation,
+    });
+  }
+  return computeMatchResult(goal, assessments, profile.extracted);
 }

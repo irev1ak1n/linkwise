@@ -9,21 +9,61 @@ export type CriterionImportance = "MUST_HAVE" | "PREFERRED" | "OPTIONAL" | "EXCL
  * compact "Your ideal match" card show a short, readable heading ("Role", "Location", ...)
  * instead of a flat list, while the actual criterion driving the score stays exactly the same
  * object. Set by the NLP parser when it recognizes which extraction pattern produced a
- * criterion; left unset for manually-added criteria, which fall back to an importance-based
- * heading instead (see linkedin/panel/criterionDisplay.ts). */
-export type CriterionCategory = "role" | "location" | "experience" | "context" | "other";
+ * criterion, or by the AI criteria generator (see src/ai/generateCriteriaClient.ts, which calls
+ * this "type" on the wire but stores it here); left unset for manually-added criteria, which
+ * fall back to an importance-based heading instead (see linkedin/panel/criterionDisplay.ts).
+ * "role"/"location"/"experience"/"context"/"other" are the original local-parser categories;
+ * the rest are the AI generator's richer taxonomy — both live in one union rather than two
+ * separate near-identical types since both ultimately mean the same thing here. */
+export type CriterionCategory =
+  | "role"
+  | "location"
+  | "experience"
+  | "context"
+  | "other"
+  | "organization"
+  | "membership"
+  | "skill"
+  | "education"
+  | "language"
+  | "leadership"
+  | "mentoring"
+  | "competition"
+  | "service"
+  | "project"
+  | "industry"
+  | "interest";
+
+/** How a criterion's `value` should be compared — only meaningful alongside a non-null `value`
+ * (a quantified threshold like "10+ service hours" or "at least 3 years"). Display-only, like
+ * `category`/`value`/`sourceText`: matching (src/matching) still reads only `label`/
+ * `importance`, so the label itself must already spell out the number and comparison in words
+ * (see the AI criteria generator's prompt) — these fields exist for traceability/future display,
+ * not because the matching engine consumes them today. */
+export type CriterionOperator = "at_least" | "at_most" | "equals";
 
 export interface Criterion {
   id: string;
-  /** Free text the user typed, e.g. "FRC mentor", "Python", "still in college". */
+  /** Free text the user typed, e.g. "FRC mentor", "Python", "still in college" — or, for an
+   * AI-generated criterion, a complete phrase preserving the source description's meaning (see
+   * src/ai/generateCriteriaClient.ts's doc comment on why this must never be compressed to a
+   * bare keyword). This is the ONLY field src/matching ever reads. */
   label: string;
   importance: CriterionImportance;
   category?: CriterionCategory;
   /** Display-only — links criteria that came from the same "X or Y" alternative phrase in the
-   * original description (see nlp/goalTextParser.ts's expandSharedTailAlternatives), so the
-   * panel can show them as one bullet joined by "or" instead of implying two independent
-   * requirements. Never read by matching: each criterion is still scored on its own. */
+   * original description (see nlp/goalTextParser.ts's expandSharedTailAlternatives, or the AI
+   * generator's own groupId field), so the panel can show them as one bullet joined by "or"
+   * instead of implying two independent requirements. Never read by matching: each criterion is
+   * still scored on its own. */
   groupId?: string;
+  /** The literal quantity a criterion expresses (e.g. "10", "3 years") — set only alongside
+   * `operator`. Display-only; see `CriterionOperator`'s doc comment. */
+  value?: string;
+  operator?: CriterionOperator;
+  /** The substring of the original description an AI-generated criterion was derived from —
+   * purely for the user's own traceability, never read by matching. */
+  sourceText?: string;
 }
 
 export interface Goal {
@@ -48,7 +88,7 @@ export function generateId(prefix: string): string {
 export function createCriterion(
   label: string,
   importance: CriterionImportance,
-  options?: { category?: CriterionCategory; groupId?: string },
+  options?: { category?: CriterionCategory; groupId?: string; value?: string; operator?: CriterionOperator; sourceText?: string },
 ): Criterion {
   return { id: generateId("criterion"), label, importance, ...options };
 }

@@ -21,6 +21,18 @@ const CATEGORY_HEADINGS: Record<CriterionCategory, string> = {
   experience: "Experience",
   context: "Can help with",
   other: "",
+  organization: "Organization",
+  membership: "Membership",
+  skill: "Skill",
+  education: "Education",
+  language: "Language",
+  leadership: "Leadership",
+  mentoring: "Mentoring",
+  competition: "Competition",
+  service: "Service",
+  project: "Project",
+  industry: "Industry",
+  interest: "Interest",
 };
 
 const IMPORTANCE_FALLBACK_HEADING: Record<CriterionImportance, string> = {
