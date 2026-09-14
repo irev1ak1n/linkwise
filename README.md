@@ -1,2 +1,2 @@
 # LinkWise
-Chrome extension that helps users discover relevant people on LinkedIn based on their goals. It shows match scores and clear reasons, helps find more connections, hides existing and previously reviewed profiles, and lets users organize contacts with lists, tags, notes, tasks, and follow-up reminders.
+LinkWise is a Chrome extension that helps you evaluate LinkedIn profiles based on what you are looking for. Describe your ideal match in plain English, review the generated criteria, then open any LinkedIn profile to get a match score, concise summary, strengths, gaps, experience assessment, and contact recommendation.
