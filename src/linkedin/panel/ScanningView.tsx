@@ -31,9 +31,9 @@ export function ScanningView({ profileName, goalName, collection, onAnalyzeNow }
 
   return (
     <div className="lw-scanning">
-      <p className="lw-scanning__title">Reading {profileName ?? "this person"}'s profile…</p>
+      <p className="lw-scanning__title">Loading {profileName ?? "this person"}'s profile…</p>
       {goalName && <p className="lw-scanning__for">For: {goalName}</p>}
-      <p className="lw-scanning__hint">Scroll the profile to load the full candidate.</p>
+      <p className="lw-scanning__hint">LinkWise is reading the full profile automatically — no need to scroll.</p>
 
       {total > 0 ? (
         <>

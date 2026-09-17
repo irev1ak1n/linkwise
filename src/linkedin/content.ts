@@ -4,14 +4,23 @@
 // collection and the panel at all). The LinkWise opener is shown on every page; the collection
 // engine only ever does real work while the current URL is a `/in/...` profile — everywhere
 // else it simply stays idle (see collectionEngine.ts's `onLeaveProfile`). Reads only what
-// LinkedIn has already rendered; never fetches another page, never clicks anything, never
-// scrolls or navigates on the user's behalf.
+// LinkedIn has already rendered; never fetches another page, never clicks anything.
+//
+// One deliberate, bounded exception to "never scrolls on the user's behalf": while a profile
+// page is open AND an active goal already exists, this script scrolls the page toward its
+// bottom itself (see autoScroll.ts) so LinkedIn's lazy-loaded sections load without the user
+// needing to scroll manually — the whole point of automatic analysis. It is intentionally
+// small, controlled bursts toward whatever the CURRENT bottom is (never a single jump to an
+// assumed end), bounded to a few seconds total, and only ever runs when there's an active goal
+// to actually analyze against.
 import { createCollectionEngine } from "./collectionEngine";
 import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
 import { getPanelProfileData, setPanelProfileData } from "./panel/panelStore";
 import { destroyPanel, togglePanel } from "./panel/mount";
 import { installDevTooling } from "./devTools";
+import { createAutoScrollDriver } from "./autoScroll";
+import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
 
 /** How close to the bottom of the page counts as "reached the end," in pixels — tolerates
  * LinkedIn's footer/recommendation chrome without requiring a scroll to the literal last pixel. */
@@ -24,6 +33,11 @@ const TICK_INTERVAL_MS = 2500;
 /** Once settled, back off the safety-net tick — further changes are rare and a real navigation
  * is still caught faster by the mutation/scroll listeners below. */
 const SETTLED_TICK_INTERVAL_MS = 6000;
+/** How long auto-scroll keeps trying, and how long collection waits overall, before giving up
+ * and analyzing with whatever has actually loaded — matches the "finish in about 10 seconds, or
+ * don't hang" goal: a few seconds of scrolling/loading here, leaving the rest of the ~10s budget
+ * for the analysis call itself. */
+const AUTO_SCROLL_MAX_DURATION_MS = 8000;
 
 declare global {
   interface Window {
@@ -66,12 +80,22 @@ function isNearDocumentEnd(): boolean {
   return el.scrollTop + el.clientHeight >= el.scrollHeight - DOCUMENT_END_MARGIN_PX;
 }
 
+const autoScroll = createAutoScrollDriver({ now: () => Date.now(), maxDurationMs: AUTO_SCROLL_MAX_DURATION_MS });
+
+/** The signal actually fed to the collection engine: real scroll position OR — once
+ * `AUTO_SCROLL_MAX_DURATION_MS` has passed for this profile — a best-effort "good enough, stop
+ * waiting" override, so a profile that can't be fully auto-scrolled (an unusual layout, a very
+ * long page) still reaches a final analysis instead of hanging in "collecting" forever. */
+function isNearDocumentEndOrTimedOut(): boolean {
+  return isNearDocumentEnd() || autoScroll.hasTimedOut(engine.getProfileKey());
+}
+
 const engine = createCollectionEngine({
   now: () => Date.now(),
   extractProfile: () => extractLinkedInProfile(document),
   detectSections: () => detectProfileSections(document),
   getProfileKey: () => profileIdentityKey(location.href),
-  isNearDocumentEnd,
+  isNearDocumentEnd: isNearDocumentEndOrTimedOut,
   onUpdate: (profileKey, profile, collection) => {
     setPanelProfileData({ profileKey, profile, collection });
   },
@@ -93,6 +117,12 @@ const engine = createCollectionEngine({
 function tick(): void {
   ensureLinkWiseOpener(togglePanel);
   engine.tick();
+
+  const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
+  if (autoScroll.shouldScrollNow(engine.getProfileKey(), goalActive, isNearDocumentEnd())) {
+    const container = findScrollContainer();
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }
 }
 
 function watchForChanges(): void {
@@ -135,6 +165,14 @@ function watchForChanges(): void {
     }
   }
 }
+
+// Loaded here (not only from the panel's own useGoalStore()) so an active goal from a previous
+// session is known immediately, before the user ever opens the panel — collection/auto-scroll
+// can then already be under way by the time they do open it, instead of only starting at that
+// point. Safe to call from both places: idempotent, and this module-level store has exactly one
+// underlying state regardless of how many callers initialize it.
+initGoalStore();
+registerCleanup(subscribeGoalStore(tick));
 
 tick();
 watchForChanges();

@@ -17,29 +17,26 @@ interface PanelAppProps {
  * `profileKey` is only ever non-null while the current URL is a `/in/...` profile (see
  * collectionEngine.ts's `onLeaveProfile`) — everywhere else the profile section shows a plain
  * neutral state rather than pretending there's a profile to analyze, while Goal Setup (describe
- * who you're looking for, review the resulting criteria, jot notes) stays fully usable
- * regardless of what page you're on. On a profile, the profile section is exactly two states:
- * Scanning (collection incomplete) and Analysis (collection settled, or the user asked to
- * analyze early) — never a third "in-between" view, and never a final score shown while still
- * Scanning.
+ * who you're looking for, then let LinkWise turn it into criteria) stays fully usable regardless
+ * of what page you're on. On a profile, the profile section is exactly two states: Scanning
+ * (collection incomplete) and Analysis (collection settled) — never a third "in-between" view,
+ * and never a final score shown while still Scanning.
  *
- * Analysis itself is now two-layered: the deterministic local result renders immediately (as
- * always — LinkWise is never unusable without AI), while `useAiAnalysis` asks the backend's
- * OpenAI reasoning layer to improve on it in the background. AnalysisView shows the local
- * result right away and swaps in the AI-enhanced one the moment it's ready, never blocking or
- * freezing the page in between.
+ * Collection itself now finishes on its own: content.ts scrolls the page automatically (see
+ * autoScroll.ts) whenever a profile opens with an active goal, so `isFinal` below almost always
+ * flips to true from `collection.status === "settled"` well before the user does anything —
+ * `forced` (via the Scanning view's own manual override) still exists purely as a fallback for
+ * the rare page collection can't finish quickly on its own, never as a required step.
+ *
+ * Analysis itself is two-layered: the deterministic local result renders immediately (as always
+ * — LinkWise is never unusable without AI), while `useAiAnalysis` asks the backend's OpenAI
+ * reasoning layer to improve on it in the background. AnalysisView shows the local result right
+ * away and swaps in the AI-enhanced one the moment it's ready, never blocking or freezing the
+ * page in between.
  */
 export function PanelApp({ onClose }: PanelAppProps) {
   const { profileKey, profile, collection } = useCollectionData();
-  const {
-    selectedGoal: goal,
-    loaded: goalsLoaded,
-    addCriterion,
-    updateCriterion,
-    removeCriterion,
-    setActiveGoalCriteria,
-    updateGoalNotes,
-  } = useGoalStore();
+  const { selectedGoal: goal, loaded: goalsLoaded, setActiveGoalCriteria } = useGoalStore();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
@@ -62,7 +59,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
       return <p className="lw-empty">Open a LinkedIn profile to analyze it.</p>;
     }
     if (!profile || !collection) {
-      return <p className="lw-empty">Reading this profile…</p>;
+      return <p className="lw-empty">Loading profile…</p>;
     }
     if (!goal) {
       return <p className="lw-empty">No active goal set yet — describe who you're looking for above.</p>;
@@ -96,15 +93,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
           <p className="lw-empty">Loading your goals…</p>
         ) : (
           <>
-            <GoalSetupSection
-              goal={goal}
-              onSetActiveCriteria={setActiveGoalCriteria}
-              onAddCriterion={addCriterion}
-              onUpdateCriterion={updateCriterion}
-              onRemoveCriterion={removeCriterion}
-              onUpdateNotes={updateGoalNotes}
-            />
-            <hr className="lw-divider" />
+            <GoalSetupSection goal={goal} onSetActiveCriteria={setActiveGoalCriteria} />
             {renderProfileSection()}
           </>
         )}

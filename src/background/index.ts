@@ -34,12 +34,22 @@ if (DEV_TOOLING_ENABLED) {
 }
 
 /**
- * Re-injects the content script into already-open LinkedIn tabs whenever this service worker
- * (re)starts — including immediately after the reload above — so a routine rebuild-and-reload
- * never needs the LinkedIn tab itself manually reloaded on top of it. Safe to re-run on a tab
- * that already has a (possibly orphaned, post-reload) instance: content.ts's own teardown
- * token cleans up any previous instance's opener/panel/observers before setting up fresh ones,
- * so this can never leave a duplicate behind.
+ * Re-injects the content script into already-open LinkedIn tabs after a genuine install or
+ * reload — so a routine rebuild-and-reload never needs the LinkedIn tab itself manually
+ * refreshed on top of it. Safe to re-run on a tab that already has a (possibly orphaned,
+ * post-reload) instance: content.ts's own teardown token cleans up any previous instance's
+ * opener/panel/observers before setting up fresh ones, so this can never leave a duplicate
+ * behind.
+ *
+ * Deliberately wired to `chrome.runtime.onInstalled`, NOT run unconditionally every time this
+ * service worker (re)starts — confirmed live, an MV3 service worker gets stopped after a short
+ * idle period and restarts on the next event it handles (here, most commonly the AI-analysis
+ * relay message an in-progress profile view sends a few seconds after opening). Reinjecting on
+ * every one of THOSE ordinary wake-ups tore down the very panel/analysis run that had just
+ * triggered the wake-up, losing all its in-memory state moments before it could finish.
+ * `onInstalled` fires only for what this is actually meant to catch: the extension being loaded
+ * for the first time, or reloaded (including via `chrome.runtime.reload()` below) — never a
+ * plain idle-then-woken-by-a-message cycle.
  */
 async function reinjectIntoOpenLinkedInTabs(): Promise<void> {
   const tabs = await chrome.tabs.query({ url: "https://*.linkedin.com/*" });
@@ -54,5 +64,7 @@ async function reinjectIntoOpenLinkedInTabs(): Promise<void> {
 }
 
 if (DEV_TOOLING_ENABLED) {
-  void reinjectIntoOpenLinkedInTabs();
+  chrome.runtime.onInstalled.addListener(() => {
+    void reinjectIntoOpenLinkedInTabs();
+  });
 }

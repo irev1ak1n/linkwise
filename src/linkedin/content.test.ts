@@ -40,11 +40,36 @@ function stubNonProfileUrl(path: string): void {
   vi.stubGlobal("location", { href: `https://www.linkedin.com${path}` });
 }
 
+/** content.ts now reads goalStore.ts directly (to gate auto-scroll on an active goal existing —
+ * see autoScroll.ts), which needs a working chrome.storage.local/onChanged, not just
+ * chrome.runtime. Seeded as already-seeded-with-no-goals so every test here behaves exactly as
+ * before: no goal is ever active, so auto-scroll/auto-analyze simply never engages and none of
+ * these bootstrap/teardown assertions are affected. */
+function installFakeChromeStorage() {
+  const data: Record<string, unknown> = { "finder.goalsSeeded.v1": true, "finder.goals.v1": [] };
+  return {
+    local: {
+      get: (keys: string | string[]) =>
+        Promise.resolve(
+          (Array.isArray(keys) ? keys : [keys]).reduce<Record<string, unknown>>((acc, key) => {
+            if (key in data) acc[key] = data[key];
+            return acc;
+          }, {}),
+        ),
+      set: (items: Record<string, unknown>) => {
+        Object.assign(data, items);
+        return Promise.resolve();
+      },
+    },
+    onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+  };
+}
+
 describe("content.ts bootstrap", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
-    vi.stubGlobal("chrome", { runtime: { reload: vi.fn() } });
+    vi.stubGlobal("chrome", { runtime: { reload: vi.fn() }, storage: installFakeChromeStorage() });
     setProfilePage("Jordan Rivera");
     stubProfileUrl("jordan-rivera");
   });
