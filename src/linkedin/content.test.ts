@@ -65,11 +65,26 @@ function installFakeChromeStorage() {
   };
 }
 
+/** content.ts's normal-mode boot now also talks to the background service worker to request a
+ * background scan (see backgroundScanProtocol.ts) and to listen for its reply — neither call is
+ * ever actually exercised by these bootstrap tests (no goal is ever active, so a scan is never
+ * requested — see installFakeChromeStorage's doc comment), but both APIs must at least exist on
+ * the fake `chrome` global or module evaluation itself throws before any test body runs. */
+function installFakeChromeRuntimeMessaging() {
+  return {
+    sendMessage: vi.fn().mockResolvedValue(undefined),
+    onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+  };
+}
+
 describe("content.ts bootstrap", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
-    vi.stubGlobal("chrome", { runtime: { reload: vi.fn() }, storage: installFakeChromeStorage() });
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn(), ...installFakeChromeRuntimeMessaging() },
+      storage: installFakeChromeStorage(),
+    });
     setProfilePage("Jordan Rivera");
     stubProfileUrl("jordan-rivera");
   });

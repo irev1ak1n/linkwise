@@ -8,15 +8,24 @@ type Listener = (message: unknown, sender: unknown, sendResponse: (response?: un
 interface FakeChrome {
   onMessageListeners: Listener[];
   onInstalledListeners: Array<() => void>;
+  onRemovedListeners: Array<(tabId: number) => void>;
   reload: ReturnType<typeof vi.fn>;
   tabsQuery: ReturnType<typeof vi.fn>;
   executeScript: ReturnType<typeof vi.fn>;
 }
 
-function installFakeChrome(tabs: Array<{ id: number }> = []): FakeChrome {
+/**
+ * background/index.ts now also installs backgroundScan.ts (see installBackgroundScan) alongside
+ * the dev-reinjection logic these tests target — its own chrome.tabs.onRemoved.addListener call
+ * happens unconditionally at install time, so the fake below must provide it (plus the other
+ * chrome.tabs.* surface it touches) purely so module evaluation doesn't throw; none of these
+ * tests exercise scan behavior itself (see backgroundScan.test.ts for that).
+ */
+function installFakeChrome(tabs: Array<{ id: number; url?: string }> = []): FakeChrome {
   const fake: FakeChrome = {
     onMessageListeners: [],
     onInstalledListeners: [],
+    onRemovedListeners: [],
     reload: vi.fn(),
     tabsQuery: vi.fn().mockResolvedValue(tabs),
     executeScript: vi.fn().mockResolvedValue(undefined),
@@ -37,6 +46,14 @@ function installFakeChrome(tabs: Array<{ id: number }> = []): FakeChrome {
     },
     tabs: {
       query: fake.tabsQuery,
+      create: vi.fn().mockResolvedValue({ id: 999 }),
+      remove: vi.fn().mockResolvedValue(undefined),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      onRemoved: {
+        addListener: (listener: (tabId: number) => void) => {
+          fake.onRemovedListeners.push(listener);
+        },
+      },
     },
     scripting: {
       executeScript: fake.executeScript,

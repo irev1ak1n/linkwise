@@ -6,8 +6,10 @@
 // fetch the LinkWise backend directly (see ai/analyzeProfileClient.ts's doc comment), so this
 // background worker does that one thing on its behalf.
 import { installAiRelay } from "./aiRelay";
+import { installBackgroundScan } from "./backgroundScan";
 
 installAiRelay();
+installBackgroundScan();
 
 /**
  * Development-only tooling — both pieces below must be flipped off (DEV_TOOLING_ENABLED =
