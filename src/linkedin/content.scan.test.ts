@@ -16,6 +16,16 @@ vi.mock("../ai/generateCriteria", () => ({
   generateCriteria: (...args: unknown[]) => generateCriteriaMock(...args),
 }));
 
+// ensureActiveGoalCriteria (see goalStore.ts) now falls back to a goal's NAME when it has no
+// description, so any seeded test goal with empty criteria — even ones with no description that
+// predate that field — triggers a real regeneration attempt on every tick. A safe, empty-result
+// default here keeps every test that doesn't care about this behavior unaffected; tests that DO
+// care override it with their own `.mockResolvedValue(...)`.
+beforeEach(() => {
+  generateCriteriaMock.mockReset();
+  generateCriteriaMock.mockResolvedValue({ name: "", source: "local", criteria: [] });
+});
+
 // jsdom does not implement Element.scrollTo — scan-tab mode now genuinely calls it (see
 // autoScroll.ts's doc comment on always attempting at least one real scroll), which would
 // otherwise throw here even though a real browser always provides it.

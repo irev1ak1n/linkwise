@@ -348,8 +348,42 @@ describe("goalStore", () => {
       expect(generateCriteriaMock).not.toHaveBeenCalled();
     });
 
-    it("does nothing when the goal has no stored description at all — there is nothing to regenerate from", async () => {
-      const broken: Goal = { id: "g1", name: "Old broken goal", criteria: [] };
+    it("falls back to the goal's NAME when it predates the description field entirely — the exact old-user migration case", async () => {
+      // A goal saved before `description` existed at all has nothing else recoverable — but its
+      // name is itself a real phrase (typed by the user, or produced by an earlier generation
+      // pass) describing who it's looking for, e.g. "Multilingual TSA-Related Contacts". Running
+      // that same phrase back through the generator is the ONLY way such a goal can ever recover
+      // automatically; without this, an old user would be permanently stuck.
+      const preMigration: Goal = { id: "g1", name: "Multilingual TSA-Related Contacts", criteria: [] };
+      installFakeChromeStorage({ "finder.goalsSeeded.v1": true, "finder.goals.v1": [preMigration], "finder.selectedGoalId.v1": "g1" });
+      generateCriteriaMock.mockResolvedValue({
+        name: "Multilingual TSA-Related Contacts",
+        source: "local",
+        criteria: [
+          { label: "Multilingual", importance: "PREFERRED" },
+          { label: "Technology Student Association member", importance: "PREFERRED" },
+        ],
+      });
+
+      const { initGoalStore, getGoalStoreState, selectActiveGoal, ensureActiveGoalCriteria } = await import("./goalStore");
+      const { hasScoreableCriteria } = await import("../../models/goal");
+      initGoalStore();
+      await waitUntil(() => getGoalStoreState().loaded);
+      expect(selectActiveGoal(getGoalStoreState())?.description).toBeUndefined();
+
+      ensureActiveGoalCriteria();
+      await waitUntil(() => hasScoreableCriteria(selectActiveGoal(getGoalStoreState())!));
+
+      expect(generateCriteriaMock).toHaveBeenCalledWith("Multilingual TSA-Related Contacts");
+      const active = selectActiveGoal(getGoalStoreState())!;
+      expect(active.id).toBe("g1"); // repaired in place
+      expect(active.criteria.map((c) => c.label)).toEqual(["Multilingual", "Technology Student Association member"]);
+      // Backfilled so future ticks take the cheaper "has a real description" path.
+      expect(active.description).toBe("Multilingual TSA-Related Contacts");
+    });
+
+    it("does nothing when the goal has neither a description nor a usable name — nothing left to regenerate from", async () => {
+      const broken: Goal = { id: "g1", name: "", criteria: [] };
       installFakeChromeStorage({ "finder.goalsSeeded.v1": true, "finder.goals.v1": [broken], "finder.selectedGoalId.v1": "g1" });
 
       const { initGoalStore, getGoalStoreState, ensureActiveGoalCriteria } = await import("./goalStore");

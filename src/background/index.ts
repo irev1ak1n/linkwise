@@ -36,12 +36,32 @@ if (DEV_TOOLING_ENABLED) {
 }
 
 /**
+ * Whether a `chrome.scripting.executeScript` rejection is an ordinary navigation race rather
+ * than a genuine failure. `chrome.tabs.query` and `chrome.scripting.executeScript` are two
+ * separate async calls with no atomicity between them — by the time injection actually runs, a
+ * tab from that snapshot may have already navigated away, reloaded, or closed, and Chrome
+ * reports that as one of a small set of well-known messages ("Frame with ID ... was removed",
+ * "No tab with id", "The tab was closed", or a frame no longer existing). Confirmed live:
+ * exactly this fires during ordinary use (a LinkedIn tab client-side-navigating at the same
+ * moment a reload's reinjection sweep runs), not from anything actually broken — logging it as
+ * `console.error` misrepresented a routine race as a LinkWise bug. */
+function isExpectedInjectionRace(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /frame with id \S+ was removed|no tab with id|no frame with id|the tab was closed|cannot access a chrome[:.]|cannot be scripted/i.test(
+    message,
+  );
+}
+
+/**
  * Re-injects the content script into already-open LinkedIn tabs after a genuine install or
  * reload — so a routine rebuild-and-reload never needs the LinkedIn tab itself manually
  * refreshed on top of it. Safe to re-run on a tab that already has a (possibly orphaned,
  * post-reload) instance: content.ts's own teardown token cleans up any previous instance's
  * opener/panel/observers before setting up fresh ones, so this can never leave a duplicate
- * behind.
+ * behind. Getting this to actually succeed matters beyond just refreshing the UI: a tab whose
+ * reinjection fails keeps running its OLD, orphaned content-script instance indefinitely (until
+ * the next successful reload sweep), and that orphaned instance's own `chrome.runtime` calls can
+ * start failing in confusing ways once its extension context is invalidated.
  *
  * Deliberately wired to `chrome.runtime.onInstalled`, NOT run unconditionally every time this
  * service worker (re)starts — confirmed live, an MV3 service worker gets stopped after a short
@@ -57,10 +77,18 @@ async function reinjectIntoOpenLinkedInTabs(): Promise<void> {
   const tabs = await chrome.tabs.query({ url: "https://*.linkedin.com/*" });
   for (const tab of tabs) {
     if (tab.id == null) continue;
+    const tabId = tab.id;
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content/linkedin.js"] });
+      // Re-checking right before injecting narrows (never fully closes) the race window between
+      // the query above and the injection below — cheap insurance against injecting into a tab
+      // that already moved on to a different, non-matching page.
+      const current = await chrome.tabs.get(tabId).catch(() => null);
+      if (!current || !current.url?.startsWith("https://") || !/\blinkedin\.com\b/.test(current.url)) continue;
+
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["content/linkedin.js"] });
     } catch (error) {
-      console.error("LinkWise: dev reinjection failed for tab", tab.id, error);
+      if (isExpectedInjectionRace(error)) continue;
+      console.error("LinkWise: dev reinjection failed for tab", tabId, error);
     }
   }
 }
