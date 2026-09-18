@@ -33,6 +33,7 @@ import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore 
 import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 import { initialCollectionState, type CollectionState } from "../models/collection";
 import {
+  getRequestingTabId,
   isScanTabUrl,
   SCAN_CANCEL,
   SCAN_FAILED,
@@ -171,9 +172,16 @@ function bootScanTab(): void {
   }
 
   let lastKnownProfileKey: string | null = null;
+  // Read once, synchronously, from this scan tab's own URL — the SAME tab id background used to
+  // create it (see backgroundScanProtocol.ts's `buildScanUrl`/`getRequestingTabId`). Echoed back
+  // on every report so relaying never depends on the background service worker's own in-memory
+  // job bookkeeping having survived since this tab was created — see ScanReportMessage's doc
+  // comment on `requestingTabId` for why that matters.
+  const requestingTabId = getRequestingTabId(location.href);
 
   function report(profileKey: string, profile: LinkedInProfile, collection: CollectionState): void {
-    chrome.runtime.sendMessage({ type: SCAN_REPORT, profileKey, profile, collection }).catch(() => {
+    if (requestingTabId === null) return; // malformed scan URL — nowhere to report to; shouldn't happen
+    chrome.runtime.sendMessage({ type: SCAN_REPORT, profileKey, profile, collection, requestingTabId }).catch(() => {
       // The background service worker may be mid-restart, or the requesting tab it was relaying
       // to is already gone — either way, this scan tab has nothing further useful to do; it will
       // be cleaned up by background/backgroundScan.ts's own timeout regardless.

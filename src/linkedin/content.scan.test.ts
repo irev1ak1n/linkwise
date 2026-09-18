@@ -218,7 +218,7 @@ describe("content.ts scan-tab mode", () => {
     vi.resetModules();
     vi.useFakeTimers();
     setProfilePage("Alex Chen");
-    stubProfileUrl("https://www.linkedin.com/in/alex-chen/?lwscan=1");
+    stubProfileUrl("https://www.linkedin.com/in/alex-chen/?lwscan=1&lwreq=7");
     fake = installFakeChrome(false);
   });
 
@@ -242,12 +242,12 @@ describe("content.ts scan-tab mode", () => {
 
     const reports = fake.sendMessage.mock.calls.filter(([m]) => (m as { type?: unknown }).type === SCAN_REPORT);
     expect(reports.length).toBeGreaterThan(0);
-    expect(reports[0][0]).toMatchObject({ type: SCAN_REPORT, profileKey: "alex-chen" });
+    expect(reports[0][0]).toMatchObject({ type: SCAN_REPORT, profileKey: "alex-chen", requestingTabId: 7 });
   });
 
   it("never sends a SCAN_REQUEST itself, even though the same active-goal storage is reachable", async () => {
     vi.unstubAllGlobals();
-    vi.stubGlobal("location", { href: "https://www.linkedin.com/in/alex-chen/?lwscan=1" });
+    vi.stubGlobal("location", { href: "https://www.linkedin.com/in/alex-chen/?lwscan=1&lwreq=7" });
     fake = installFakeChrome(true); // a goal IS active — a scan tab must still never request its own scan
     await import("./content");
     await vi.advanceTimersByTimeAsync(3000);

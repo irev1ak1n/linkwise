@@ -40,6 +40,17 @@ export interface ScanReportMessage {
   profileKey: string;
   profile: LinkedInProfile;
   collection: CollectionState;
+  /** The tab that asked for this scan, read by the scan tab from its own URL (see
+   * `getRequestingTabId`) and echoed back on every report — carrying this INSIDE each message,
+   * rather than relying purely on the background's own in-memory job bookkeeping, is what makes
+   * relaying survive a service-worker restart mid-scan (confirmed live: MV3 service workers go
+   * idle and restart within seconds of no activity, and a scan's several spaced-out reports
+   * easily straddle that gap — a restart wipes any purely in-memory job map, which would
+   * otherwise make every later report for that job look like it came from an "unknown tab" and
+   * get silently dropped, exactly the failure this project already hit once before for a
+   * different unconditional-on-every-wake background operation; see background/index.ts's own
+   * doc comment on `reinjectIntoOpenLinkedInTabs` for that earlier incident). */
+  requestingTabId: number;
 }
 export interface ScanUpdateMessage {
   type: typeof SCAN_UPDATE;
@@ -60,14 +71,19 @@ export interface ScanFailedMessage {
  * recursively spawning more scan tabs — the URL marker is what a scan tab checks first to take
  * the entirely separate, scan-only code path that never makes that request. */
 const SCAN_PARAM = "lwscan";
+/** Carries the requesting tab's id through to the scan tab — see `ScanReportMessage`'s doc
+ * comment on `requestingTabId` for why this travels in the URL rather than only in background's
+ * own in-memory state. */
+const REQUESTER_PARAM = "lwreq";
 
 /** The one and only URL a scan tab is ever created with — always the plain canonical profile
  * URL (see profileAdapter.ts's `profileIdentityKey`, the inverse of this), never whatever
  * tracking query params happened to be on the visible tab's current URL, so the scan tab's own
  * load is never affected by anything unrelated to the profile itself. */
-export function buildScanUrl(profileKey: string): string {
+export function buildScanUrl(profileKey: string, requestingTabId: number): string {
   const url = new URL(`https://www.linkedin.com/in/${encodeURIComponent(profileKey)}/`);
   url.searchParams.set(SCAN_PARAM, "1");
+  url.searchParams.set(REQUESTER_PARAM, String(requestingTabId));
   return url.toString();
 }
 
@@ -76,5 +92,18 @@ export function isScanTabUrl(href: string): boolean {
     return new URL(href).searchParams.get(SCAN_PARAM) === "1";
   } catch {
     return false;
+  }
+}
+
+/** Reads back the tab id `buildScanUrl` embedded — `null` if this isn't a scan tab URL at all,
+ * or (defensively) if the param is somehow missing/malformed. */
+export function getRequestingTabId(href: string): number | null {
+  try {
+    const raw = new URL(href).searchParams.get(REQUESTER_PARAM);
+    if (raw === null) return null;
+    const id = Number(raw);
+    return Number.isInteger(id) ? id : null;
+  } catch {
+    return null;
   }
 }

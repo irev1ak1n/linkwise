@@ -7,15 +7,10 @@
 // closes the scan tab once collection settles (or the job fails). The user's own tab — its
 // opener, its panel, and above all its scroll position — is never touched by any of this.
 //
-// Known limitation, confirmed live: Chrome gives an `active: false` background tab reduced
-// rendering priority, and LinkedIn's own client app appears to defer some lazy-loaded content
-// while the page isn't the visible tab — so a scan tab can end up with less depth than the same
-// profile would show in a foreground tab. There is no available, constraint-compliant way
-// around this (a fully or mostly off-screen window is rejected outright by Chrome's own window-
-// bounds validation, and forcing LinkedIn to believe the tab is visible when it is not is a
-// detection-evasion technique this project does not use). The collection engine's own settle
-// timeout (see collectionEngine.ts/autoScroll.ts) already means this degrades to "analyze with
-// whatever loaded" rather than ever hanging — see content.ts's doc comment for the full tradeoff.
+// Every relay/cleanup decision below is written to survive this module itself restarting mid-
+// scan — confirmed live, the MV3 service worker goes idle and restarts within seconds of no
+// activity, easily inside the gap between two of a single scan's own spaced-out reports. See
+// handleScanReport's doc comment for the mechanism (and the real bug this fixes).
 import {
   buildScanUrl,
   isScanTabUrl,
@@ -83,6 +78,10 @@ function failJob(profileKey: string): void {
 }
 
 function handleScanRequest(message: ScanRequestMessage, requestingTabId: number): void {
+  // Best-effort only: a service-worker restart between this request and the eventual report
+  // wipes this map, so a duplicate tab can occasionally get created — wasteful, but never
+  // incorrect, since handleScanReport below never depends on this map to relay or clean up
+  // correctly (see its own doc comment).
   const existing = jobsByProfileKey.get(message.profileKey);
   if (existing) {
     existing.requestingTabIds.add(requestingTabId);
@@ -90,7 +89,7 @@ function handleScanRequest(message: ScanRequestMessage, requestingTabId: number)
   }
 
   chrome.tabs
-    .create({ url: buildScanUrl(message.profileKey), active: false })
+    .create({ url: buildScanUrl(message.profileKey, requestingTabId), active: false })
     .then((tab) => {
       if (tab.id == null) return;
       const timeoutHandle = setTimeout(() => failJob(message.profileKey), SCAN_JOB_TIMEOUT_MS);
@@ -108,18 +107,46 @@ function handleScanRequest(message: ScanRequestMessage, requestingTabId: number)
     });
 }
 
+/**
+ * Relays a scan tab's report and, once settled, closes it — entirely independent of
+ * `jobsByProfileKey` for correctness. A confirmed-live MV3 service worker goes idle and restarts
+ * within seconds of no activity, and a single scan's several spaced-out reports easily straddle
+ * that gap; a restart wipes this module's in-memory job map, which previously made every later
+ * report for that job look like it came from an "unknown tab" and get silently dropped — the
+ * actual root cause of the Match % sometimes never appearing. `message.requestingTabId` (echoed
+ * back by the scan tab from its own URL — see ScanReportMessage's doc comment) is what makes the
+ * relay and the tab-close both work regardless of whether this map survived. The job map is
+ * still consulted, but only as a best-effort ADDITION for a deduped second requester, and to
+ * clear the now-pointless timeout when one is still tracked.
+ */
 function handleScanReport(message: ScanReportMessage, scanTabId: number): void {
-  const job = findJobByTabId(scanTabId);
-  if (!job) return; // stale/unknown tab — its job was already closed (timeout, cancel, or done)
-
   const update: ScanUpdateMessage = {
     type: SCAN_UPDATE,
     profileKey: message.profileKey,
     profile: message.profile,
     collection: message.collection,
   };
-  notifyRequesters(job, update);
-  if (message.collection.status === "settled") closeJob(job.profileKey);
+
+  const recipients = new Set<number>([message.requestingTabId]);
+  const job = findJobByTabId(scanTabId);
+  if (job) for (const id of job.requestingTabIds) recipients.add(id);
+
+  for (const tabId of recipients) {
+    chrome.tabs.sendMessage(tabId, update).catch(() => {
+      // That requester tab may have closed or navigated away — nothing useful to do about a
+      // lost relay to it specifically; any OTHER recipient still gets its own delivery attempt.
+    });
+  }
+
+  if (message.collection.status === "settled") {
+    chrome.tabs.remove(scanTabId).catch(() => {
+      // Already closed — nothing to do.
+    });
+    if (job) {
+      clearTimeout(job.timeoutHandle);
+      jobsByProfileKey.delete(job.profileKey);
+    }
+  }
 }
 
 function handleScanCancel(message: ScanCancelMessage): void {

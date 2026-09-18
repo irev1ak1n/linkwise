@@ -88,10 +88,11 @@ describe("background/backgroundScan", () => {
     expect(createArgs.active).toBe(false);
     expect(String(createArgs.url)).toContain("/in/alex-chen/");
     expect(String(createArgs.url)).toContain("lwscan=1");
+    expect(String(createArgs.url)).toContain("lwreq=1"); // embeds the requester's own tab id
 
     const scanTabId = (await fake.create.mock.results[0].value).id;
     const collection = { ...initialCollectionState(0), status: "settled" as const };
-    dispatch({ type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection }, scanTabId);
+    dispatch({ type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection, requestingTabId: 1 }, scanTabId);
     await flush();
 
     const relayed = fake.sentTo(1);
@@ -111,7 +112,7 @@ describe("background/backgroundScan", () => {
 
     const scanTabId = (await fake.create.mock.results[0].value).id;
     const collection = { ...initialCollectionState(0), status: "settled" as const };
-    dispatch({ type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection }, scanTabId);
+    dispatch({ type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection, requestingTabId: 1 }, scanTabId);
     await flush();
 
     // Both original requesters get the result.
@@ -124,12 +125,30 @@ describe("background/backgroundScan", () => {
     await flush();
     const scanTabId = (await fake.create.mock.results[0].value).id;
 
-    dispatch({ type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection: initialCollectionState(0) }, scanTabId);
+    dispatch({ type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection: initialCollectionState(0), requestingTabId: 1 }, scanTabId);
     await flush();
 
     expect(fake.sentTo(1)).toHaveLength(1);
     expect(fake.sentTo(1)[0]).toMatchObject({ collection: { status: "collecting" } });
     expect(fake.remove).not.toHaveBeenCalled();
+  });
+
+  it("relays and closes correctly even when the job map has been wiped (a service-worker restart mid-scan) — the real bug this fixes", async () => {
+    // Regression coverage for the actual root cause of "Match % doesn't reliably appear": a
+    // confirmed-live MV3 service-worker restart between SCAN_REQUEST and a later SCAN_REPORT
+    // used to wipe jobsByProfileKey, making handleScanReport treat every later report as an
+    // "unknown tab" and silently drop it. Relaying now reads `requestingTabId` straight off the
+    // message itself (echoed back by the scan tab from its own URL), so it must keep working
+    // even with NO prior SCAN_REQUEST ever having been dispatched to this module instance at
+    // all — exactly what an empty jobsByProfileKey after a restart looks like.
+    const collection = { ...initialCollectionState(0), status: "settled" as const };
+    dispatch({ type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection, requestingTabId: 1 }, 999);
+    await flush();
+
+    expect(fake.sentTo(1)).toHaveLength(1);
+    expect(fake.sentTo(1)[0]).toMatchObject({ type: SCAN_UPDATE, profileKey: "alex-chen", collection: { status: "settled" } });
+    // The scan tab still gets closed on settle, purely from its own tab id — no job needed.
+    expect(fake.remove).toHaveBeenCalledWith(999);
   });
 
   it("fails the job and closes the tab if it never reports back before the timeout", async () => {
@@ -155,21 +174,24 @@ describe("background/backgroundScan", () => {
     expect(fake.sentTo(1)[0]).toMatchObject({ type: SCAN_FAILED, profileKey: "alex-chen" });
   });
 
-  it("closes the tab immediately on SCAN_CANCEL, ignoring any report that arrives afterward", async () => {
+  it("closes the tab immediately on SCAN_CANCEL, but still relays a late report that arrives afterward (it carries its own addressing)", async () => {
     dispatch({ type: SCAN_REQUEST, profileKey: "alex-chen" }, 1);
     await flush();
     const scanTabId = (await fake.create.mock.results[0].value).id;
 
     dispatch({ type: SCAN_CANCEL, profileKey: "alex-chen" }, 1);
     expect(fake.remove).toHaveBeenCalledWith(scanTabId);
+    fake.remove.mockClear();
 
-    // A stale report from the now-cancelled tab has nowhere to go — the job is already gone.
+    // A stale report from the now-cancelled tab still relays (it carries its own addressing —
+    // see the "job map wiped" test above for why that's now unconditional) and still closes the
+    // tab again — harmless, since the tab is already gone by then in the real Chrome API.
     dispatch(
-      { type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection: { ...initialCollectionState(0), status: "settled" as const } },
+      { type: SCAN_REPORT, profileKey: "alex-chen", profile: EMPTY_PROFILE, collection: { ...initialCollectionState(0), status: "settled" as const }, requestingTabId: 1 },
       scanTabId,
     );
     await flush();
-    expect(fake.sentTo(1)).toHaveLength(0);
+    expect(fake.sentTo(1)).toHaveLength(1);
   });
 
   it("sweeps orphaned lwscan tabs on a genuine onInstalled event, never on ordinary startup", async () => {
