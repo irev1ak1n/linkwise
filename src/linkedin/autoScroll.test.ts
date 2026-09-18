@@ -19,21 +19,10 @@ describe("createAutoScrollDriver - shouldScrollNow", () => {
     expect(driver.shouldScrollNow("profile:1", false, false)).toBe(false);
   });
 
-  it("scrolls at least once on the first call even when the real document end already looks reached", () => {
-    // Confirmed live: a profile's very first paint can already satisfy "near the bottom" purely
-    // because nothing below the fold has been added to the DOM yet — this must not be treated
-    // as "nothing more to load" before scrolling has ever actually been attempted.
+  it("does nothing once the real document end is already reached", () => {
     const clock = fakeClock();
     const driver = createAutoScrollDriver({ now: clock.now });
-    expect(driver.shouldScrollNow("profile:1", true, true)).toBe(true);
-  });
-
-  it("stops once the real document end is confirmed AFTER an attempted scroll", () => {
-    const clock = fakeClock();
-    const driver = createAutoScrollDriver({ now: clock.now, minIntervalMs: 100 });
-    expect(driver.shouldScrollNow("profile:1", true, true)).toBe(true); // first attempt, ignores atRealDocumentEnd
-    clock.advance(200);
-    expect(driver.shouldScrollNow("profile:1", true, true)).toBe(false); // now honored
+    expect(driver.shouldScrollNow("profile:1", true, true)).toBe(false);
   });
 
   it("scrolls on the first call for a fresh profile with an active goal, not yet at the end", () => {
@@ -114,41 +103,5 @@ describe("createAutoScrollDriver - hasTimedOut", () => {
     clock.advance(8000);
     expect(driver.hasTimedOut("profile:1")).toBe(true);
     expect(driver.hasTimedOut("profile:2")).toBe(false);
-  });
-});
-
-describe("createAutoScrollDriver - hasScrolledAtLeastOnce", () => {
-  it("is false before any scroll has been attempted", () => {
-    const clock = fakeClock();
-    const driver = createAutoScrollDriver({ now: clock.now });
-    expect(driver.hasScrolledAtLeastOnce("profile:1")).toBe(false);
-  });
-
-  it("becomes true once shouldScrollNow has actually returned true for the profile", () => {
-    const clock = fakeClock();
-    const driver = createAutoScrollDriver({ now: clock.now });
-    driver.shouldScrollNow("profile:1", true, false);
-    expect(driver.hasScrolledAtLeastOnce("profile:1")).toBe(true);
-  });
-
-  it("stays false when no goal is active, since shouldScrollNow never actually scrolled", () => {
-    const clock = fakeClock();
-    const driver = createAutoScrollDriver({ now: clock.now });
-    driver.shouldScrollNow("profile:1", false, false);
-    expect(driver.hasScrolledAtLeastOnce("profile:1")).toBe(false);
-  });
-
-  it("resets when the profile changes", () => {
-    const clock = fakeClock();
-    const driver = createAutoScrollDriver({ now: clock.now });
-    driver.shouldScrollNow("profile:1", true, false);
-    expect(driver.hasScrolledAtLeastOnce("profile:1")).toBe(true);
-    expect(driver.hasScrolledAtLeastOnce("profile:2")).toBe(false);
-  });
-
-  it("is false for a null profileKey", () => {
-    const clock = fakeClock();
-    const driver = createAutoScrollDriver({ now: clock.now });
-    expect(driver.hasScrolledAtLeastOnce(null)).toBe(false);
   });
 });

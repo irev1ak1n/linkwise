@@ -69,12 +69,7 @@ describe("content.ts bootstrap", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
-    vi.stubGlobal("chrome", {
-      // devTools.ts relays a dev-reload request via chrome.runtime.sendMessage — never actually
-      // triggered by these bootstrap tests, but must exist or module evaluation itself throws.
-      runtime: { reload: vi.fn(), sendMessage: vi.fn().mockResolvedValue(undefined) },
-      storage: installFakeChromeStorage(),
-    });
+    vi.stubGlobal("chrome", { runtime: { reload: vi.fn() }, storage: installFakeChromeStorage() });
     setProfilePage("Jordan Rivera");
     stubProfileUrl("jordan-rivera");
   });

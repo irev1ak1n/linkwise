@@ -119,37 +119,11 @@ describe("condenseForGoalText - long-document handling", () => {
   });
 });
 
-describe("parseGoalDraftFromText - last-resort fallback for text no specific pattern recognizes", () => {
-  it("still produces at least one criterion from the raw text itself, rather than returning nothing", () => {
-    // This parser is the guaranteed local fallback `generateCriteria()` falls back to whenever
-    // AI is unavailable or returns nothing (see ai/generateCriteria.ts) — and, since
-    // goalStore.ts's `ensureActiveGoalCriteria` can feed it a goal's own short, title-like NAME
-    // rather than a full "looking for X" sentence, it must never come back empty for reasonable
-    // non-empty input; an empty result here made that fallback unreliable exactly when the
-    // (non-deterministic) AI path was the one failing. Nothing here matches any of the more
-    // specific patterns/vocabulary above, so the whole phrase itself becomes one PREFERRED
-    // criterion — an honest "this is literally what was typed," never a fabricated guess at
-    // meaning it doesn't have.
+describe("parseGoalDraftFromText - never claims full understanding", () => {
+  it("leaves unrecognized free text out of the draft rather than guessing", () => {
     const draft = parseGoalDraftFromText("Blorptastic wobble ferns under a purple moon.");
-    expect(draft.criteria.length).toBeGreaterThan(0);
-    expect(draft.criteria[0].importance).toBe("PREFERRED");
-  });
-
-  it("splits on commas/'and' when present, rather than treating the whole phrase as one criterion", () => {
-    const draft = parseGoalDraftFromText("Multilingual, TSA-related contacts");
-    expect(draft.criteria.map((c) => c.label)).toEqual(["Multilingual", "TSA-related contacts"]);
-  });
-
-  it("reproduces the exact live-reported case: a short goal title with no 'looking for' framing", () => {
-    const draft = parseGoalDraftFromText("Multilingual TSA-Related Contacts");
-    expect(draft.criteria.length).toBeGreaterThan(0);
-  });
-
-  it("never overrides criteria already found by the more specific patterns above", () => {
-    const draft = parseGoalDraftFromText("Looking for FRC mentors.");
-    // The subject pattern already found a real criterion — the last-resort fallback must not
-    // also add the raw leftover text as a second, redundant one.
-    expect(draft.criteria).toHaveLength(1);
-    expect(draft.criteria[0].label.toLowerCase()).toContain("frc mentor");
+    // Nothing here matches any known pattern or vocabulary term — an honest empty-ish draft
+    // is correct, not a fabricated guess.
+    expect(draft.criteria).toEqual([]);
   });
 });

@@ -25,15 +25,6 @@ export interface AutoScrollDriver {
    * Call on every tick with the CURRENT profile key (resets all internal timing the moment this
    * changes), whether an active goal exists right now, and whether the page is already at its
    * real bottom. Returns true exactly when the caller should perform one scroll-to-bottom action.
-   *
-   * Deliberately scrolls at least once even when `atRealDocumentEnd` is already true on the very
-   * first call for a profile — confirmed live, a profile's very first paint can already satisfy
-   * "near the bottom" purely because nothing below the fold has been added to the DOM yet (no
-   * scrollable overflow exists until something is), which would otherwise make this look
-   * indistinguishable from "there's genuinely nothing more to load" and skip scrolling
-   * altogether, without ever giving LinkedIn's own lazy-loading a chance to fire at all.
-   * `atRealDocumentEnd` is honored as a stop condition only from the SECOND call onward, once at
-   * least one real attempt has actually been made.
    */
   shouldScrollNow(profileKey: string | null, goalActive: boolean, atRealDocumentEnd: boolean): boolean;
   /** True once `maxDurationMs` has elapsed since `profileKey` was first seen — the "stop
@@ -41,11 +32,6 @@ export interface AutoScrollDriver {
    * (the elapsed-time clock for a profile starts the moment its page is seen, regardless of
    * whether scrolling for it was ever attempted). */
   hasTimedOut(profileKey: string | null): boolean;
-  /** True once at least one scroll has actually been performed for `profileKey` — lets a caller
-   * (see content.ts) withhold "we've reached the real end" from anything ELSE that depends on
-   * it (the collection engine's own settle logic) until scrolling has had a genuine first
-   * chance, for the exact reason described on `shouldScrollNow` above. */
-  hasScrolledAtLeastOnce(profileKey: string | null): boolean;
 }
 
 const DEFAULT_MAX_DURATION_MS = 8000;
@@ -73,10 +59,7 @@ export function createAutoScrollDriver(options: AutoScrollOptions): AutoScrollDr
   function shouldScrollNow(profileKey: string | null, goalActive: boolean, atRealDocumentEnd: boolean): boolean {
     if (profileKey === null) return false;
     ensureTracking(profileKey);
-    if (!goalActive) return false;
-    // Only a scroll we've actually already attempted can confirm "the end" — see this method's
-    // doc comment for why the very first call ignores `atRealDocumentEnd` entirely.
-    if (atRealDocumentEnd && lastScrollAt !== null) return false;
+    if (!goalActive || atRealDocumentEnd) return false;
     if (now() - startedAt >= maxDurationMs) return false; // give up — the timeout fallback takes it from here
     if (lastScrollAt !== null && now() - lastScrollAt < minIntervalMs) return false;
     lastScrollAt = now();
@@ -89,11 +72,5 @@ export function createAutoScrollDriver(options: AutoScrollOptions): AutoScrollDr
     return now() - startedAt >= maxDurationMs;
   }
 
-  function hasScrolledAtLeastOnce(profileKey: string | null): boolean {
-    if (profileKey === null) return false;
-    ensureTracking(profileKey);
-    return lastScrollAt !== null;
-  }
-
-  return { shouldScrollNow, hasTimedOut, hasScrolledAtLeastOnce };
+  return { shouldScrollNow, hasTimedOut };
 }

@@ -2,26 +2,17 @@
 // the home of the whole in-page panel (the panel's React tree is mounted from here — see
 // panel/mount.ts — sharing this same JS realm, so no chrome.runtime messaging is needed between
 // collection and the panel at all). The LinkWise opener is shown on every page; the collection
-// engine only ever does real work while the current URL is a `/in/...` profile (see
-// collectionEngine.ts's `onLeaveProfile`). Reads only what LinkedIn has already rendered; never
-// fetches another page, never clicks anything.
+// engine only ever does real work while the current URL is a `/in/...` profile — everywhere
+// else it simply stays idle (see collectionEngine.ts's `onLeaveProfile`). Reads only what
+// LinkedIn has already rendered; never fetches another page, never clicks anything.
 //
 // One deliberate, bounded exception to "never scrolls on the user's behalf": while a profile
 // page is open AND an active goal already exists, this script scrolls the page toward its
 // bottom itself (see autoScroll.ts) so LinkedIn's lazy-loaded sections load without the user
-// needing to scroll manually — the whole point of automatic analysis. It is intentionally small,
-// controlled bursts toward whatever the CURRENT bottom is (never a single jump to an assumed
-// end), bounded to a few seconds total, and the user's original scroll position is restored once
-// collection settles (see `maybeRestoreScrollPosition`) rather than left wherever the scan ended.
-//
-// This project also tried scanning invisibly in a separate background tab (a `chrome.tabs.create
-// ({ active: false })` clone of the profile, reporting evidence back via chrome.runtime
-// messaging) specifically to avoid this visible scrolling. That architecture was reverted:
-// spreading collection across two tabs and a service-worker relay introduced several genuine,
-// hard-to-fully-close reliability gaps (a service-worker restart mid-scan, or a relay race,
-// could silently drop the one report that mattered), and reliability matters more here than the
-// visible scroll being slightly less polished. The scroll-position save/restore below is the
-// direct mitigation for the UX cost of that decision.
+// needing to scroll manually — the whole point of automatic analysis. It is intentionally
+// small, controlled bursts toward whatever the CURRENT bottom is (never a single jump to an
+// assumed end), bounded to a few seconds total, and only ever runs when there's an active goal
+// to actually analyze against.
 import { createCollectionEngine } from "./collectionEngine";
 import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
@@ -29,7 +20,7 @@ import { getPanelProfileData, setPanelProfileData } from "./panel/panelStore";
 import { destroyPanel, togglePanel } from "./panel/mount";
 import { installDevTooling } from "./devTools";
 import { createAutoScrollDriver } from "./autoScroll";
-import { ensureActiveGoalCriteria, getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
+import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
 
 /** How close to the bottom of the page counts as "reached the end," in pixels — tolerates
  * LinkedIn's footer/recommendation chrome without requiring a scroll to the literal last pixel. */
@@ -44,8 +35,8 @@ const TICK_INTERVAL_MS = 2500;
 const SETTLED_TICK_INTERVAL_MS = 6000;
 /** How long auto-scroll keeps trying, and how long collection waits overall, before giving up
  * and analyzing with whatever has actually loaded — matches the "finish in about 10 seconds, or
- * don't hang" goal: a few seconds of scrolling/loading here, leaving the rest of the budget for
- * criteria repair and the AI analysis call itself. */
+ * don't hang" goal: a few seconds of scrolling/loading here, leaving the rest of the ~10s budget
+ * for the analysis call itself. */
 const AUTO_SCROLL_MAX_DURATION_MS = 8000;
 
 declare global {
@@ -94,38 +85,9 @@ const autoScroll = createAutoScrollDriver({ now: () => Date.now(), maxDurationMs
 /** The signal actually fed to the collection engine: real scroll position OR — once
  * `AUTO_SCROLL_MAX_DURATION_MS` has passed for this profile — a best-effort "good enough, stop
  * waiting" override, so a profile that can't be fully auto-scrolled (an unusual layout, a very
- * long page) still reaches a final analysis instead of hanging in "collecting" forever.
- * Deliberately withholds a real `isNearDocumentEnd()` reading of true until auto-scroll has
- * actually attempted at least one scroll — confirmed live, a profile's very first paint can
- * already satisfy "near the bottom" purely because nothing below the fold has rendered yet,
- * which would otherwise let collection settle immediately with just the initial above-the-fold
- * content and never give auto-scroll a real chance to run at all. */
+ * long page) still reaches a final analysis instead of hanging in "collecting" forever. */
 function isNearDocumentEndOrTimedOut(): boolean {
-  const profileKey = engine.getProfileKey();
-  if (autoScroll.hasTimedOut(profileKey)) return true;
-  if (!autoScroll.hasScrolledAtLeastOnce(profileKey)) return false;
-  return isNearDocumentEnd();
-}
-
-/** The scroll position the user was actually at the moment a profile page was first seen —
- * captured in `onReset` below, before any auto-scrolling has happened — restored once
- * collection settles (see `maybeRestoreScrollPosition`) so the automatic scan never leaves the
- * user somewhere on the page they didn't choose to be. Keyed by profile key so switching
- * profiles and back still restores each one to its own original position. */
-const savedScrollPositions = new Map<string, number>();
-/** Profiles already restored — `maybeRestoreScrollPosition` runs on every tick once settled, but
- * must only actually move the page once per profile; restoring is itself a real scroll, which
- * would otherwise re-trigger this same check on the scroll event it causes. */
-const restoredProfileKeys = new Set<string>();
-
-function maybeRestoreScrollPosition(profileKey: string): void {
-  if (restoredProfileKeys.has(profileKey)) return;
-  restoredProfileKeys.add(profileKey);
-  const savedTop = savedScrollPositions.get(profileKey);
-  if (savedTop === undefined) return;
-  const container = findScrollContainer();
-  if (Math.abs(container.scrollTop - savedTop) < 2) return; // already there — nothing to do
-  container.scrollTo({ top: savedTop, behavior: "smooth" });
+  return isNearDocumentEnd() || autoScroll.hasTimedOut(engine.getProfileKey());
 }
 
 const engine = createCollectionEngine({
@@ -139,9 +101,7 @@ const engine = createCollectionEngine({
   },
   onReset: (profileKey) => {
     // A genuine navigation to a different profile — clear the displayed profile immediately so
-    // the panel never shows a moment of the previous person's evidence, and remember where the
-    // user actually was on the page before any auto-scrolling starts.
-    savedScrollPositions.set(profileKey, findScrollContainer().scrollTop);
+    // the panel never shows a moment of the previous person's evidence.
     setPanelProfileData({ profileKey, profile: null, collection: null });
   },
   onLeaveProfile: () => {
@@ -158,25 +118,8 @@ function tick(): void {
   ensureLinkWiseOpener(togglePanel);
   engine.tick();
 
-  const goal = selectActiveGoal(getGoalStoreState());
-  // Self-heals an active goal that has a stored description (or, failing that, a usable name —
-  // see goalStore.ts's own doc comment) but no scoreable criteria. Runs regardless of whether a
-  // profile is even open, so criteria are already ready by the time one is.
-  if (goal) ensureActiveGoalCriteria();
-
-  const profileKey = engine.getProfileKey();
-  if (profileKey === null) return;
-
-  if (engine.getCollectionState().status === "settled") {
-    // Never scroll again for a profile once it's settled — this is also what makes changing the
-    // active goal/criteria reuse already-collected evidence instead of re-scrolling: nothing
-    // about a goal change touches the collection engine's own state at all.
-    maybeRestoreScrollPosition(profileKey);
-    return;
-  }
-
-  const goalActive = goal !== null;
-  if (autoScroll.shouldScrollNow(profileKey, goalActive, isNearDocumentEnd())) {
+  const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
+  if (autoScroll.shouldScrollNow(engine.getProfileKey(), goalActive, isNearDocumentEnd())) {
     const container = findScrollContainer();
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }
@@ -198,7 +141,7 @@ function watchForChanges(): void {
   observer.observe(document.body, { childList: true, subtree: true });
   registerCleanup(() => observer.disconnect());
 
-  // Scroll position matters for "has the page reached the end" independent of DOM mutations.
+  // Scroll position matters for "has the user reached the end" independent of DOM mutations.
   // A scroll inside an inner container (see findScrollContainer above) never bubbles to
   // window, but a capture-phase listener on `document` still observes it regardless of which
   // element actually scrolls — covers both LinkedIn's inner-container layout and a plain

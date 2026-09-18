@@ -22,7 +22,6 @@ import {
   type Goal,
 } from "../../models/goal";
 import { GOALS_STORAGE_KEYS, loadGoals, loadSelectedGoalId, saveGoals, saveSelectedGoalId } from "../../storage/goalsRepository";
-import { generateCriteria } from "../../ai/generateCriteria";
 
 export interface GoalStoreState {
   goals: Goal[];
@@ -149,8 +148,16 @@ export interface DraftCriterionInput {
   sourceText?: string;
 }
 
-function buildCriteria(criteria: DraftCriterionInput[]): Criterion[] {
-  return criteria.map((c) =>
+/** Commits a reviewed batch of criteria (from the "Your ideal match" card's Create-criteria
+ * flow) as the ACTIVE goal's criteria — updating the currently-selected goal in place when one
+ * exists, rather than creating a new goal record every time a description is regenerated (the
+ * old "always a new goal" behavior made sense when goals were user-managed and switchable; the
+ * simplified panel has effectively one working search intent at a time). Only ever called from
+ * an explicit "Use these criteria" click — never automatically just because the description
+ * text changed, so a manually-edited active criterion is never silently replaced by a stale or
+ * unreviewed draft. */
+export function setActiveGoalCriteria(name: string, criteria: DraftCriterionInput[]): void {
+  const builtCriteria = criteria.map((c) =>
     createCriterion(c.label, c.importance, {
       category: c.category,
       groupId: c.groupId,
@@ -159,124 +166,14 @@ function buildCriteria(criteria: DraftCriterionInput[]): Criterion[] {
       sourceText: c.sourceText,
     }),
   );
-}
-
-/** Commits a freshly-generated batch of criteria as the ACTIVE goal's criteria — updating the
- * currently-selected goal in place when one exists, rather than creating a new goal record every
- * time a description is regenerated (the old "always a new goal" behavior made sense when goals
- * were user-managed and switchable; the simplified panel has effectively one working search
- * intent at a time). `description` is the raw text that produced these criteria — persisted
- * alongside them (see `Goal.description`'s own doc comment) so `ensureActiveGoalCriteria` below
- * can regenerate from it later if these criteria are ever somehow lost. Passing `undefined`
- * leaves whatever description the goal already had untouched (used by the auto-repair path
- * itself, which is re-deriving criteria from a description that's already stored, not setting a
- * new one). */
-export function setActiveGoalCriteria(name: string, criteria: DraftCriterionInput[], description?: string): void {
-  const builtCriteria = buildCriteria(criteria);
   const existing = state.goals.find((g) => g.id === state.selectedGoalId);
   if (existing) {
-    persistGoals(
-      state.goals.map((g) =>
-        g.id === existing.id
-          ? { ...g, name: name || g.name, criteria: builtCriteria, description: description ?? g.description }
-          : g,
-      ),
-    );
+    persistGoals(state.goals.map((g) => (g.id === existing.id ? { ...g, name: name || g.name, criteria: builtCriteria } : g)));
   } else {
-    const goal: Goal = { ...createGoal(name || "My search"), criteria: builtCriteria, description };
+    const goal: Goal = { ...createGoal(name || "My search"), criteria: builtCriteria };
     persistGoals([...state.goals, goal]);
     selectGoal(goal.id);
   }
-}
-
-const repairInFlight = new Set<string>();
-const lastRepairAttemptAt = new Map<string, number>();
-/** However often `ensureActiveGoalCriteria` gets called (every content.ts tick — every few
- * seconds while a goal is active), never retry a description that just failed more than once per
- * this cooldown. Deliberately short rather than a more conservative rate limit: confirmed live,
- * the backend's AI criteria generation is non-deterministic — the exact same description can
- * return real criteria on one call and an empty list on the next (a direct curl and the
- * extension's own fetch, moments apart, produced different results for the identical input) —
- * so a short retry window meaningfully increases the odds of landing a good result inside the
- * product's own "~10 seconds to a Match %" target, rather than leaving a goal stuck on a single
- * unlucky attempt for half a minute. Still long enough that a genuinely-down backend or an
- * unparseable description doesn't turn into a request on every single tick. */
-const REPAIR_RETRY_COOLDOWN_MS = 6000;
-
-/**
- * Self-heals an active goal that ended up with a genuinely EMPTY criteria array — an older goal
- * from before criteria were reliably persisted, a "Create criteria" attempt whose AI call failed
- * with no local-parser match either, or any other way the goal → criteria link could have
- * desynced. Re-runs the exact same AI-first/local-fallback generator `GoalSetupSection` itself
- * uses (see `ai/generateCriteria.ts`), then persists the result onto this SAME active goal —
- * never creating a new one — so the very next scoring pass (see linkedin/content.ts's `tick()`)
- * picks it up with no action from the user.
- *
- * Deliberately gated on `goal.criteria.length === 0`, NOT `!hasScoreableCriteria(goal)` — a goal
- * whose criteria are all EXCLUDED is a real, deliberate configuration (e.g. "anyone EXCEPT
- * recruiters"), not a broken one; regenerating it would silently overwrite the user's own
- * exclusions with newly-invented positive criteria. Only a truly empty array means the link
- * ever desynced in the first place.
- *
- * What it regenerates FROM: the goal's stored `description` when there is one, falling back to
- * its `name` otherwise. This matters for goals that predate the `description` field entirely —
- * one created before this repair mechanism existed has no description to recover, but its NAME
- * is itself a real, human-authored (or AI/local-generated) phrase describing who it's looking
- * for (e.g. "Multilingual TSA-Related Contacts"), so running that same phrase back through the
- * generator recovers real criteria without ever needing the user to retype anything. Confirmed
- * live: this is the only way an old, pre-migration saved goal can ever recover automatically,
- * since nothing else about it was ever persisted. A goal with neither field usable (should not
- * happen in practice — every goal has a name) has nothing left to regenerate from.
- *
- * Safe to call unconditionally on every tick: it no-ops instantly unless a genuine repair is
- * actually needed, never runs two repairs for the same goal concurrently, and never retries a
- * goal that just failed within `REPAIR_RETRY_COOLDOWN_MS` — unless `force` is set, which the
- * panel's own manual "Retry" action (see PanelApp.tsx) uses to bypass the cooldown for an
- * explicit, user-initiated attempt rather than waiting out whatever's left of it. `now` is
- * injectable purely for tests.
- */
-export function ensureActiveGoalCriteria(now: () => number = Date.now, force = false): void {
-  const goal = selectActiveGoal(state);
-  if (!goal || goal.criteria.length > 0) return;
-  const source = goal.description?.trim() || goal.name?.trim();
-  if (!source) return;
-  if (repairInFlight.has(goal.id)) return;
-  const lastAttempt = lastRepairAttemptAt.get(goal.id);
-  if (!force && lastAttempt !== undefined && now() - lastAttempt < REPAIR_RETRY_COOLDOWN_MS) return;
-
-  repairInFlight.add(goal.id);
-  lastRepairAttemptAt.set(goal.id, now());
-  void generateCriteria(source)
-    .then((result) => {
-      if (result.criteria.length === 0) return; // genuinely nothing generatable — leave as is
-      // The user may have switched to (or replaced) the active goal while this request was in
-      // flight — never apply a stale regeneration to whatever is active now.
-      if (selectActiveGoal(state)?.id !== goal.id) return;
-      persistGoals(
-        state.goals.map((g) =>
-          g.id === goal.id
-            ? { ...g, name: result.name || g.name, criteria: buildCriteria(result.criteria), description: g.description ?? source }
-            : g,
-        ),
-      );
-    })
-    .finally(() => repairInFlight.delete(goal.id));
-}
-
-/** Persists just the description onto the currently-active goal, touching nothing else —
- * specifically for `GoalSetupSection`'s "Create criteria" failure path: when generation finds
- * nothing usable, the criteria must NOT be overwritten (a failed regeneration attempt must never
- * wipe an already-working goal's criteria), but the description is worth keeping if a goal is
- * already active, so `ensureActiveGoalCriteria` can retry automatically later without the user
- * retyping anything. A no-op when no goal is active yet — there is nothing to attach a
- * description to, and inventing a brand-new goal from a description that just failed to produce
- * any criteria at all would only create another criteria-less goal, not fix anything. */
-export function rememberGoalDescription(description: string): void {
-  const trimmed = description.trim();
-  if (!trimmed) return;
-  const existing = selectActiveGoal(state);
-  if (!existing || existing.description === trimmed) return;
-  persistGoals(state.goals.map((g) => (g.id === existing.id ? { ...g, description: trimmed } : g)));
 }
 
 /** Notes are free-form and never read by matching/scoring — persisted alongside the goal purely

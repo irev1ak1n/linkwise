@@ -73,26 +73,6 @@ export interface Goal {
   /** Free-form notes the user attaches to this search intent — persisted alongside the goal,
    * never read by matching/scoring. Purely a place to jot context for themselves. */
   notes?: string;
-  /** The raw text the user typed into "Who are you looking for?" — persisted alongside the
-   * generated criteria (see linkedin/panel/goalStore.ts's `setActiveGoalCriteria`), never read
-   * by matching/scoring itself. Its one job is letting a goal self-heal: if criteria generation
-   * ever silently produced nothing usable (a failed AI call, an unusual phrase the local parser
-   * doesn't recognize) and the active goal is left with no scoreable criteria, this is what
-   * `ensureActiveGoalCriteria` re-runs generation from automatically, with no need for the user
-   * to retype anything. Undefined for goals that predate this field, or the built-in starter
-   * examples (see `defaultGoals` below), which already ship with real criteria and never need
-   * to regenerate anything. */
-  description?: string;
-}
-
-/** Whether a goal has at least one criterion that can actually contribute to a Match % —
- * EXCLUDED criteria only ever disqualify, never score (see matching/scoreProfile.ts's
- * `computeMatchResult`), so a goal made up entirely of EXCLUDED entries is, for scoring
- * purposes, exactly as criteria-less as one with an empty array. The single source of truth
- * both the scorer and the auto-repair path (`ensureActiveGoalCriteria`) use to answer "does this
- * goal actually have something to score with" — never re-derived separately by either. */
-export function hasScoreableCriteria(goal: Goal): boolean {
-  return goal.criteria.some((c) => c.importance !== "EXCLUDED");
 }
 
 let idCounter = 0;

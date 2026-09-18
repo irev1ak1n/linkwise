@@ -12,18 +12,17 @@ interface AnalysisViewProps {
   result: MatchResult;
   goal: Goal;
   profile: LinkedInProfile;
-  /** Always already resolved by the time this component ever renders — "ready" or
-   * "unavailable" only, never "idle"/"loading" (see analysisPipeline.ts's `computeAnalysisPipelineStage`,
-   * which is what gates PanelApp from mounting this component at all until AI has settled one
-   * way or the other). */
-  aiState: Extract<AiAnalysisState, { status: "ready" } | { status: "unavailable" }>;
+  /** The backend/OpenAI analysis's current state — "idle"/"loading"/"ready"/"unavailable".
+   * LinkWise never waits on this to show something: the local `result` above always renders
+   * immediately, and this view swaps in the AI-enhanced version the moment it's ready. */
+  aiState: AiAnalysisState;
 }
 
-/** The final, non-provisional Profile Analysis — only ever rendered once the ENTIRE pipeline
- * (scan, criteria, local score, AI analysis) has resolved, never shown as a preview of an
- * in-progress read. This is a statement of relevance to the user's current goal, not a judgment
- * of the person — the same profile can score very differently under a different goal (see
- * scoreProfile.test.ts's own worked example).
+/** State B of the two-stage panel: the final, non-provisional Profile Analysis — only ever
+ * rendered once collection has settled (or the user explicitly asked to analyze early), never
+ * shown as a preview of an in-progress read. This is a statement of relevance to the user's
+ * current goal, not a judgment of the person — the same profile can score very differently
+ * under a different goal (see scoreProfile.test.ts's own worked example).
  *
  * Shows exactly ONE final analysis, never a local one and an AI one side by side (see
  * src/ai/mergeIntoAnalysis.ts) — the Match %/recommendation are always deterministic; only the
@@ -49,9 +48,8 @@ export function AnalysisView({ result, goal, profile, aiState }: AnalysisViewPro
         {scoreLabel && <div className="lw-summary-card__score">{scoreLabel}</div>}
         <div className="lw-summary-card__target">For: {goal.name}</div>
 
-        {aiState.status === "unavailable" && aiState.reason !== "not_applicable" && (
-          <p className="lw-ai-status">AI analysis unavailable — showing local analysis.</p>
-        )}
+        {aiState.status === "loading" && <p className="lw-ai-status">Analyzing profile…</p>}
+        {aiState.status === "unavailable" && <p className="lw-ai-status">AI analysis unavailable — showing local analysis.</p>}
         {final.source === "ai" && <p className="lw-ai-status lw-ai-status--ai">AI-enhanced analysis</p>}
 
         {state.kind === "low_confidence" && (

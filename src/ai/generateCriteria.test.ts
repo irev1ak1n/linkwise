@@ -42,14 +42,10 @@ describe("generateCriteria - falls back to the local parser", () => {
     expect(result.criteria.length).toBeGreaterThan(0);
   });
 
-  it("still produces at least one criterion via the local parser's own last-resort fallback when AI is unavailable and nothing more specific matches", async () => {
-    // The local parser is the guaranteed fallback path — it must never come back empty for
-    // non-empty input (see nlp/goalTextParser.ts's own last-resort step), since an empty local
-    // result here is exactly what `ensureActiveGoalCriteria` (see goalStore.ts) treats as
-    // "genuinely nothing generatable" and gives up on.
+  it("returns an empty result (never throws) when both AI and the local parser find nothing", async () => {
     const requestGenerateCriteria = fakeRequest({ status: "unavailable", reason: "openai_error" });
     const result = await generateCriteria("asdf", { requestGenerateCriteria });
     expect(result.source).toBe("local");
-    expect(result.criteria.length).toBeGreaterThan(0);
+    expect(result.criteria).toEqual([]);
   });
 });

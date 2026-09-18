@@ -6,10 +6,7 @@ import type { DraftCriterionInput } from "./goalStore";
 
 interface GoalSetupSectionProps {
   goal: Goal | null;
-  onSetActiveCriteria: (name: string, criteria: DraftCriterionInput[], description: string) => void;
-  /** Persists just the description when generation finds nothing usable — see
-   * goalStore.ts's own doc comment on why a failed attempt must not touch criteria. */
-  onRememberDescription: (description: string) => void;
+  onSetActiveCriteria: (name: string, criteria: DraftCriterionInput[]) => void;
 }
 
 /**
@@ -20,7 +17,7 @@ interface GoalSetupSectionProps {
  * that goal shows up as the profile analysis right below it. This intentionally trades the old
  * criteria-by-criteria review UI for a single, focused flow: describe -> see the match.
  */
-export function GoalSetupSection({ goal, onSetActiveCriteria, onRememberDescription }: GoalSetupSectionProps) {
+export function GoalSetupSection({ goal, onSetActiveCriteria }: GoalSetupSectionProps) {
   const [text, setText] = useState("");
   // True while a "Create criteria" request is out to the AI generator (or falling back to the
   // local parser) — see generateFromText. Never left true on completion: the finally block below
@@ -34,17 +31,13 @@ export function GoalSetupSection({ goal, onSetActiveCriteria, onRememberDescript
     setGenerating(true);
     setMessage(null);
     try {
-      const description = text.trim();
       const result = await generateCriteria(text);
       if (result.criteria.length === 0) {
         setMessage("We couldn't find enough detail in that description — try adding a role, location, or experience.");
-        // Keep the description around (when a goal is already active) so LinkWise can retry
-        // generating criteria from it automatically later, without the user retyping anything.
-        onRememberDescription(description);
         return;
       }
       onSetActiveCriteria(
-        result.name || description || "My search",
+        result.name || text.trim() || "My search",
         result.criteria.map((c) => ({
           label: c.label,
           importance: c.importance,
@@ -54,7 +47,6 @@ export function GoalSetupSection({ goal, onSetActiveCriteria, onRememberDescript
           operator: c.operator,
           sourceText: c.sourceText,
         })),
-        description,
       );
       setMessage(goal ? "Updated your active goal." : "Goal created — analyzing any open profile now.");
     } finally {
