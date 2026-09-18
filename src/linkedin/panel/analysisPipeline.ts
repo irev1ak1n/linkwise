@@ -50,31 +50,47 @@ export interface AnalysisPipelineInput {
  * should score straight through to a null-percent `ready` result (AnalysisView already renders
  * that honestly), never sit in a "still figuring out your goal" loading state that nothing will
  * ever resolve.
+ *
+ * `timedOut` only ever demotes a stage that would otherwise still be `loading` into `failed` — it
+ * is checked at each loading branch individually, never up front. A pipeline that already reached
+ * `ready` (or `not_enough_info`) before its patience budget elapsed must stay there for as long as
+ * the panel stays open: PanelApp.tsx's timeout timer runs for the lifetime of the mounted
+ * component, not just until the first resolution, so an unconditional check here would silently
+ * flip an already-successful Match % back to "Analysis failed." the moment the user left the
+ * panel open past the budget — exactly the "AI/pipeline hiccups must never destroy an already-
+ * valid deterministic score" guarantee this product depends on.
  */
 export function computeAnalysisPipelineStage(input: AnalysisPipelineInput): AnalysisPipelineStage {
   const { profile, collection, goal, result, aiState, aiExpected, timedOut } = input;
 
-  if (timedOut) return { kind: "failed" };
+  if (!profile || !collection || collection.status !== "settled") {
+    return timedOut ? { kind: "failed" } : { kind: "loading", label: "Scanning profile…" };
+  }
 
-  if (!profile || !collection) return { kind: "loading", label: "Scanning profile…" };
-  if (collection.status !== "settled") return { kind: "loading", label: "Scanning profile…" };
-
-  if (goal.criteria.length === 0) return { kind: "loading", label: "Understanding your goal…" };
+  if (goal.criteria.length === 0) {
+    return timedOut ? { kind: "failed" } : { kind: "loading", label: "Understanding your goal…" };
+  }
 
   // The scan genuinely found nothing to read at all (a hard failure inside the background scan,
   // or a profile LinkedIn simply won't render anything for) — never fabricate a score from an
   // empty profile; this is the ONLY legitimate route to "not enough info" left in the pipeline.
   if (!profile.extracted) return { kind: "not_enough_info" };
 
-  if (!result) return { kind: "loading", label: "Calculating match…" };
+  if (!result) {
+    return timedOut ? { kind: "failed" } : { kind: "loading", label: "Calculating match…" };
+  }
 
   if (!aiExpected) {
     // Deliberately never requested (e.g. a null-percent result with nothing meaningful to
     // enhance) — resolved by construction, never "idle" masquerading as done.
     return { kind: "ready", result, aiState: { status: "unavailable", reason: "not_applicable" } };
   }
-  if (aiState.status === "idle") return { kind: "loading", label: "Calculating match…" };
-  if (aiState.status === "loading") return { kind: "loading", label: "Finalizing analysis…" };
+  if (aiState.status === "idle") {
+    return timedOut ? { kind: "failed" } : { kind: "loading", label: "Calculating match…" };
+  }
+  if (aiState.status === "loading") {
+    return timedOut ? { kind: "failed" } : { kind: "loading", label: "Finalizing analysis…" };
+  }
 
   // aiState is genuinely resolved here — "ready" or "unavailable" — nothing left to wait on.
   return { kind: "ready", result, aiState };

@@ -15,7 +15,6 @@ function flush(): Promise<void> {
 interface FakeChrome {
   onMessageListeners: Listener[];
   onInstalledListeners: Array<() => void>;
-  onRemovedListeners: Array<(tabId: number) => void>;
   reload: ReturnType<typeof vi.fn>;
   tabsQuery: ReturnType<typeof vi.fn>;
   tabsGet: ReturnType<typeof vi.fn>;
@@ -24,13 +23,7 @@ interface FakeChrome {
 }
 
 /**
- * background/index.ts now also installs backgroundScan.ts (see installBackgroundScan) alongside
- * the dev-reinjection logic these tests target — its own chrome.tabs.onRemoved.addListener call
- * happens unconditionally at install time, so the fake below must provide it (plus the other
- * chrome.tabs.* surface it touches) purely so module evaluation doesn't throw; none of these
- * tests exercise scan behavior itself (see backgroundScan.test.ts for that).
- *
- * Tabs default to a real LinkedIn URL — reinjectIntoOpenLinkedInTabs now re-checks each tab via
+ * Tabs default to a real LinkedIn URL — reinjectIntoOpenLinkedInTabs re-checks each tab via
  * `chrome.tabs.get` right before injecting (see its own doc comment), so a fake tab needs a
  * matching `url` to be injected into at all; pass `url: undefined` explicitly to simulate one
  * that's already navigated away by the time that check runs.
@@ -40,7 +33,6 @@ function installFakeChrome(tabs: Array<{ id: number; url?: string }> = []): Fake
   const fake: FakeChrome = {
     onMessageListeners: [],
     onInstalledListeners: [],
-    onRemovedListeners: [],
     reload: vi.fn(),
     tabsQuery: vi.fn().mockResolvedValue(tabs),
     tabsGet: vi.fn().mockImplementation((tabId: number) => {
@@ -67,14 +59,6 @@ function installFakeChrome(tabs: Array<{ id: number; url?: string }> = []): Fake
     tabs: {
       query: fake.tabsQuery,
       get: fake.tabsGet,
-      create: vi.fn().mockResolvedValue({ id: 999 }),
-      remove: vi.fn().mockResolvedValue(undefined),
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      onRemoved: {
-        addListener: (listener: (tabId: number) => void) => {
-          fake.onRemovedListeners.push(listener);
-        },
-      },
     },
     scripting: {
       executeScript: fake.executeScript,

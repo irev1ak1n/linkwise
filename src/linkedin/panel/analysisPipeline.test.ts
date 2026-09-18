@@ -46,8 +46,23 @@ const base: AnalysisPipelineInput = {
 };
 
 describe("computeAnalysisPipelineStage", () => {
-  it("shows the failure stage first, regardless of anything else looking otherwise ready", () => {
-    expect(computeAnalysisPipelineStage({ ...base, timedOut: true })).toEqual({ kind: "failed" });
+  it("times out to 'failed' while still loading (e.g. AI request still in flight)", () => {
+    expect(computeAnalysisPipelineStage({ ...base, aiState: { status: "loading" }, timedOut: true })).toEqual({
+      kind: "failed",
+    });
+  });
+
+  it("never demotes an already-ready stage back to 'failed' just because the panel stayed open past the timeout — a valid Match % must survive", () => {
+    expect(computeAnalysisPipelineStage({ ...base, timedOut: true })).toEqual(
+      computeAnalysisPipelineStage({ ...base, timedOut: false }),
+    );
+    expect(computeAnalysisPipelineStage({ ...base, timedOut: true }).kind).toBe("ready");
+  });
+
+  it("never demotes an already-resolved not_enough_info stage back to 'failed' on a stale timeout", () => {
+    expect(computeAnalysisPipelineStage({ ...base, profile: profile(false), timedOut: true })).toEqual({
+      kind: "not_enough_info",
+    });
   });
 
   it("loads with 'Scanning profile…' while profile/collection haven't arrived yet", () => {
