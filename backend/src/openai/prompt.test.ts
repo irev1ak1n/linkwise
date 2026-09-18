@@ -90,11 +90,46 @@ describe("SYSTEM_PROMPT - unchanged guardrail-critical rules", () => {
     }
   });
 
-  it("still states the deterministic system has final say on score and recommendation", () => {
-    expect(SYSTEM_PROMPT).toMatch(/final say on the displayed match score, disqualification status, and final recommendation label/);
-  });
-
   it("still forbids inventing evidence IDs or unsupported claims", () => {
     expect(SYSTEM_PROMPT).toMatch(/Never invent an evidence ID/);
+  });
+});
+
+describe("SYSTEM_PROMPT - AI-first scoring", () => {
+  it("tells the model it directly determines the final matchPercent and confidenceLevel", () => {
+    expect(SYSTEM_PROMPT).toMatch(/YOU DETERMINE THE FINAL SCORE/);
+    expect(SYSTEM_PROMPT).toMatch(/not recomputed by a separate formula afterward/);
+  });
+
+  it("states that a confirmed Excluded disqualification is the one thing that can still override the score", () => {
+    expect(SYSTEM_PROMPT).toMatch(/confirmed by strong, grounded evidence, the system automatically disqualifies/);
+  });
+
+  it("gives calibration bands for matchPercent without presenting them as a rigid formula", () => {
+    expect(SYSTEM_PROMPT).toMatch(/calibration, not a rigid formula/);
+    expect(SYSTEM_PROMPT).toMatch(/90-100/);
+    expect(SYSTEM_PROMPT).toMatch(/0-29/);
+  });
+
+  it("gives Low/Medium/High confidence guidance distinct from match quality", () => {
+    expect(SYSTEM_PROMPT).toMatch(/"high": the profile contains enough direct evidence/);
+    expect(SYSTEM_PROMPT).toMatch(/"low": the profile is sparse/);
+    expect(SYSTEM_PROMPT).toMatch(/do not lower the score just because confidence isn't "high"/);
+  });
+
+  it("gives concrete semantic-equivalence examples (Webmaster, tutor, languages, membership, team captain)", () => {
+    expect(SYSTEM_PROMPT).toMatch(/"Webmaster".+direct evidence of web development skills/);
+    expect(SYSTEM_PROMPT).toMatch(/"Programming Tutor" is direct evidence of programming experience/);
+    expect(SYSTEM_PROMPT).toMatch(/multiple listed languages are direct evidence of being multilingual/);
+    expect(SYSTEM_PROMPT).toMatch(/"Team Captain" title is evidence of leadership/);
+  });
+
+  it("still preserves internship/interest/participation distinctions", () => {
+    expect(SYSTEM_PROMPT).toMatch(/an internship is not automatically senior professional experience/);
+    expect(SYSTEM_PROMPT).toMatch(/expressing interest in something is not the same as having experience in it/);
+  });
+
+  it("instructs the model to reason holistically from the goal description when no criteria list is supplied", () => {
+    expect(SYSTEM_PROMPT).toMatch(/If no criteria list is provided.+reason directly from the Goal description text itself/);
   });
 });

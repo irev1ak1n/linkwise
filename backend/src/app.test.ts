@@ -31,6 +31,8 @@ function validBody() {
 
 function fakeAnalysisResponse(overrides: Partial<AnalysisResponse> = {}): AnalysisResponse {
   return {
+    matchPercent: 88,
+    confidenceLevel: "high",
     criterionAssessments: [{ criterionId: "c1", assessment: "strong", confidence: 0.9, evidenceIds: ["experience:0"], rationale: "Mentored a robotics team." }],
     summary: "This profile shows direct FRC mentoring experience.",
     strengths: [{ title: "Strong FRC mentor", explanation: "Mentored a robotics team for 3 years.", evidenceIds: ["experience:0"] }],
@@ -43,7 +45,6 @@ function fakeAnalysisResponse(overrides: Partial<AnalysisResponse> = {}): Analys
     contactRecommendationReason: "Direct mentoring experience makes this worth a message.",
     saveRecommendation: "save",
     saveRecommendationReason: "Strong match worth keeping.",
-    evidenceConfidence: 0.9,
     ...overrides,
   };
 }
@@ -68,10 +69,11 @@ describe("POST /api/analyze-profile - API key missing", () => {
 });
 
 describe("POST /api/analyze-profile - malformed request", () => {
-  it("rejects a request with no criteria as 400, never 500", async () => {
+  it("rejects a goal with neither criteria nor a description as 400, never 500", async () => {
     const app = createApp({ config: loadConfig({ OPENAI_API_KEY: "sk-test" }) });
     const body = validBody();
     body.goal.criteria = [];
+    body.goal.description = "";
     const res = await request(app).post("/api/analyze-profile").send(body);
     expect(res.status).toBe(400);
   });
@@ -122,10 +124,25 @@ describe("POST /api/analyze-profile - successful AI analysis", () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ai_analysis");
     expect(res.body.model).toBe("test-model");
-    expect(res.body.result.scorePercent).toBe(100);
+    // The score is now AI's own matchPercent, passed straight through — not recomputed by the
+    // deterministic weighted-average engine (which alone would have said 100 here).
+    expect(res.body.result.scorePercent).toBe(88);
     expect(res.body.result.reasons).toHaveLength(1);
     expect(res.body.narrative.strengths).toHaveLength(1);
     expect(res.body.narrative.summary).toContain("FRC mentoring");
+  });
+
+  it("reasons from the goal's free-text description alone when no local criteria exist — empty criteria never blocks AI analysis", async () => {
+    const client: AnalysisClient = { analyze: () => Promise.resolve(fakeAnalysisResponse({ criterionAssessments: [] })) };
+    const app = createApp({ config: loadConfig({ OPENAI_API_KEY: "sk-test" }), client });
+    const body = validBody();
+    body.goal.criteria = [];
+    body.localAnalysis.criterionResults = [];
+
+    const res = await request(app).post("/api/analyze-profile").send(body);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ai_analysis");
+    expect(res.body.result.scorePercent).toBe(88);
   });
 
   it("never returns the API key anywhere in the response", async () => {

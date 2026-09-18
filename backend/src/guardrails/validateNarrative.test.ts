@@ -4,6 +4,8 @@ import type { AnalysisResponse } from "../openai/responseSchema";
 
 function response(overrides: Partial<AnalysisResponse> = {}): AnalysisResponse {
   return {
+    matchPercent: 65,
+    confidenceLevel: "medium",
     criterionAssessments: [],
     summary: "A concise summary.",
     strengths: [],
@@ -16,7 +18,6 @@ function response(overrides: Partial<AnalysisResponse> = {}): AnalysisResponse {
     contactRecommendationReason: "Worth a short message to confirm details.",
     saveRecommendation: "consider_saving",
     saveRecommendationReason: "Keep for reference.",
-    evidenceConfidence: 0.7,
     ...overrides,
   };
 }
@@ -117,6 +118,13 @@ describe("validateNarrative - strengths and gaps coexist", () => {
     );
     expect(validated.gaps).toHaveLength(1);
     expect(validated.gaps[0]!.title).toBe("Sponsor presentation experience unconfirmed");
+  });
+});
+
+describe("validateNarrative - confidenceLevel passthrough", () => {
+  it("passes the AI's own confidenceLevel through unchanged", () => {
+    expect(validateNarrative(response({ confidenceLevel: "low" }), new Set()).confidenceLevel).toBe("low");
+    expect(validateNarrative(response({ confidenceLevel: "high" }), new Set()).confidenceLevel).toBe("high");
   });
 });
 

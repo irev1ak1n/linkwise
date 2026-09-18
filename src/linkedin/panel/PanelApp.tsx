@@ -4,6 +4,7 @@ import { useGoalStore } from "./useGoalStore";
 import { useAiAnalysis } from "./useAiAnalysis";
 import { GoalSetupSection } from "./GoalSetupSection";
 import { ScanningView } from "./ScanningView";
+import { LoadingView } from "./LoadingView";
 import { AnalysisView } from "./AnalysisView";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
 
@@ -28,11 +29,14 @@ interface PanelAppProps {
  * `forced` (via the Scanning view's own manual override) still exists purely as a fallback for
  * the rare page collection can't finish quickly on its own, never as a required step.
  *
- * Analysis itself is two-layered: the deterministic local result renders immediately (as always
- * — LinkWise is never unusable without AI), while `useAiAnalysis` asks the backend's OpenAI
- * reasoning layer to improve on it in the background. AnalysisView shows the local result right
- * away and swaps in the AI-enhanced one the moment it's ready, never blocking or freezing the
- * page in between.
+ * Analysis is AI-first: OpenAI's own `matchPercent`/`confidenceLevel` are the numbers actually
+ * shown (see backend/src/scoring.ts), not a deterministic recomputation — so nothing is shown at
+ * all while that reasoning is still in flight. Once collection settles, the profile section shows
+ * only a loading state ("Preparing results…" / "Analyzing match…") until `useAiAnalysis` genuinely
+ * resolves one way or the other; AnalysisView then mounts once, fully formed, using the AI result
+ * when it succeeded or the local deterministic one (clearly labeled) when AI is unavailable.
+ * Never a temporary 0%, a stale previous result, or the local score shown as a placeholder while
+ * AI is still pending.
  */
 export function PanelApp({ onClose }: PanelAppProps) {
   const { profileKey, profile, collection } = useCollectionData();
@@ -74,10 +78,15 @@ export function PanelApp({ onClose }: PanelAppProps) {
         />
       );
     }
-    if (result) {
-      return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} />;
-    }
-    return null;
+    if (!result) return null;
+
+    // Collection has settled, but the AI reasoning layer hasn't resolved yet — show ONLY a
+    // loading state. Never the local score, never a stale result: AnalysisView doesn't mount
+    // until aiState is genuinely "ready" or "unavailable" (see this component's own doc comment).
+    if (aiState.status === "idle") return <LoadingView label="Preparing results…" />;
+    if (aiState.status === "loading") return <LoadingView label="Analyzing match…" />;
+
+    return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} />;
   }
 
   return (

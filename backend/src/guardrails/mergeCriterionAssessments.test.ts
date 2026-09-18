@@ -30,6 +30,8 @@ function aiAssessment(overrides: Partial<CriterionAssessmentResponse> = {}): Cri
 
 function aiResponse(assessments: CriterionAssessmentResponse[]): AnalysisResponse {
   return {
+    matchPercent: 60,
+    confidenceLevel: "medium",
     criterionAssessments: assessments,
     summary: "Summary",
     strengths: [],
@@ -42,7 +44,6 @@ function aiResponse(assessments: CriterionAssessmentResponse[]): AnalysisRespons
     contactRecommendationReason: "Reason",
     saveRecommendation: "consider_saving",
     saveRecommendationReason: "Reason",
-    evidenceConfidence: 0.8,
   };
 }
 

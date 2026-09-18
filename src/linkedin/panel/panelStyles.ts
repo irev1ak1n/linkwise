@@ -195,6 +195,34 @@ export function getPanelStyles(widthPx: number): string {
     width: 100%;
   }
 
+  /* Waiting on AI (collection already settled, reasoning still in flight) */
+  .lw-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 32px 16px;
+    text-align: center;
+  }
+  .lw-loading__spinner {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 3px solid #e4e9ed;
+    border-top-color: #0a66c2;
+    animation: lw-spin 0.8s linear infinite;
+  }
+  .lw-loading__label {
+    margin: 0;
+    font-size: 12.5px;
+    color: #56687a;
+  }
+  @keyframes lw-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   /* Analysis state */
   .lw-analysis {
     display: flex;

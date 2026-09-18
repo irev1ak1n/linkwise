@@ -7,6 +7,8 @@ import type { AnalysisResponse } from "./responseSchema";
 
 function fakeAnalysisResponse(overrides: Partial<AnalysisResponse> = {}): AnalysisResponse {
   return {
+    matchPercent: 50,
+    confidenceLevel: "medium",
     criterionAssessments: [],
     summary: "A profile summary.",
     strengths: [],
@@ -19,7 +21,6 @@ function fakeAnalysisResponse(overrides: Partial<AnalysisResponse> = {}): Analys
     contactRecommendationReason: "Worth a message.",
     saveRecommendation: "consider_saving",
     saveRecommendationReason: "Keep for reference.",
-    evidenceConfidence: 0.5,
     ...overrides,
   };
 }

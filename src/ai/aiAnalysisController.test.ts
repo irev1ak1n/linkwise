@@ -37,6 +37,7 @@ function readyOutcome(): Extract<AiAnalysisOutcome, { status: "ok" }> {
       recommendationReason: "x",
       contactRecommendationReason: "x",
       saveRecommendationReason: "x",
+      confidenceLevel: "medium",
     },
   };
 }

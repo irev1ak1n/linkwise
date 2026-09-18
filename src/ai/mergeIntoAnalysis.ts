@@ -11,13 +11,16 @@ import type { ProfileEvidence } from "../models/evidence";
 import type { MatchResult } from "../matching/scoreProfile";
 import { buildProfileAnalysis, type ProfileAnalysis } from "../matching/profileAnalysis";
 import { buildContactGuidance, type ContactGuidance } from "../matching/contactGuidance";
-import type { AiNarrativeDTO } from "./apiTypes";
+import type { AiConfidenceLevel, AiNarrativeDTO } from "./apiTypes";
 
 export interface FinalAnalysis {
   result: MatchResult;
   analysis: ProfileAnalysis;
   guidance: ContactGuidance;
   source: "ai" | "local";
+  /** OpenAI's own categorical confidence label — undefined for local-only analysis, which has
+   * no such judgment of its own beyond the numeric MatchResult.confidence. */
+  confidenceLevel?: AiConfidenceLevel;
 }
 
 export interface AiAnalysisData {
@@ -80,5 +83,6 @@ export function buildFinalAnalysis(
       saveReason: ai.narrative.saveRecommendationReason || undefined,
     },
     source: "ai",
+    confidenceLevel: ai.narrative.confidenceLevel,
   };
 }

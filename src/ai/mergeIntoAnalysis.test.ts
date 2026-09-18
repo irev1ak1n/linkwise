@@ -30,6 +30,7 @@ function narrative(overrides: Partial<AiNarrativeDTO> = {}): AiNarrativeDTO {
     recommendationReason: "x",
     contactRecommendationReason: "x",
     saveRecommendationReason: "x",
+    confidenceLevel: "medium",
     ...overrides,
   };
 }
@@ -146,6 +147,26 @@ describe("buildFinalAnalysis - AI available", () => {
     expect(final.analysis.experienceLevelReason).toBe("Direct Python skill is listed on the profile.");
     expect(final.guidance.contactReason).toBe("Worth a quick message to confirm depth.");
     expect(final.guidance.saveReason).toBe("Keep for this search.");
+  });
+
+  it("exposes AI's own confidenceLevel at the top level", () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+    const p = profile({ skills: ["Python"] });
+    const localResult = scoreProfileAgainstGoal(goal, p);
+    const evidence = buildProfileEvidence(p);
+
+    const final = buildFinalAnalysis(goal, p, evidence, localResult, { result: localResult, narrative: narrative({ confidenceLevel: "low" }) });
+    expect(final.confidenceLevel).toBe("low");
+  });
+
+  it("leaves confidenceLevel undefined for local-only analysis", () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+    const p = profile({ skills: ["Python"] });
+    const localResult = scoreProfileAgainstGoal(goal, p);
+    const evidence = buildProfileEvidence(p);
+
+    const final = buildFinalAnalysis(goal, p, evidence, localResult);
+    expect(final.confidenceLevel).toBeUndefined();
   });
 
   it("leaves experienceLevelReason and contact/save reasons undefined for local-only analysis", () => {

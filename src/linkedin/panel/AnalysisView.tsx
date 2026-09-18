@@ -12,10 +12,11 @@ interface AnalysisViewProps {
   result: MatchResult;
   goal: Goal;
   profile: LinkedInProfile;
-  /** The backend/OpenAI analysis's current state — "idle"/"loading"/"ready"/"unavailable".
-   * LinkWise never waits on this to show something: the local `result` above always renders
-   * immediately, and this view swaps in the AI-enhanced version the moment it's ready. */
-  aiState: AiAnalysisState;
+  /** Always already resolved by the time this component ever renders — "ready" or
+   * "unavailable" only, never "idle"/"loading" (see PanelApp.tsx's `renderProfileSection`, which
+   * shows a LoadingView instead for as long as AI is still pending — no partial/local-only
+   * result is ever shown as a placeholder). */
+  aiState: Extract<AiAnalysisState, { status: "ready" } | { status: "unavailable" }>;
 }
 
 /** State B of the two-stage panel: the final, non-provisional Profile Analysis — only ever
@@ -48,9 +49,13 @@ export function AnalysisView({ result, goal, profile, aiState }: AnalysisViewPro
         {scoreLabel && <div className="lw-summary-card__score">{scoreLabel}</div>}
         <div className="lw-summary-card__target">For: {goal.name}</div>
 
-        {aiState.status === "loading" && <p className="lw-ai-status">Analyzing profile…</p>}
         {aiState.status === "unavailable" && <p className="lw-ai-status">AI analysis unavailable — showing local analysis.</p>}
-        {final.source === "ai" && <p className="lw-ai-status lw-ai-status--ai">AI-enhanced analysis</p>}
+        {final.source === "ai" && (
+          <p className="lw-ai-status lw-ai-status--ai">
+            AI-enhanced analysis
+            {final.confidenceLevel && ` — ${final.confidenceLevel[0]!.toUpperCase()}${final.confidenceLevel.slice(1)} confidence`}
+          </p>
+        )}
 
         {state.kind === "low_confidence" && (
           <p className="lw-summary-card__note">Limited profile information — this score may change once more of the profile loads.</p>

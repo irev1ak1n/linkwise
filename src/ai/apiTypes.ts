@@ -20,6 +20,8 @@ export interface AiGapDTO {
   evidenceIds: string[];
 }
 
+export type AiConfidenceLevel = "low" | "medium" | "high";
+
 export interface AiNarrativeDTO {
   summary?: string;
   strengths: AiStrengthDTO[];
@@ -29,6 +31,11 @@ export interface AiNarrativeDTO {
   recommendationReason: string;
   contactRecommendationReason: string;
   saveRecommendationReason: string;
+  /** OpenAI's own judgment of evidence completeness for this analysis — already folded into
+   * `result.confidence` (see ../matching/scoreProfile.ts's MatchResult), but also surfaced here
+   * as a plain label so the panel can show it directly (e.g. "Medium confidence") rather than
+   * re-deriving words from a 0-1 float. */
+  confidenceLevel: AiConfidenceLevel;
 }
 
 export type AnalyzeProfileApiResponse =

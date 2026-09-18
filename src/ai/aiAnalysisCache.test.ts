@@ -19,6 +19,7 @@ function readyOutcome(overrides: Partial<Extract<AiAnalysisOutcome, { status: "o
       recommendationReason: "x",
       contactRecommendationReason: "x",
       saveRecommendationReason: "x",
+      confidenceLevel: "medium",
     },
     ...overrides,
   };

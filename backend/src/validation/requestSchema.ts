@@ -69,11 +69,22 @@ const criterionSchema = z.object({
   category: criterionCategorySchema,
 });
 
-const goalSchema = z.object({
-  id: z.string().min(1).max(200),
-  description: z.string().max(MAX_GOAL_DESCRIPTION_LENGTH * 5).default(""),
-  criteria: z.array(criterionSchema).min(1, "At least one criterion is required").max(MAX_CRITERIA),
-});
+/** `criteria` may legitimately be empty — under the AI-first architecture, a goal's own
+ * free-text `description` is the primary source of truth (see openai/prompt.ts's holistic
+ * reasoning guidance for the no-criteria case), and a missing/emptied local criteria array must
+ * never block AI analysis on its own. The one thing that's never valid is BOTH being empty: a
+ * goal with nothing to reason about (see the refinement below) — there'd be no goal-relevant
+ * information to send OpenAI at all. */
+const goalSchema = z
+  .object({
+    id: z.string().min(1).max(200),
+    description: z.string().max(MAX_GOAL_DESCRIPTION_LENGTH * 5).default(""),
+    criteria: z.array(criterionSchema).max(MAX_CRITERIA),
+  })
+  .refine((goal) => goal.description.trim().length > 0 || goal.criteria.length > 0, {
+    message: "A goal needs either a description or at least one criterion to analyze against.",
+    path: ["description"],
+  });
 
 const evidenceItemSchema = z.object({
   id: z.string().min(1).max(100),

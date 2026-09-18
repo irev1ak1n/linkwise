@@ -42,6 +42,7 @@ describe("requestAiAnalysis - success", () => {
           recommendationReason: "x",
           contactRecommendationReason: "x",
           saveRecommendationReason: "x",
+          confidenceLevel: "medium",
         },
       };
     });

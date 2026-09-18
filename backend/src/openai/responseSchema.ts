@@ -41,15 +41,22 @@ export const recommendationSchema = z.enum([
 export const contactRecommendationSchema = z.enum(["recommended", "maybe", "not_recommended"]);
 export const saveRecommendationSchema = z.enum(["save", "consider_saving", "skip"]);
 
-/** The full structured response OpenAI must produce. `criterionAssessments` is what actually
- * feeds the deterministic score (see ../guardrails/mergeCriterionAssessments.ts); everything
- * else here is narrative enrichment, validated separately (../guardrails/validateNarrative.ts)
- * before it's ever shown to a user. The `*Reason` fields alongside experienceAssessment/
- * contactRecommendation/saveRecommendation are one-sentence explanations for a human reader —
- * the enum values themselves are for the deterministic system's own reference; the enums (like
- * `recommendation`) never override the deterministic label actually shown (see
- * ../../src/ai/mergeIntoAnalysis.ts). */
+/** How completely the supplied evidence lets the model judge the goal's requirements — see
+ * ../scoring.ts's `confidenceLevelToFloat` for how this maps onto the extension's existing
+ * 0-1 `MatchResult.confidence` (and therefore the "Limited profile information" UI gate). */
+export const confidenceLevelSchema = z.enum(["low", "medium", "high"]);
+
+/** The full structured response OpenAI must produce. Under the AI-first architecture, OpenAI
+ * itself is the primary source of the final `matchPercent` and `confidenceLevel` — see
+ * ../scoring.ts's `computeFinalScore`, which takes these directly rather than recomputing a
+ * score from criterionAssessments. `criterionAssessments` still feeds the guardrail-merged
+ * per-criterion `reasons`/`missing`/`complete` breakdown (see ../guardrails/
+ * mergeCriterionAssessments.ts) and the one hard guardrail that CAN still override the AI's own
+ * score: a confirmed Excluded disqualification. Everything else here is narrative enrichment,
+ * validated separately (../guardrails/validateNarrative.ts) before it's ever shown to a user. */
 export const analysisResponseSchema = z.object({
+  matchPercent: z.number().int().min(0).max(100),
+  confidenceLevel: confidenceLevelSchema,
   criterionAssessments: z.array(criterionAssessmentSchema),
   summary: z.string(),
   strengths: z.array(strengthSchema),
@@ -62,8 +69,8 @@ export const analysisResponseSchema = z.object({
   contactRecommendationReason: z.string(),
   saveRecommendation: saveRecommendationSchema,
   saveRecommendationReason: z.string(),
-  evidenceConfidence: z.number().min(0).max(1),
 });
 
 export type AnalysisResponse = z.infer<typeof analysisResponseSchema>;
 export type CriterionAssessmentResponse = z.infer<typeof criterionAssessmentSchema>;
+export type ConfidenceLevel = z.infer<typeof confidenceLevelSchema>;

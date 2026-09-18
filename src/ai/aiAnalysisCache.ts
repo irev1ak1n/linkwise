@@ -5,7 +5,10 @@
 // this milestone in exchange for zero added storage/infrastructure.
 import type { AiAnalysisOutcome } from "./apiTypes";
 
-const ANALYSIS_VERSION = "v1";
+// Bumped from "v1": the analysis contract changed (OpenAI's own matchPercent/confidenceLevel are
+// now authoritative — see backend/src/scoring.ts) — a v1-cached result from before this change
+// must never be served as if it were produced under the new contract.
+const ANALYSIS_VERSION = "v2";
 
 export interface CacheKeyInput {
   profileIdentity: string;

@@ -8,7 +8,7 @@
 // dangling citation. Gaps describe an ABSENCE, so they may legitimately cite no evidence at
 // all; only invalid IDs are stripped from them, never used as a reason to drop the gap.
 import type { CriterionImportance } from "../../../src/models/goal";
-import type { AnalysisResponse } from "../openai/responseSchema";
+import type { AnalysisResponse, ConfidenceLevel } from "../openai/responseSchema";
 import { normalizeSummaryLength } from "./normalizeSummary";
 
 export interface ValidatedStrength {
@@ -38,6 +38,10 @@ export interface ValidatedNarrative {
   recommendationReason: string;
   contactRecommendationReason: string;
   saveRecommendationReason: string;
+  /** OpenAI's own judgment of evidence completeness — already enum-validated by the Structured
+   * Outputs schema, so this is a plain passthrough rather than something to re-validate here.
+   * See scoring.ts's `confidenceLevelToFloat` for how it feeds the displayed MatchResult. */
+  confidenceLevel: ConfidenceLevel;
 }
 
 export function validateNarrative(response: AnalysisResponse, suppliedEvidenceIds: ReadonlySet<string>): ValidatedNarrative {
@@ -60,5 +64,6 @@ export function validateNarrative(response: AnalysisResponse, suppliedEvidenceId
     recommendationReason: response.recommendationReason.trim(),
     contactRecommendationReason: response.contactRecommendationReason.trim(),
     saveRecommendationReason: response.saveRecommendationReason.trim(),
+    confidenceLevel: response.confidenceLevel,
   };
 }

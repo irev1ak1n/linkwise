@@ -78,9 +78,16 @@ describe("analyzeProfileRequestSchema - malformed input", () => {
     expect(analyzeProfileRequestSchema.safeParse(body).success).toBe(false);
   });
 
-  it("rejects a goal with zero criteria", () => {
+  it("accepts a goal with zero criteria when a free-text description is present — AI-first analysis reasons directly from the goal's own text", () => {
     const body = validBody();
     body.goal.criteria = [];
+    expect(analyzeProfileRequestSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("rejects a goal with zero criteria AND an empty description — nothing to reason about at all", () => {
+    const body = validBody();
+    body.goal.criteria = [];
+    body.goal.description = "";
     expect(analyzeProfileRequestSchema.safeParse(body).success).toBe(false);
   });
 
