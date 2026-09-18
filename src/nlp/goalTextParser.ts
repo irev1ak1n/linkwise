@@ -202,6 +202,27 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
     if (pattern.test(lowerWorking)) addCriterion(term, "OPTIONAL", { category: "context" });
   }
 
+  // 6. Last resort: every pattern above assumes a full descriptive SENTENCE ("looking for X in
+  // Y with Z experience") — a short, already-condensed phrase with none of that framing (a
+  // goal's own name/title being re-parsed by `ensureActiveGoalCriteria`'s auto-repair, e.g.
+  // "Multilingual TSA-Related Contacts", or just terse input) matches none of them and would
+  // otherwise leave `criteria` empty. This is the ONE place this file allows itself a real
+  // guess rather than "leave it out" — but only once every more specific pattern above has
+  // already had its chance, and only ever from text that's actually present in the input. This
+  // matters beyond just this one phrase: `generateCriteria()` treats an empty local result as
+  // "genuinely nothing generatable" and gives up, so a parser that can return empty for
+  // reasonable non-empty input makes the local fallback unreliable exactly when the AI path
+  // (non-deterministic — see goalStore.ts's own doc comment) is what's failing.
+  if (criteria.length === 0) {
+    const parts = text
+      .split(/\s*(?:,|;|\band\b)\s*/i)
+      .map((part) => collapseWhitespace(part))
+      .filter(Boolean);
+    for (const part of (parts.length > 0 ? parts : [text]).slice(0, 5)) {
+      addCriterion(part.length > 60 ? `${part.slice(0, 57)}...` : part, "PREFERRED");
+    }
+  }
+
   if (!name) {
     name = text.length > 60 ? `${text.slice(0, 57)}...` : text;
   }

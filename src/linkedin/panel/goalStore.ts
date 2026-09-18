@@ -15,7 +15,6 @@
 import {
   createCriterion,
   createGoal,
-  hasScoreableCriteria,
   type Criterion,
   type CriterionCategory,
   type CriterionImportance,
@@ -205,13 +204,19 @@ const lastRepairAttemptAt = new Map<string, number>();
 const REPAIR_RETRY_COOLDOWN_MS = 6000;
 
 /**
- * Self-heals an active goal that ended up with zero scoreable (non-EXCLUDED) criteria — an
- * older goal from before criteria were reliably persisted, a "Create criteria" attempt whose AI
- * call failed with no local-parser match either, or any other way the goal → criteria link could
- * have desynced. Re-runs the exact same AI-first/local-fallback generator `GoalSetupSection`
- * itself uses (see `ai/generateCriteria.ts`), then persists the result onto this SAME active
- * goal — never creating a new one — so the very next scoring pass (see linkedin/content.ts's
- * `tick()`) picks it up with no action from the user.
+ * Self-heals an active goal that ended up with a genuinely EMPTY criteria array — an older goal
+ * from before criteria were reliably persisted, a "Create criteria" attempt whose AI call failed
+ * with no local-parser match either, or any other way the goal → criteria link could have
+ * desynced. Re-runs the exact same AI-first/local-fallback generator `GoalSetupSection` itself
+ * uses (see `ai/generateCriteria.ts`), then persists the result onto this SAME active goal —
+ * never creating a new one — so the very next scoring pass (see linkedin/content.ts's `tick()`)
+ * picks it up with no action from the user.
+ *
+ * Deliberately gated on `goal.criteria.length === 0`, NOT `!hasScoreableCriteria(goal)` — a goal
+ * whose criteria are all EXCLUDED is a real, deliberate configuration (e.g. "anyone EXCEPT
+ * recruiters"), not a broken one; regenerating it would silently overwrite the user's own
+ * exclusions with newly-invented positive criteria. Only a truly empty array means the link
+ * ever desynced in the first place.
  *
  * What it regenerates FROM: the goal's stored `description` when there is one, falling back to
  * its `name` otherwise. This matters for goals that predate the `description` field entirely —
@@ -225,16 +230,19 @@ const REPAIR_RETRY_COOLDOWN_MS = 6000;
  *
  * Safe to call unconditionally on every tick: it no-ops instantly unless a genuine repair is
  * actually needed, never runs two repairs for the same goal concurrently, and never retries a
- * goal that just failed within `REPAIR_RETRY_COOLDOWN_MS`. `now` is injectable purely for tests.
+ * goal that just failed within `REPAIR_RETRY_COOLDOWN_MS` — unless `force` is set, which the
+ * panel's own manual "Retry" action (see PanelApp.tsx) uses to bypass the cooldown for an
+ * explicit, user-initiated attempt rather than waiting out whatever's left of it. `now` is
+ * injectable purely for tests.
  */
-export function ensureActiveGoalCriteria(now: () => number = Date.now): void {
+export function ensureActiveGoalCriteria(now: () => number = Date.now, force = false): void {
   const goal = selectActiveGoal(state);
-  if (!goal || hasScoreableCriteria(goal)) return;
+  if (!goal || goal.criteria.length > 0) return;
   const source = goal.description?.trim() || goal.name?.trim();
   if (!source) return;
   if (repairInFlight.has(goal.id)) return;
   const lastAttempt = lastRepairAttemptAt.get(goal.id);
-  if (lastAttempt !== undefined && now() - lastAttempt < REPAIR_RETRY_COOLDOWN_MS) return;
+  if (!force && lastAttempt !== undefined && now() - lastAttempt < REPAIR_RETRY_COOLDOWN_MS) return;
 
   repairInFlight.add(goal.id);
   lastRepairAttemptAt.set(goal.id, now());

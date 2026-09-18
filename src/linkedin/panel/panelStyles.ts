@@ -131,68 +131,71 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 600;
   }
 
-  /* Scanning state */
-  .lw-scanning__title {
-    font-weight: 600;
-    margin: 0 0 4px;
-  }
-  .lw-scanning__for {
-    color: #445;
-    margin: 0 0 8px;
-  }
-  .lw-scanning__hint {
-    color: #56687a;
-    font-size: 12px;
-    margin: 0 0 14px;
-  }
-  .lw-fraction {
-    font-weight: 600;
-    font-size: 12px;
-    margin: 8px 0 4px;
-  }
-  .lw-progress {
-    height: 6px;
-    border-radius: 3px;
-    background: #e4e9ed;
-    overflow: hidden;
-  }
-  .lw-progress__fill {
-    height: 100%;
-    background: #0a66c2;
-    border-radius: 3px;
-    transition: width 0.2s ease;
-  }
-  .lw-checklist {
-    list-style: none;
-    margin: 8px 0 16px;
-    padding: 0;
+  /* Loading state — a single clean stage label, nothing else. No score, no partial content, no
+     progress checklist: the whole point is that nothing renders here until the real analysis
+     is fully ready (see analysisPipeline.ts). */
+  .lw-loading {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 40px 16px;
+    text-align: center;
   }
-  .lw-checklist li.is-done {
-    color: #057642;
+  .lw-loading__spinner {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 3px solid #e4e9ed;
+    border-top-color: #0a66c2;
+    animation: lw-spin 0.8s linear infinite;
   }
-  .lw-checklist li.is-pending {
-    color: #8a949c;
+  @keyframes lw-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .lw-loading__label {
+    color: #56687a;
+    font-size: 13px;
   }
 
-  .lw-button {
-    font: inherit;
+  /* Failure state — one clear message plus a single Retry action; never a fake score. */
+  .lw-failed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 32px 16px;
+    text-align: center;
+  }
+  .lw-failed__message {
+    color: #c0392b;
     font-weight: 600;
-    border-radius: 18px;
-    padding: 7px 16px;
-    cursor: pointer;
-    border: 1px solid #0a66c2;
-    color: #0a66c2;
-    background: #fff;
-    transition: background 0.15s ease;
+    font-size: 13px;
   }
-  .lw-button:hover {
-    background: #eaf3fc;
+
+  /* Not-enough-info state — reached only once the scan has genuinely settled with zero
+     extracted evidence, never merely because criteria are missing (see analysisPipeline.ts). */
+  .lw-not-enough-info {
+    padding: 18px 16px;
+    border-radius: 12px;
+    background: #f3f6f8;
+    text-align: center;
   }
-  .lw-button--secondary {
-    width: 100%;
+  .lw-not-enough-info__title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #56687a;
+  }
+  .lw-not-enough-info__note {
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    color: #445;
+    line-height: 1.4;
   }
 
   /* Analysis state */

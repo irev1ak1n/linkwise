@@ -455,5 +455,50 @@ describe("goalStore", () => {
       ensureActiveGoalCriteria(now);
       await waitUntil(() => generateCriteriaMock.mock.calls.length === 2);
     });
+
+    it("never attempts repair on a goal whose criteria are all EXCLUDED — a deliberate, finished configuration, not a broken one", async () => {
+      const excludedOnly: Goal = {
+        id: "g1",
+        name: "Anyone except recruiters",
+        criteria: [{ id: "c1", label: "recruiter", importance: "EXCLUDED" }],
+        description: "anyone except recruiters",
+      };
+      installFakeChromeStorage({ "finder.goalsSeeded.v1": true, "finder.goals.v1": [excludedOnly], "finder.selectedGoalId.v1": "g1" });
+
+      const { initGoalStore, getGoalStoreState, selectActiveGoal, ensureActiveGoalCriteria } = await import("./goalStore");
+      initGoalStore();
+      await waitUntil(() => getGoalStoreState().loaded);
+
+      ensureActiveGoalCriteria();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(generateCriteriaMock).not.toHaveBeenCalled();
+      // The user's own exclusion criterion must survive untouched.
+      expect(selectActiveGoal(getGoalStoreState())?.criteria).toEqual(excludedOnly.criteria);
+    });
+
+    it("force bypasses the cooldown for an explicit manual retry", async () => {
+      const broken: Goal = { id: "g1", name: "Broken", criteria: [], description: "multilingual technology students" };
+      installFakeChromeStorage({ "finder.goalsSeeded.v1": true, "finder.goals.v1": [broken], "finder.selectedGoalId.v1": "g1" });
+      generateCriteriaMock.mockResolvedValue({ name: "Broken", source: "local", criteria: [] });
+
+      const { initGoalStore, getGoalStoreState, ensureActiveGoalCriteria } = await import("./goalStore");
+      initGoalStore();
+      await waitUntil(() => getGoalStoreState().loaded);
+
+      let clock = 0;
+      const now = () => clock;
+
+      ensureActiveGoalCriteria(now);
+      await waitUntil(() => generateCriteriaMock.mock.calls.length === 1);
+
+      clock += 100; // nowhere near the cooldown
+      ensureActiveGoalCriteria(now); // no force — should still be blocked
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(generateCriteriaMock).toHaveBeenCalledTimes(1);
+
+      ensureActiveGoalCriteria(now, true); // force — bypasses the cooldown
+      await waitUntil(() => generateCriteriaMock.mock.calls.length === 2);
+    });
   });
 });
