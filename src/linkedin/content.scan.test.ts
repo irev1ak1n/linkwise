@@ -11,6 +11,11 @@ vi.mock("react-dom/client", () => ({
   createRoot: () => ({ render: vi.fn(), unmount: vi.fn() }),
 }));
 
+const generateCriteriaMock = vi.fn();
+vi.mock("../ai/generateCriteria", () => ({
+  generateCriteria: (...args: unknown[]) => generateCriteriaMock(...args),
+}));
+
 // jsdom does not implement Element.scrollTo — scan-tab mode now genuinely calls it (see
 // autoScroll.ts's doc comment on always attempting at least one real scroll), which would
 // otherwise throw here even though a real browser always provides it.
@@ -47,12 +52,13 @@ interface FakeChromeHandle {
 /** `hasActiveGoal: true` seeds chrome.storage.local with one already-selected goal, exactly what
  * a normal tab needs to see before it will ever request a background scan (see content.ts's
  * `tick()` — no active goal means no scan, matching the pre-existing auto-scroll gating this
- * replaces). */
-function installFakeChrome(hasActiveGoal: boolean): FakeChromeHandle {
+ * replaces). Pass `goalOverride` to seed a specific goal shape instead (e.g. one with a
+ * description but no criteria, to exercise the auto-repair path). */
+function installFakeChrome(hasActiveGoal: boolean, goalOverride?: Record<string, unknown>): FakeChromeHandle {
   const data: Record<string, unknown> = hasActiveGoal
     ? {
         "finder.goalsSeeded.v1": true,
-        "finder.goals.v1": [{ id: "g1", name: "Test goal", criteria: [] }],
+        "finder.goals.v1": [goalOverride ?? { id: "g1", name: "Test goal", criteria: [] }],
         "finder.selectedGoalId.v1": "g1",
       }
     : { "finder.goalsSeeded.v1": true, "finder.goals.v1": [] };
@@ -208,6 +214,57 @@ describe("content.ts normal-tab background scan requests", () => {
     const cancels = fake.sendMessage.mock.calls.filter(([m]) => (m as { type?: unknown }).type === SCAN_CANCEL);
     expect(cancels).toHaveLength(1);
     expect(cancels[0][0]).toMatchObject({ type: SCAN_CANCEL, profileKey: "alex-chen" });
+  });
+
+  it("auto-repairs an active goal that has a description but zero scoreable criteria — the exact reported bug — while still scanning the profile in parallel", async () => {
+    // Reproduces the live-reported bug: an active goal ("Multilingual Technology Students") had
+    // a real description but an empty criteria array, so the deterministic scorer had nothing to
+    // score with and the panel showed "Not enough info" despite a profile being open and fully
+    // scanned. content.ts's tick() must notice this and regenerate criteria automatically,
+    // without waiting for — or blocking — the background scan itself.
+    generateCriteriaMock.mockResolvedValue({
+      name: "Multilingual Technology Students",
+      source: "local",
+      criteria: [
+        { label: "Multilingual", importance: "PREFERRED" },
+        { label: "Technology Student Association member", importance: "PREFERRED" },
+        { label: "High GPA", importance: "PREFERRED" },
+      ],
+    });
+    fake = installFakeChrome(true, {
+      id: "g1",
+      name: "Multilingual Technology Students",
+      criteria: [],
+      description: "multilingual technology students",
+    });
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(500);
+
+    // The scan still starts immediately — repair and evidence collection run in parallel, never
+    // gated on each other.
+    const scanRequests = fake.sendMessage.mock.calls.filter(([m]) => (m as { type?: unknown }).type === SCAN_REQUEST);
+    expect(scanRequests.length).toBeGreaterThan(0);
+
+    expect(generateCriteriaMock).toHaveBeenCalledWith("multilingual technology students");
+
+    const { getGoalStoreState, selectActiveGoal } = await import("./panel/goalStore");
+    // generateCriteria's mocked promise resolves on a microtask; advancing timers again flushes
+    // it and lets tick() re-run via the goalStore subscription it triggers.
+    await vi.advanceTimersByTimeAsync(500);
+    expect(selectActiveGoal(getGoalStoreState())?.criteria.map((c) => c.label)).toEqual([
+      "Multilingual",
+      "Technology Student Association member",
+      "High GPA",
+    ]);
+  });
+
+  it("never attempts criteria repair for a goal that already has scoreable criteria", async () => {
+    fake = installFakeChrome(true, { id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Python", importance: "MUST_HAVE" }], description: "python engineers" });
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(generateCriteriaMock).not.toHaveBeenCalled();
   });
 });
 

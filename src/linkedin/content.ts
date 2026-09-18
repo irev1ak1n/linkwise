@@ -29,7 +29,7 @@ import { getPanelProfileData, setPanelProfileData } from "./panel/panelStore";
 import { destroyPanel, togglePanel } from "./panel/mount";
 import { installDevTooling } from "./devTools";
 import { createAutoScrollDriver } from "./autoScroll";
-import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
+import { ensureActiveGoalCriteria, getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
 import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 import { initialCollectionState, type CollectionState } from "../models/collection";
 import {
@@ -331,9 +331,16 @@ function bootNormalTab(): void {
     ensureLinkWiseOpener(togglePanel);
     engine.tick();
 
+    const goal = selectActiveGoal(getGoalStoreState());
+    // Runs regardless of whether a profile is even open — self-heals an active goal that has a
+    // stored description but no scoreable criteria (see goalStore.ts's own doc comment on why
+    // that can happen) BEFORE the user ever opens one, so a background scan started moments
+    // later already has real criteria to score against instead of racing the repair.
+    if (goal) ensureActiveGoalCriteria();
+
     const profileKey = engine.getProfileKey();
     if (profileKey === null) return;
-    if (!selectActiveGoal(getGoalStoreState())) return;
+    if (!goal) return;
 
     const cached = scanCache.get(profileKey);
     if (cached) {

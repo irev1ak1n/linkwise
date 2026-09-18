@@ -36,7 +36,7 @@ interface PanelAppProps {
  */
 export function PanelApp({ onClose }: PanelAppProps) {
   const { profileKey, profile, collection } = useCollectionData();
-  const { selectedGoal: goal, loaded: goalsLoaded, setActiveGoalCriteria } = useGoalStore();
+  const { selectedGoal: goal, loaded: goalsLoaded, setActiveGoalCriteria, rememberGoalDescription } = useGoalStore();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
@@ -93,7 +93,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
           <p className="lw-empty">Loading your goals…</p>
         ) : (
           <>
-            <GoalSetupSection goal={goal} onSetActiveCriteria={setActiveGoalCriteria} />
+            <GoalSetupSection goal={goal} onSetActiveCriteria={setActiveGoalCriteria} onRememberDescription={rememberGoalDescription} />
             {renderProfileSection()}
           </>
         )}

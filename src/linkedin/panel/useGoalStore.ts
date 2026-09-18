@@ -7,6 +7,7 @@ import {
   initGoalStore,
   removeCriterion,
   removeGoal,
+  rememberGoalDescription,
   renameGoal,
   selectActiveGoal,
   selectGoal,
@@ -44,6 +45,7 @@ export function useGoalStore() {
     updateCriterion,
     removeCriterion,
     setActiveGoalCriteria,
+    rememberGoalDescription,
     updateGoalNotes,
   };
 }
