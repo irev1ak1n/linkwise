@@ -17,6 +17,10 @@ export interface CollectionEngineDeps {
   /** True once scrolled at or near the bottom. Combined with the quiet period, so settled
    * means both nothing new is appearing and there was a real chance to see more. */
   isNearDocumentEnd: () => boolean;
+  /** An alternate way to settle without reaching the document end, e.g. "analyze as I scroll"
+   * mode settling once useful evidence exists rather than waiting for the real bottom. Still
+   * combined with the quiet period. Omit to require isNearDocumentEnd only, as before. */
+  hasEnoughEvidence?: (profile: LinkedInProfile) => boolean;
   onUpdate: (profileKey: string, profile: LinkedInProfile, collection: CollectionState) => void;
   onReset: (profileKey: string) => void;
   /** Called once when navigating away from a profile page, so the UI can clear stale evidence
@@ -100,7 +104,8 @@ export function createCollectionEngine(deps: CollectionEngineDeps): CollectionEn
     }
 
     const quiet = now - collection.lastChangedAt >= QUIET_PERIOD_MS;
-    const shouldBeSettled = quiet && collection.reachedDocumentEnd;
+    const enoughEvidence = deps.hasEnoughEvidence?.(profile) ?? false;
+    const shouldBeSettled = quiet && (collection.reachedDocumentEnd || enoughEvidence);
     if (shouldBeSettled && collection.status !== "settled") {
       collection = { ...collection, status: "settled" };
       changed = true;

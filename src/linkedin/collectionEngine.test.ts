@@ -20,7 +20,7 @@ function profile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
 // A controllable fake clock/extractor/scroll harness for deterministic testing. detected
 // mirrors the fake profile's content by default, call setDetected to simulate a heading
 // visible before its content loads.
-function createHarness(initialKey: string | null) {
+function createHarness(initialKey: string | null, options: { hasEnoughEvidence?: (p: LinkedInProfile) => boolean } = {}) {
   let clock = 0;
   let key = initialKey;
   let extracted: LinkedInProfile = profile({});
@@ -46,6 +46,7 @@ function createHarness(initialKey: string | null) {
     detectSections: () => detected ?? impliedDetected(extracted),
     getProfileKey: () => key,
     isNearDocumentEnd: () => nearEnd,
+    hasEnoughEvidence: options.hasEnoughEvidence,
     onUpdate: (profileKey, p, collection) =>
       updates.push({ profileKey, profile: p, status: collection.status, sectionsDetected: collection.sectionsDetected }),
     onReset: (profileKey) => resets.push(profileKey),
@@ -230,6 +231,54 @@ describe("createCollectionEngine - settling", () => {
     expect(state.status).toBe("settled");
     expect(state.sectionsFound).toEqual(["about"]);
     expect(state.sectionsDetected).toEqual(["about"]);
+  });
+});
+
+describe("createCollectionEngine - hasEnoughEvidence (analyze-as-I-scroll mode)", () => {
+  it("settles once enough evidence exists and the quiet period passes, without ever reaching the document end", () => {
+    const h = createHarness("alice", { hasEnoughEvidence: (p) => Boolean(p.about) });
+    h.setExtracted(profile({ about: "Engineer" }));
+    h.engine.tick();
+    expect(h.engine.getCollectionState().status).toBe("collecting");
+
+    h.advance(3000);
+    h.engine.tick();
+    expect(h.engine.getCollectionState().status).toBe("settled");
+    expect(h.engine.getCollectionState().reachedDocumentEnd).toBe(false);
+  });
+
+  it("still requires the quiet period even when there's already enough evidence", () => {
+    const h = createHarness("alice", { hasEnoughEvidence: () => true });
+    h.setExtracted(profile({ about: "Engineer" }));
+    h.engine.tick();
+    expect(h.engine.getCollectionState().status).toBe("collecting");
+  });
+
+  it("re-enters collecting and settles again once genuinely new evidence appears after an early settle", () => {
+    const h = createHarness("alice", { hasEnoughEvidence: (p) => Boolean(p.about) });
+    h.setExtracted(profile({ about: "Engineer" }));
+    h.engine.tick();
+    h.advance(3000);
+    h.engine.tick();
+    expect(h.engine.getCollectionState().status).toBe("settled");
+
+    h.setExtracted(profile({ about: "Engineer", skills: ["Python"] }));
+    h.engine.tick();
+    expect(h.engine.getCollectionState().status).toBe("collecting");
+
+    h.advance(3000);
+    h.engine.tick();
+    expect(h.engine.getCollectionState().status).toBe("settled");
+    expect(h.engine.getCollectionState().sectionsFound).toContain("skills");
+  });
+
+  it("does not settle early when hasEnoughEvidence is omitted, matching the original auto-scan behavior", () => {
+    const h = createHarness("alice");
+    h.setExtracted(profile({ about: "Engineer" }));
+    h.engine.tick();
+    h.advance(3000);
+    h.engine.tick();
+    expect(h.engine.getCollectionState().status).toBe("collecting");
   });
 });
 

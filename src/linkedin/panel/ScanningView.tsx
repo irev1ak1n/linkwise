@@ -1,5 +1,6 @@
 import type { CollectionState } from "../../models/collection";
 import type { ProfileSectionName } from "../../models/profile";
+import type { ScanMode } from "./scanModeStore";
 
 const SECTION_LABELS: Record<ProfileSectionName, string> = {
   about: "About",
@@ -17,12 +18,13 @@ interface ScanningViewProps {
   profileName?: string;
   goalName?: string;
   collection: CollectionState;
+  scanMode: ScanMode;
   onAnalyzeNow: () => void;
 }
 
 // Shown while collection hasn't settled yet. The progress bar reflects what's actually been
 // found so far, never a fixed assumed total.
-export function ScanningView({ profileName, goalName, collection, onAnalyzeNow }: ScanningViewProps) {
+export function ScanningView({ profileName, goalName, collection, scanMode, onAnalyzeNow }: ScanningViewProps) {
   const total = collection.sectionsDetected.length;
   const found = collection.sectionsFound.length;
   const percent = total > 0 ? Math.round((found / total) * 100) : 0;
@@ -31,7 +33,11 @@ export function ScanningView({ profileName, goalName, collection, onAnalyzeNow }
     <div className="lw-scanning">
       <p className="lw-scanning__title">Loading {profileName ?? "this person"}'s profile…</p>
       {goalName && <p className="lw-scanning__for">For: {goalName}</p>}
-      <p className="lw-scanning__hint">LinkWise is reading the full profile automatically — no need to scroll.</p>
+      <p className="lw-scanning__hint">
+        {scanMode === "auto"
+          ? "LinkWise is reading the full profile automatically, no need to scroll."
+          : "Keep scrolling and LinkWise will analyze sections as they load."}
+      </p>
 
       {total > 0 ? (
         <>

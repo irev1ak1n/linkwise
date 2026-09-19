@@ -3,9 +3,11 @@
 // shows on every page, but collection only runs on a /in/... profile. Never fetches another
 // page or clicks anything.
 //
-// One exception to "never scroll for the user": with a profile open and an active goal, this
-// scrolls the page toward the bottom itself (see autoScroll.ts) so lazy-loaded sections load
-// without the user scrolling. Small controlled bursts, bounded to a few seconds.
+// Two scanning modes, user-selectable (see panel/scanModeStore.ts): "scroll" (default) never
+// moves the page and settles as soon as useful evidence exists; "auto" scrolls the page toward
+// the bottom itself (see autoScroll.ts) so lazy-loaded sections load without the user
+// scrolling, then restores the original scroll position once settled.
+import { foundSections, type LinkedInProfile } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
 import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
@@ -14,6 +16,7 @@ import { destroyPanel, togglePanel } from "./panel/mount";
 import { installDevTooling } from "./devTools";
 import { createAutoScrollDriver } from "./autoScroll";
 import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
+import { getScanModeState, initScanModeStore, subscribeScanModeStore } from "./panel/scanModeStore";
 
 // How close to the bottom counts as "reached the end," tolerates LinkedIn's footer chrome.
 const DOCUMENT_END_MARGIN_PX = 600;
@@ -59,9 +62,30 @@ function isNearDocumentEnd(): boolean {
 const autoScroll = createAutoScrollDriver({ now: () => Date.now(), maxDurationMs: AUTO_SCROLL_MAX_DURATION_MS });
 
 // Real scroll position, or a timeout override so a profile that can't fully auto-scroll
-// still reaches a final analysis instead of hanging.
+// still reaches a final analysis instead of hanging. Only meaningful in "auto" mode.
 function isNearDocumentEndOrTimedOut(): boolean {
   return isNearDocumentEnd() || autoScroll.hasTimedOut(engine.getProfileKey());
+}
+
+// In "scroll" mode there's no auto-scroll timeout to fall back on, so settling instead allows
+// any real evidence beyond bare identity (name/headline) once things go quiet, rather than
+// waiting for the user to reach the actual bottom.
+function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
+  return getScanModeState().mode === "scroll" && profile.extracted && foundSections(profile).length > 0;
+}
+
+// The user's scroll position before an "auto" scan started, restored once it settles.
+const savedScrollPositions = new Map<string, number>();
+const restoredProfileKeys = new Set<string>();
+
+function maybeRestoreScrollPosition(profileKey: string): void {
+  if (restoredProfileKeys.has(profileKey)) return;
+  restoredProfileKeys.add(profileKey);
+  const savedTop = savedScrollPositions.get(profileKey);
+  if (savedTop === undefined) return;
+  const container = findScrollContainer();
+  if (Math.abs(container.scrollTop - savedTop) < 2) return; // already there
+  container.scrollTo({ top: savedTop, behavior: "smooth" });
 }
 
 const engine = createCollectionEngine({
@@ -69,12 +93,15 @@ const engine = createCollectionEngine({
   extractProfile: () => extractLinkedInProfile(document),
   detectSections: () => detectProfileSections(document),
   getProfileKey: () => profileIdentityKey(location.href),
-  isNearDocumentEnd: isNearDocumentEndOrTimedOut,
+  isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? isNearDocumentEndOrTimedOut() : isNearDocumentEnd()),
+  hasEnoughEvidence: hasEnoughEvidenceToSettle,
   onUpdate: (profileKey, profile, collection) => {
     setPanelProfileData({ profileKey, profile, collection });
   },
   onReset: (profileKey) => {
-    // A navigation to a different profile, clear the old evidence right away.
+    // A navigation to a different profile, clear the old evidence right away and remember
+    // where the user was before any auto-scrolling starts.
+    savedScrollPositions.set(profileKey, findScrollContainer().scrollTop);
     setPanelProfileData({ profileKey, profile: null, collection: null });
   },
   onLeaveProfile: () => {
@@ -88,8 +115,20 @@ function tick(): void {
   ensureLinkWiseOpener(togglePanel);
   engine.tick();
 
+  const profileKey = engine.getProfileKey();
+  if (profileKey === null) return;
+
+  if (engine.getCollectionState().status === "settled") {
+    // Never scroll again once settled, whichever mode produced that, this also prevents a
+    // duplicate auto scan and lets a goal change reuse the evidence without rescrolling.
+    if (getScanModeState().mode === "auto") maybeRestoreScrollPosition(profileKey);
+    return;
+  }
+
+  if (getScanModeState().mode !== "auto") return; // "scroll" mode never moves the page
+
   const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
-  if (autoScroll.shouldScrollNow(engine.getProfileKey(), goalActive, isNearDocumentEnd())) {
+  if (autoScroll.shouldScrollNow(profileKey, goalActive, isNearDocumentEnd())) {
     const container = findScrollContainer();
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }
@@ -135,6 +174,11 @@ function watchForChanges(): void {
 // letting collection/auto-scroll start immediately. Idempotent, safe to call from both places.
 initGoalStore();
 registerCleanup(subscribeGoalStore(tick));
+
+// Loaded here too so a switch to "auto" mid-browsing starts scrolling on the very next tick,
+// without resetting whatever evidence is already collected.
+initScanModeStore();
+registerCleanup(subscribeScanModeStore(tick));
 
 tick();
 watchForChanges();

@@ -127,6 +127,48 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 600;
   }
 
+  /* Scan mode toggle, compact and secondary to the goal/analysis content around it. */
+  .lw-scan-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lw-scan-mode__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #56687a;
+  }
+  .lw-scan-mode__control {
+    display: flex;
+    border: 1px solid #d0d7dd;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .lw-scan-mode__option {
+    flex: 1;
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 6px 8px;
+    border: none;
+    background: #fff;
+    color: #56687a;
+    cursor: pointer;
+  }
+  .lw-scan-mode__option + .lw-scan-mode__option {
+    border-left: 1px solid #d0d7dd;
+  }
+  .lw-scan-mode__option.is-active {
+    background: #0a66c2;
+    color: #fff;
+  }
+  .lw-scan-mode__hint {
+    margin: 0;
+    font-size: 11px;
+    color: #8a949c;
+  }
+
   /* Scanning state */
   .lw-scanning__title {
     font-weight: 600;
