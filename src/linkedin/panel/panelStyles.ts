@@ -1,9 +1,5 @@
-// Self-contained CSS for the in-page panel's shadow root — deliberately isolated from
-// LinkedIn's own stylesheet (nothing here can leak out, nothing of LinkedIn's can leak in).
-//
-// Takes the panel width as a parameter rather than hardcoding it a second time here — mount.ts's
-// PANEL_WIDTH_PX is the one source of truth, also used to offset the opener button so the two
-// can never drift apart.
+// Self-contained CSS for the panel's shadow root, isolated from LinkedIn's own stylesheet.
+// Takes width as a parameter so mount.ts's PANEL_WIDTH_PX stays the one source of truth.
 export function getPanelStyles(widthPx: number): string {
   return `
   :host, * {
@@ -62,7 +58,7 @@ export function getPanelStyles(widthPx: number): string {
     font-style: italic;
   }
 
-  /* Goal Setup — the panel's only input: describe who you're looking for. */
+  /* Goal Setup, the panel's only input. */
   .lw-goal h2 {
     font-size: 12px;
     text-transform: uppercase;

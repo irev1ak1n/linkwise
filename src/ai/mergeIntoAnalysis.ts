@@ -1,10 +1,6 @@
-// The extension-side merge point that produces the ONE final LinkWise analysis the panel shows
-// — never "one local score plus one AI score plus another recommendation" as separate,
-// possibly-conflicting displays (see the mission's own "avoid duplicate/conflicting analyses").
-// The Match %, disqualification, and recommendation ALWAYS come from the deterministic engine
-// (`buildProfileAnalysis`, fed by whichever MatchResult is authoritative — AI-guardrailed when
-// available, local-only otherwise); only the narrative text (summary/strengths/gaps) is
-// replaced by OpenAI's richer, already-validated wording when it produced something useful.
+// Produces the one final analysis the panel shows, never local and AI results side by side.
+// The recommendation label always comes from the deterministic engine, fed by whichever
+// MatchResult is authoritative. Only the narrative text gets replaced by AI's wording.
 import type { Goal } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 import type { ProfileEvidence } from "../models/evidence";
@@ -18,8 +14,7 @@ export interface FinalAnalysis {
   analysis: ProfileAnalysis;
   guidance: ContactGuidance;
   source: "ai" | "local";
-  /** OpenAI's own categorical confidence label — undefined for local-only analysis, which has
-   * no such judgment of its own beyond the numeric MatchResult.confidence. */
+  /** Undefined for local-only analysis, which has no such judgment of its own. */
   confidenceLevel?: AiConfidenceLevel;
 }
 
@@ -48,10 +43,8 @@ export function buildFinalAnalysis(
   }
 
   const analysis: ProfileAnalysis = {
-    // A validated, non-empty AI summary/strengths/gaps replaces the template's own — richer,
-    // still fully evidence-traceable (see backend/src/guardrails/validateNarrative.ts). An
-    // empty AI array (nothing survived validation) falls back to the template's own so the
-    // user is never shown an empty "Why they match" section when there was a real reason.
+    // A non-empty AI summary/strengths/gaps replaces the template's own. Falls back to the
+    // template when AI's array ended up empty, so a real reason never disappears.
     summary: ai.narrative.summary ?? templateAnalysis.summary,
     strengths:
       ai.narrative.strengths.length > 0
@@ -61,14 +54,10 @@ export function buildFinalAnalysis(
     experienceLevel: ai.narrative.experienceAssessment,
     experienceLevelReason: ai.narrative.experienceAssessmentReason || undefined,
     recommendation: {
-      // The LABEL is NEVER taken from AI directly — always the deterministic label computed
-      // from the (possibly AI-informed) MatchResult, so a guardrail-capped score can never be
-      // paired with an overly rosy recommendation OpenAI happened to suggest.
+      // The label is never taken from AI directly, always the deterministic one, so a
+      // guardrail-capped score can't be paired with an overly rosy recommendation.
       label: templateAnalysis.recommendation.label,
-      // The REASON *text* alongside that label, however, is free-form narrative — AI's grounded,
-      // goal-specific explanation (naming the strongest reason and the largest gap) is more
-      // useful to the user than the template's generic phrase, and citing it can never change
-      // what recommendation is actually shown.
+      // The reason text is free-form though, AI's explanation is more useful than the template's.
       reason: ai.narrative.recommendationReason || templateAnalysis.recommendation.reason,
     },
   };

@@ -48,7 +48,7 @@ describe("scoreProfileAgainstGoal - basic scoring", () => {
       createCriterion("Java", "PREFERRED"),
       createCriterion("Ruby", "OPTIONAL"),
     ]);
-    // Only the OPTIONAL one is met — should score much lower than if only MUST_HAVE were met.
+    // Only the OPTIONAL one is met, should score much lower than if only MUST_HAVE were met.
     const optionalOnly = scoreProfileAgainstGoal(goal, makeProfile({ about: "I use Ruby." }));
     const mustHaveOnly = scoreProfileAgainstGoal(goal, makeProfile({ about: "I use Python." }));
     expect(mustHaveOnly.scorePercent!).toBeGreaterThan(optionalOnly.scorePercent!);
@@ -107,9 +107,8 @@ describe("scoreProfileAgainstGoal - the mission's own goal-change example", () =
     const frcResult = scoreProfileAgainstGoal(frcGoal, profile);
     const aiResult = scoreProfileAgainstGoal(aiGoal, profile);
 
-    // Neither is confirmed on this profile, but they are independently evaluated —
-    // different criteria produce different (here, identically-absent) reasons/missing sets,
-    // proving the score is recomputed from the actual goal, not cached from a prior one.
+    // Neither is confirmed, but they're independently evaluated, proving the score is
+    // recomputed from the actual goal, not cached from a prior one.
     expect(frcResult.missing[0].criterion.label).toBe("FRC mentor");
     expect(aiResult.missing[0].criterion.label).toBe("machine learning");
   });
@@ -170,9 +169,8 @@ describe("scoreProfileAgainstGoal - a missing Must Have cannot be bought back by
       location: "Charlotte, North Carolina",
     });
     const result = scoreProfileAgainstGoal(goal, profile);
-    // Every Optional criterion is confirmed, but the Must Have never resolves to strong/moderate —
-    // 55% of the total weight is capped near 0, so 100% is mathematically unreachable and 70%+
-    // (a Strong Match) should be as well.
+    // Every Optional criterion is confirmed, but the Must Have never resolves to strong/moderate.
+    // 55% of the weight is capped near 0, so 100% and 70%+ are both mathematically unreachable.
     expect(result.scorePercent).toBeLessThan(70);
     expect(result.complete).toBe(false);
   });
@@ -198,8 +196,8 @@ describe("scoreProfileAgainstGoal - Excluded requires strong confirmed evidence 
       createCriterion("engineering", "PREFERRED"),
       createCriterion("recruiter", "EXCLUDED"),
     ]);
-    // "Talent Acquisition Specialist" is related to recruiting but is not the literal word
-    // "recruiter" nor a pattern-matched role marker for it — at most weak/moderate evidence.
+    // "Talent Acquisition Specialist" is related to recruiting but not the literal word
+    // "recruiter" or a pattern-matched role marker, at most weak/moderate evidence.
     const profile = makeProfile({ headline: "Talent Acquisition Specialist", about: "Background in engineering." });
     const result = scoreProfileAgainstGoal(goal, profile);
     expect(result.disqualified).toBe(false);
@@ -260,9 +258,8 @@ describe("scoreProfileAgainstGoal - the exact same profile scores very different
 
 describe("scoreProfileAgainstGoal - changing the goal recalculates from the same evidence", () => {
   it("produces a different, correct score against a different goal without re-collecting the profile", () => {
-    // The same profile object, collected exactly once — mirrors the in-page panel deriving
-    // `scoreProfileAgainstGoal(goal, profile)` fresh on every render rather than caching a
-    // score anywhere: switching goals must never require rereading the LinkedIn page.
+    // The same profile object, collected once, mirrors the panel deriving the score fresh on
+    // every render. Switching goals must never require rereading the LinkedIn page.
     const profile = makeProfile({ about: "I write Python and build robotics systems." });
 
     const goalA = makeGoal("Python roles", [createCriterion("Python", "MUST_HAVE")]);

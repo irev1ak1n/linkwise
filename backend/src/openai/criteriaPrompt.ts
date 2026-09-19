@@ -1,7 +1,5 @@
-// Server-side system prompt for turning a user's free-text "who I'm looking for" description
-// into structured matching criteria. Kept server-side for the same reason the analysis prompt
-// is (see prompt.ts) — the extension never sees or can tamper with the instructions the model
-// follows.
+// Server-side prompt for turning a free-text description into structured criteria.
+// Kept server-side, same reasoning as prompt.ts.
 export const CRITERIA_SYSTEM_PROMPT = `You convert a user's natural-language description of who they are looking for on LinkedIn into structured matching criteria for a networking tool called LinkWise.
 
 Extract each DISTINCT requirement as its own criterion. Do not merge unrelated requirements into one criterion, and do not split one coherent requirement into multiple redundant ones.

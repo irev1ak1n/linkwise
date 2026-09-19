@@ -6,9 +6,8 @@ function setBody(html: string): void {
   document.body.innerHTML = html;
 }
 
-/** A synthetic but structurally realistic profile page: a top card with name/headline/
- * location, and About/Experience/Education/Skills sections each with a heading and repeated
- * list items — mirroring the shape real-Chrome verification will be checked against. */
+// A synthetic but structurally realistic profile page, mirroring the shape real-Chrome
+// verification is checked against.
 function setFullProfilePage(): void {
   setBody(`
     <main role="main">
@@ -161,10 +160,8 @@ describe("extractLinkedInProfile - full profile", () => {
   });
 
   it("never returns a mutual connection's bare connection-degree badge as the headline", () => {
-    // Confirmed live: the identity-card container can widen to include the "mutual
-    // connections" widget, whose entries carry their own "· 1st"/"· 2nd" badges — short plain
-    // text that would otherwise satisfy the generic headline filter before the real headline
-    // (later in document order here) is ever reached.
+    // The identity card can widen to include mutual-connection badges, short plain text
+    // that would otherwise satisfy the generic headline filter before the real one.
     setBody(`
       <main role="main">
         <section>
@@ -182,10 +179,8 @@ describe("extractLinkedInProfile - full profile", () => {
   });
 
   it("never returns a pronoun badge as the headline (confirmed live on a real profile)", () => {
-    // Confirmed live on a real LinkedIn profile: the "She/Her" pronoun badge sits in the
-    // identity card ABOVE the real headline in document order, as its own short plain-text
-    // span — without filtering it out, the evidence layer built its whole analysis around
-    // "She/Her" as the person's headline instead of their actual one.
+    // The "She/Her" pronoun badge sits above the real headline in document order, as its own
+    // short plain-text span. Without filtering it, it gets returned as the headline instead.
     setBody(`
       <main role="main">
         <section>

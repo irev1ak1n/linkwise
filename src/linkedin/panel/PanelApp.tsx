@@ -12,32 +12,12 @@ interface PanelAppProps {
   onClose: () => void;
 }
 
-/**
- * The in-page LinkWise panel's whole UI — the ONLY LinkWise interface; there is no separate
- * browser side panel anymore. The opener (and this panel) mount on every LinkedIn page, but
- * `profileKey` is only ever non-null while the current URL is a `/in/...` profile (see
- * collectionEngine.ts's `onLeaveProfile`) — everywhere else the profile section shows a plain
- * neutral state rather than pretending there's a profile to analyze, while Goal Setup (describe
- * who you're looking for, then let LinkWise turn it into criteria) stays fully usable regardless
- * of what page you're on. On a profile, the profile section is exactly two states: Scanning
- * (collection incomplete) and Analysis (collection settled) — never a third "in-between" view,
- * and never a final score shown while still Scanning.
- *
- * Collection itself now finishes on its own: content.ts scrolls the page automatically (see
- * autoScroll.ts) whenever a profile opens with an active goal, so `isFinal` below almost always
- * flips to true from `collection.status === "settled"` well before the user does anything —
- * `forced` (via the Scanning view's own manual override) still exists purely as a fallback for
- * the rare page collection can't finish quickly on its own, never as a required step.
- *
- * Analysis is AI-first: OpenAI's own `matchPercent`/`confidenceLevel` are the numbers actually
- * shown (see backend/src/scoring.ts), not a deterministic recomputation — so nothing is shown at
- * all while that reasoning is still in flight. Once collection settles, the profile section shows
- * only a loading state ("Preparing results…" / "Analyzing match…") until `useAiAnalysis` genuinely
- * resolves one way or the other; AnalysisView then mounts once, fully formed, using the AI result
- * when it succeeded or the local deterministic one (clearly labeled) when AI is unavailable.
- * Never a temporary 0%, a stale previous result, or the local score shown as a placeholder while
- * AI is still pending.
- */
+// The in-page panel's whole UI, the only LinkWise interface. Goal Setup stays usable on any
+// page, while the profile section only works on a /in/... profile.
+//
+// Collection finishes on its own via auto-scroll, so isFinal usually flips true before the
+// user does anything. Analysis is AI-first: nothing shows while OpenAI's reasoning is still in
+// flight, only a loading state, so there's never a stale or partial result on screen.
 export function PanelApp({ onClose }: PanelAppProps) {
   const { profileKey, profile, collection } = useCollectionData();
   const { selectedGoal: goal, loaded: goalsLoaded, setActiveGoalCriteria } = useGoalStore();
@@ -46,9 +26,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const forced = profileKey !== null && forcedKeys.has(profileKey);
   const isFinal = forced || collection?.status === "settled";
 
-  // Memoized so this stays REFERENCE-STABLE across re-renders whenever goal/profile haven't
-  // actually changed — useAiAnalysis's effect depends on it, and an unstable reference here
-  // would re-trigger (and re-debounce) an AI request on every unrelated re-render.
+  // Memoized so this stays reference-stable, an unstable one would re-trigger AI on every render.
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
 
   const aiState = useAiAnalysis(goal, profile, result, isFinal);
@@ -80,9 +58,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
     }
     if (!result) return null;
 
-    // Collection has settled, but the AI reasoning layer hasn't resolved yet — show ONLY a
-    // loading state. Never the local score, never a stale result: AnalysisView doesn't mount
-    // until aiState is genuinely "ready" or "unavailable" (see this component's own doc comment).
+    // Settled, but AI hasn't resolved yet, show only a loading state.
     if (aiState.status === "idle") return <LoadingView label="Preparing results…" />;
     if (aiState.status === "loading") return <LoadingView label="Analyzing match…" />;
 

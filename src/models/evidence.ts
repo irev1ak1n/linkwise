@@ -1,14 +1,9 @@
-// The structured evidence layer sits between raw profile text (models/profile.ts) and
-// criterion matching (matching/semanticMatcher.ts) — every piece of evidence keeps its source
-// section and original text so any claim shown to the user can be traced back to something
-// real on the page. Nothing here is inferred beyond what the source text actually supports
-// (see evidence/conceptGraph.ts for how domain/role are detected).
+// The structured evidence layer between raw profile text and criterion matching. Every piece
+// keeps its source section and text so any claim can trace back to something real on the page.
 import type { ProfileSectionName } from "./profile";
 
-/** How strongly a criterion is supported by the profile's evidence — a five-way classification
- * rather than true/false, so "closely related but not a direct match" (Moderate) and
- * "the data needed to judge this was never available" (Unknown) are never conflated with a
- * confirmed absence (Missing). */
+// How strongly a criterion is supported, a five-way classification so "closely related"
+// (Moderate) and "never had the data" (Unknown) are never conflated with confirmed absence.
 export type EvidenceStrength = "strong" | "moderate" | "weak" | "missing" | "unknown";
 
 export const EVIDENCE_STRENGTH_LABELS: Record<EvidenceStrength, string> = {
@@ -19,26 +14,20 @@ export const EVIDENCE_STRENGTH_LABELS: Record<EvidenceStrength, string> = {
   unknown: "Unknown",
 };
 
-/** One piece of text pulled from the profile, tagged with which section it came from and
- * which domain concept(s)/role level it was found to support (see conceptGraph.ts) — the
- * source and sourceText a UI claim like "Strong engineering background" must be able to show. */
+// One piece of text pulled from the profile, tagged with its section and domain/role level,
+// so a UI claim like "Strong engineering background" can always show where it came from.
 export interface EvidenceItem {
   text: string;
   sourceSection: ProfileSectionName | "headline" | "location";
-  /** Canonical domain concept ids this text touches (see conceptGraph.ts's DOMAIN_CONCEPTS) —
-   * empty when the text doesn't match any recognized domain. */
+  /** Canonical domain concept ids this text touches, empty if none match. */
   domains: string[];
-  /** The strongest role level this text demonstrates, on conceptGraph.ts's ROLE_LEVELS ladder
-   * (0 = no signal, higher = deeper engagement: interested < learning < participant <
-   * experienced < leader/mentor). Section context sets a default (e.g. "Experience" entries
-   * default to the "experienced" level) which explicit language in the text can raise further
-   * (e.g. "founded", "led", "mentored") — never lowered below the section's own default. */
+  /** The strongest role level this text demonstrates. Section sets a default, explicit
+   * language in the text can raise it further, never lower it. */
   roleLevel: number;
 }
 
-/** A normalized, categorized view of everything `buildProfileEvidence` found — the categories
- * are how the Analysis screen groups strengths/gaps for display; criterion matching itself
- * scans `all`, which is the same items deduplicated into one flat list. */
+// A normalized, categorized view of everything buildProfileEvidence found. Criterion matching
+// scans "all", the categories are just how the Analysis screen groups things for display.
 export interface ProfileEvidence {
   roles: EvidenceItem[];
   companies: EvidenceItem[];
@@ -55,14 +44,13 @@ export interface ProfileEvidence {
   interests: EvidenceItem[];
   accomplishments: EvidenceItem[];
   all: EvidenceItem[];
-  /** Which profile sections had any content at all when this was built — the basis for
-   * telling "confirmed absent" (section present, nothing relevant found in it) apart from
-   * "unknown" (the section was never collected/found at all). */
+  /** Which sections had any content when this was built, so "confirmed absent" can be told
+   * apart from "unknown, never collected". */
   sectionsWithContent: Set<ProfileSectionName | "headline" | "location">;
 }
 
-/** A traceable claim shown to the user — every strength, gap, or summary sentence LinkWise
- * displays must be backed by one of these, never free-floating prose. */
+// A traceable claim shown to the user, every strength, gap, or summary sentence must be
+// backed by one of these, never free-floating prose.
 export interface EvidenceClaim {
   claim: string;
   strength: EvidenceStrength;

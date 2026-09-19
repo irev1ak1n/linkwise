@@ -52,8 +52,8 @@ describe("buildAnalyzeProfileRequest", () => {
     };
     const p = profile({ about: "I work in machine learning." });
     const result = scoreProfileAgainstGoal(goal, p);
-    // Confirm the excluded criterion really is absent from the final MatchResult's own arrays —
-    // this is exactly the discarded information buildLocalCriterionResults must recover.
+    // Confirm the excluded criterion is absent from the final MatchResult's arrays, exactly
+    // the discarded information buildLocalCriterionResults must recover.
     expect(result.reasons.some((r) => r.criterion.label === "recruiter")).toBe(false);
     expect(result.missing.some((m) => m.criterion.label === "recruiter")).toBe(false);
 

@@ -5,9 +5,8 @@ import type { Goal } from "../../models/goal";
 type StorageChange = { oldValue?: unknown; newValue?: unknown };
 type ChangeListener = (changes: Record<string, StorageChange>, areaName: string) => void;
 
-/** A minimal fake of the two chrome.storage.local pieces goalStore.ts actually uses — enough to
- * prove the store reacts to a real chrome.storage.onChanged event the way a second copy of this
- * same panel's writes would trigger it, without needing a real browser. */
+// A minimal fake of the chrome.storage.local pieces goalStore.ts uses, enough to prove the
+// store reacts to a real onChanged event without needing a real browser.
 function installFakeChromeStorage(initial: Record<string, unknown>) {
   const data: Record<string, unknown> = { ...initial };
   const listeners: ChangeListener[] = [];
@@ -57,8 +56,7 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 500): Promise<voi
 
 describe("goalStore", () => {
   beforeEach(() => {
-    // goalStore.ts keeps module-level state — force a fresh module instance per test so one
-    // test's chrome.storage.onChanged subscription never leaks into the next.
+    // goalStore.ts keeps module-level state, force a fresh instance so subscriptions don't leak.
     vi.resetModules();
   });
 

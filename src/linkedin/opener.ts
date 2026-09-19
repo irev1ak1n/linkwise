@@ -1,9 +1,5 @@
-// Injects the fixed "LinkWise" tab on the right edge of a LinkedIn profile page — the only UI
-// this extension adds to the page itself (besides the panel it opens). Clicking it toggles the
-// in-page panel (see panel/mount.ts); it never reloads the page, never dims/blurs/shifts
-// LinkedIn's own content, and never interferes with normal LinkedIn navigation. Styled entirely
-// with inline styles rather than an injected stylesheet, so it can never be affected by (or
-// accidentally affect) LinkedIn's own CSS.
+// Injects the fixed "LinkWise" tab on the page edge, the only UI this extension adds besides
+// the panel itself. Styled with inline styles so LinkedIn's CSS can never touch it.
 const OPENER_ID = "finder-linkwise-opener";
 
 function applyOpenerStyles(button: HTMLButtonElement): void {
@@ -32,11 +28,7 @@ function applyOpenerStyles(button: HTMLButtonElement): void {
   });
 }
 
-/** Idempotent and safe to call repeatedly (e.g. on every collection tick) — only ever creates
- * the button once per page load and re-attaches the current click handler. LinkedIn's own SPA
- * navigation does not tear down `document.body`, so the button persists across profile-to-
- * profile navigation on its own; this is a self-healing check, not something expected to fire
- * often. */
+// Idempotent, safe to call repeatedly. Creates the button once and re-attaches the handler.
 export function ensureLinkWiseOpener(onToggle: () => void): void {
   const existing = document.getElementById(OPENER_ID) as HTMLButtonElement | null;
   if (existing) {
@@ -55,17 +47,13 @@ export function ensureLinkWiseOpener(onToggle: () => void): void {
   document.body.appendChild(button);
 }
 
-/** Shifts the opener to hug the panel's left edge while it's open (so it stays visible and
- * clickable to close again), and back to the page's right edge once closed. */
+// Shifts the opener to the panel's edge while open, back to the page edge once closed.
 export function setOpenerOffset(offsetPx: number): void {
   const existing = document.getElementById(OPENER_ID) as HTMLButtonElement | null;
   if (existing) existing.style.right = `${offsetPx}px`;
 }
 
-/** Removes the opener entirely — used only when this content script instance is being torn
- * down for a fresh one to replace it (see content.ts's teardown token), never during normal
- * operation. Leaving a stale button behind would risk a duplicate once the new instance's own
- * `ensureLinkWiseOpener` runs. */
+// Used only during teardown, to avoid a duplicate once a fresh instance takes over.
 export function removeLinkWiseOpener(): void {
   document.getElementById(OPENER_ID)?.remove();
 }

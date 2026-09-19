@@ -1,8 +1,6 @@
-// The ONLY file that touches the OpenAI SDK directly. Wrapped behind a small `AnalysisClient`
-// interface so every other module (and every test) depends on that interface, never on the
-// "openai" package itself — tests inject a fake client and never need a real API key or network
-// access. Uses the Responses API with Structured Outputs (a Zod schema), per the current
-// official SDK pattern, so the model cannot return arbitrary prose or malformed JSON.
+// The only file that touches the OpenAI SDK directly. Everything else depends on the
+// AnalysisClient interface, so tests never need a real API key. Uses Structured Outputs so the
+// model can't return arbitrary prose or malformed JSON.
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { analysisResponseSchema, type AnalysisResponse } from "./responseSchema";
@@ -14,9 +12,7 @@ export interface AnalysisClient {
   analyze(systemPrompt: string, userPrompt: string, signal: AbortSignal): Promise<AnalysisResponse>;
 }
 
-/** Never logs the API key, never returns it, never includes it in an error message beyond
- * whatever the SDK itself might throw (which we don't forward verbatim to the extension —
- * see routes/analyzeProfile.ts). */
+// Never logs or returns the API key.
 export function createOpenAiAnalysisClient(config: BackendConfig): AnalysisClient {
   if (!config.openAiApiKey) {
     throw new Error("createOpenAiAnalysisClient called without a configured API key.");
@@ -52,13 +48,7 @@ export type OpenAiCallResult =
   | { status: "timeout" }
   | { status: "error"; message: string };
 
-/**
- * Calls the analysis client with a hard timeout, translating every expected failure mode
- * (missing config, timeout, thrown error) into a typed result instead of letting an exception
- * propagate — the route handler always has a clean, gracefully-degradable outcome to act on.
- * `options.client` lets tests inject a fake `AnalysisClient` — no real OpenAI SDK, no API key,
- * no network involved in any test.
- */
+// Calls the client with a timeout and turns every failure into a typed result.
 export async function requestAnalysis(
   config: BackendConfig,
   systemPrompt: string,

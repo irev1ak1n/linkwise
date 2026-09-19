@@ -1,10 +1,6 @@
-// The background service worker's half of the content-script <-> backend bridge — the content
-// script never fetches the backend directly (see ../ai/analyzeProfileClient.ts's doc comment
-// for why); this relays the actual HTTP request from the one context with unambiguous
-// cross-origin fetch permissions under Manifest V3, and supports cancelling an in-flight
-// request by ID since chrome.runtime messaging can't carry a real AbortSignal across the
-// content-script/background boundary. Handles both the profile-analysis and criteria-generation
-// endpoints — same relay mechanics, different backend route.
+// The background worker's half of the content-script/backend bridge. Relays the actual HTTP
+// request and supports cancelling it by ID, since messaging can't carry a real AbortSignal.
+// Handles both the analysis and criteria-generation endpoints.
 import { analyzeProfileEndpoint, generateCriteriaEndpoint } from "../ai/config";
 
 export const LINKWISE_ANALYZE_PROFILE = "LINKWISE_ANALYZE_PROFILE";
@@ -43,11 +39,7 @@ function endpointFor(type: RelayMessage["type"]): string {
 
 const inFlight = new Map<string, AbortController>();
 
-/** Registered once from background/index.ts. `fetchImpl` is injectable purely for tests — the
- * real caller always uses the global `fetch`. Returns nothing itself; the listener it installs
- * returns `true` for a relay message specifically, which is what tells Chrome to keep the
- * message channel open for an asynchronous `sendResponse` call (the fetch has not resolved yet
- * when the listener function itself returns). */
+/** Registered once from background/index.ts. fetchImpl is injectable for tests only. */
 export function installAiRelay(fetchImpl: typeof fetch = fetch): void {
   chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
     if (isRelayMessage(message)) {

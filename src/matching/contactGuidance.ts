@@ -1,7 +1,5 @@
-// Contact/Save guidance — deliberately a pure function OF the same Recommendation
-// profileAnalysis.ts already derived from score + Must Have status + evidence confidence,
-// rather than a second independent set of thresholds. Two guidance signals computed from one
-// underlying judgment can't drift apart or contradict each other on screen.
+// Contact/Save guidance, a pure function of the same Recommendation profileAnalysis.ts derives,
+// not a second independent set of thresholds. Keeps the two signals from ever contradicting.
 import type { RecommendationLabel } from "./profileAnalysis";
 
 export type ContactSignal = "Recommended" | "Maybe" | "Not recommended";
@@ -10,10 +8,8 @@ export type SaveSignal = "Save" | "Consider saving" | "Skip";
 export interface ContactGuidance {
   contact: ContactSignal;
   save: SaveSignal;
-  /** Short AI-sourced reasons for the guidance above — undefined for local-only analysis
-   * (see src/ai/mergeIntoAnalysis.ts), which has no natural-language generation of its own.
-   * Never changes `contact`/`save` themselves: those stay purely a function of the
-   * deterministic RecommendationLabel, exactly as before. */
+  /** Short AI-sourced reasons, undefined for local-only analysis. Never changes contact/save
+   * themselves, those stay a pure function of the recommendation label. */
   contactReason?: string;
   saveReason?: string;
 }

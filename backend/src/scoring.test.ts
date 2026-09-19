@@ -58,12 +58,10 @@ describe("computeFinalScore - AI's own matchPercent is authoritative", () => {
     const ai = aiResponse({ matchPercent: 85 });
     const merge = mergeCriterionAssessments(req, ai);
     const result = computeFinalScore(req, merge, ai);
-    // The score itself is no longer capped by the deterministic weighted-average engine — it's
-    // AI's own number, passed straight through.
+    // The score is no longer capped by the weighted-average engine, it's AI's own number.
     expect(result.scorePercent).toBe(85);
-    // The Must-Have-unresolved caveat still comes through independently via `complete`, which
-    // stays deterministic (derived from the guardrail-merged per-criterion assessments) — the
-    // UI still shows its "a Must-Have criterion could not be confirmed" note regardless of score.
+    // The Must-Have-unresolved caveat still comes through independently via complete, which
+    // stays deterministic regardless of score.
     expect(result.complete).toBe(false);
   });
 
@@ -117,10 +115,8 @@ describe("computeFinalScore - Excluded criterion guardrail", () => {
 
 describe("computeFinalScore - AI score used even when the local per-criterion floor is unknown", () => {
   it("still shows AI's own matchPercent rather than falling back to a null score", () => {
-    // Under the AI-first architecture, a locally-"unknown" per-criterion floor no longer forces
-    // a null displayed score — OpenAI reasons from the same evidence (plus the goal's own free
-    // text) and can still produce a genuine, grounded matchPercent even where the coarser local
-    // keyword matcher couldn't resolve one specific criterion.
+    // A locally-"unknown" per-criterion floor no longer forces a null displayed score, OpenAI
+    // can still produce a grounded matchPercent even where local matching couldn't resolve it.
     const unknownReq = request({
       localAnalysis: { score: null, confidence: 0, profileExtracted: true, criterionResults: [{ criterionId: "c1", strength: "unknown", evidenceIds: [] }] },
     });

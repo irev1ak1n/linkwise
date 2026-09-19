@@ -16,18 +16,11 @@ import {
   updateGoalNotes,
 } from "./goalStore";
 
-/**
- * The single hook both the Goal Setup section and the profile-scanning/analysis sections use —
- * there is no separate hook for a browser-side-panel editor anymore. Backed by
- * `useSyncExternalStore` rather than a local useState/useEffect hook, specifically so the update
- * path has no dependency array or stale-closure surface to get wrong (a real bug this project
- * hit earlier when the goal-selection state lived in component-local state instead).
- *
- * `addGoal`/`addGoalFromCriteria`/`renameGoal`/`removeGoal`/`selectGoal` are kept here even
- * though the simplified in-page panel UI no longer exposes goal-switching chrome to call them —
- * the underlying multi-goal storage/model still works, and nothing about it was deleted, per
- * the mission's own "do not delete underlying storage/model functionality" instruction.
- */
+// The one hook both Goal Setup and the analysis sections use. Backed by useSyncExternalStore
+// rather than local state, so there's no stale-closure surface to get wrong.
+//
+// addGoal/renameGoal/removeGoal/selectGoal stay here even though the current panel UI doesn't
+// expose goal-switching chrome, the underlying multi-goal storage still works.
 export function useGoalStore() {
   initGoalStore();
   const state = useSyncExternalStore(subscribeGoalStore, getGoalStoreState);

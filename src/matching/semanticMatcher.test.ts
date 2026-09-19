@@ -1,6 +1,5 @@
-// Regression coverage for the milestone's own worked examples — each test here is a scenario
-// the mission explicitly calls out as a case the old keyword-only matcher got wrong (or would
-// get wrong) and the new hybrid concept-based matcher must get right.
+// Regression coverage for scenarios the old keyword-only matcher got wrong, and the new
+// hybrid concept-based matcher must get right.
 import { describe, expect, it } from "vitest";
 import { evaluateCriterion } from "./semanticMatcher";
 import { buildProfileEvidence } from "../evidence/buildProfileEvidence";
@@ -163,9 +162,8 @@ describe("semanticMatcher - literal fallback still works for criteria with no co
 
 describe("semanticMatcher - literal fallback reports unknown, not missing, before any core section has loaded", () => {
   it("does not declare a literal criterion confirmed-absent from a location-only profile (confirmed live on a real sparse profile)", () => {
-    // Confirmed live: a profile where only name + location had loaded (no headline, about,
-    // experience, or education at all) still had a literal criterion like "Microsoft"
-    // confidently marked "missing" — presenting an unread profile as a checked-and-absent one.
+    // A profile with only name and location loaded still had "Microsoft" confidently marked
+    // "missing", presenting an unread profile as a checked-and-absent one.
     const p = profile({ location: "Example City, Example State, United States" });
     const result = evaluate("Microsoft", p);
     expect(result.strength).toBe("unknown");

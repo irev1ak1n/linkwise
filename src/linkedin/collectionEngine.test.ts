@@ -17,10 +17,9 @@ function profile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
   };
 }
 
-/** A controllable fake clock/extractor/scroll-position harness so the engine's timing logic
- * can be tested deterministically, with no real timers and no DOM. `detected` defaults to
- * mirroring whatever the fake profile actually has content for — call `setDetected` to
- * simulate a section whose heading is visible before its content has loaded. */
+// A controllable fake clock/extractor/scroll harness for deterministic testing. detected
+// mirrors the fake profile's content by default, call setDetected to simulate a heading
+// visible before its content loads.
 function createHarness(initialKey: string | null) {
   let clock = 0;
   let key = initialKey;

@@ -1,8 +1,5 @@
-// Turns a LinkedInProfile (raw scraped text, models/profile.ts) into a ProfileEvidence
-// (models/evidence.ts) — the one place that assigns domain/role-level tags to profile text, so
-// the matcher and the Analysis screen always see the same interpretation of the same evidence.
-// Never invents evidence: a category is empty when nothing in the profile touches it, and
-// `sectionsWithContent` only ever reflects sections that actually had text.
+// Turns raw profile text into tagged ProfileEvidence, so matching and the Analysis screen
+// always see the same interpretation of it. Never invents evidence for an empty category.
 import type { LinkedInProfile, ProfileSectionName } from "../models/profile";
 import { profileTextFields } from "../models/profile";
 import type { EvidenceItem, ProfileEvidence } from "../models/evidence";

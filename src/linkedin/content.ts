@@ -1,18 +1,11 @@
-// The LinkWise content script — injected on every linkedin.com page (see manifest.json), and
-// the home of the whole in-page panel (the panel's React tree is mounted from here — see
-// panel/mount.ts — sharing this same JS realm, so no chrome.runtime messaging is needed between
-// collection and the panel at all). The LinkWise opener is shown on every page; the collection
-// engine only ever does real work while the current URL is a `/in/...` profile — everywhere
-// else it simply stays idle (see collectionEngine.ts's `onLeaveProfile`). Reads only what
-// LinkedIn has already rendered; never fetches another page, never clicks anything.
+// The LinkWise content script, injected on every linkedin.com page. Home of the in-page panel,
+// mounted here so it shares this JS realm with collection (see panel/mount.ts). The opener
+// shows on every page, but collection only runs on a /in/... profile. Never fetches another
+// page or clicks anything.
 //
-// One deliberate, bounded exception to "never scrolls on the user's behalf": while a profile
-// page is open AND an active goal already exists, this script scrolls the page toward its
-// bottom itself (see autoScroll.ts) so LinkedIn's lazy-loaded sections load without the user
-// needing to scroll manually — the whole point of automatic analysis. It is intentionally
-// small, controlled bursts toward whatever the CURRENT bottom is (never a single jump to an
-// assumed end), bounded to a few seconds total, and only ever runs when there's an active goal
-// to actually analyze against.
+// One exception to "never scroll for the user": with a profile open and an active goal, this
+// scrolls the page toward the bottom itself (see autoScroll.ts) so lazy-loaded sections load
+// without the user scrolling. Small controlled bursts, bounded to a few seconds.
 import { createCollectionEngine } from "./collectionEngine";
 import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
@@ -22,33 +15,20 @@ import { installDevTooling } from "./devTools";
 import { createAutoScrollDriver } from "./autoScroll";
 import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
 
-/** How close to the bottom of the page counts as "reached the end," in pixels — tolerates
- * LinkedIn's footer/recommendation chrome without requiring a scroll to the literal last pixel. */
+// How close to the bottom counts as "reached the end," tolerates LinkedIn's footer chrome.
 const DOCUMENT_END_MARGIN_PX = 600;
-/** LinkedIn's own DOM mutates frequently on its own (ads, badges, carousels); a short debounce
- * here made extraction run on nearly every mutation and visibly degraded page responsiveness
- * during testing, so this is deliberately wide. */
+// LinkedIn's DOM mutates a lot on its own, a short debounce here hurt page responsiveness.
 const MUTATION_DEBOUNCE_MS = 900;
 const TICK_INTERVAL_MS = 2500;
-/** Once settled, back off the safety-net tick — further changes are rare and a real navigation
- * is still caught faster by the mutation/scroll listeners below. */
+// Once settled, back off the safety-net tick since further changes are rare.
 const SETTLED_TICK_INTERVAL_MS = 6000;
-/** How long auto-scroll keeps trying, and how long collection waits overall, before giving up
- * and analyzing with whatever has actually loaded — matches the "finish in about 10 seconds, or
- * don't hang" goal: a few seconds of scrolling/loading here, leaving the rest of the ~10s budget
- * for the analysis call itself. */
+// How long auto-scroll keeps trying before giving up and analyzing with what's loaded.
 const AUTO_SCROLL_MAX_DURATION_MS = 8000;
 
 declare global {
   interface Window {
-    /** Set at the end of every run of this script; a fresh injection calls it before doing
-     * anything else. Content scripts re-injected into an already-open tab (a development
-     * reload via devTools.ts, or any future `chrome.scripting.executeScript` re-injection) get
-     * an entirely new JS realm with its own timers/observers/closures — nothing about a fresh
-     * injection can reach into a previous one to stop it, EXCEPT the one thing every injection
-     * shares: this same `window` object. Without this, reloading the extension while a tab is
-     * already open would leave the old instance's interval/MutationObserver running forever
-     * alongside the new one, and could leave a duplicate opener button or panel host behind. */
+    /** Set at the end of every run, a fresh injection calls it first to stop the old one.
+     * Re-injection gets a whole new JS realm, so window is the only thing shared between them. */
     __linkwiseTeardown__?: () => void;
   }
 }
@@ -61,7 +41,7 @@ function registerCleanup(fn: () => void): void {
 
 function findScrollContainer(): Element {
   const candidates = [document.scrollingElement, document.querySelector("main")].filter(
-    (el): el is Element => el != null, // `document.scrollingElement` can be undefined, not just null
+    (el): el is Element => el != null, // scrollingElement can be undefined, not just null
   );
   for (const candidate of candidates) {
     if (candidate.scrollHeight - candidate.clientHeight > 40) return candidate;
@@ -69,12 +49,8 @@ function findScrollContainer(): Element {
   return document.scrollingElement ?? document.documentElement;
 }
 
-/** LinkedIn's profile page does not always scroll the window/document itself — confirmed live,
- * `document.body` can have `overflow-y: hidden` with the actual profile content scrolling
- * inside `<main>` instead, which would make `window.scrollY`/`document.documentElement.
- * scrollHeight` permanently report "already at the bottom" from the very first tick,
- * regardless of real content or scrolling. `findScrollContainer` picks whichever real
- * candidate actually has scrollable overflow right now, rather than hardcoding `<main>`. */
+// LinkedIn doesn't always scroll the document itself, sometimes the content scrolls inside
+// <main> instead. findScrollContainer picks whichever one actually has scrollable overflow.
 function isNearDocumentEnd(): boolean {
   const el = findScrollContainer();
   return el.scrollTop + el.clientHeight >= el.scrollHeight - DOCUMENT_END_MARGIN_PX;
@@ -82,10 +58,8 @@ function isNearDocumentEnd(): boolean {
 
 const autoScroll = createAutoScrollDriver({ now: () => Date.now(), maxDurationMs: AUTO_SCROLL_MAX_DURATION_MS });
 
-/** The signal actually fed to the collection engine: real scroll position OR — once
- * `AUTO_SCROLL_MAX_DURATION_MS` has passed for this profile — a best-effort "good enough, stop
- * waiting" override, so a profile that can't be fully auto-scrolled (an unusual layout, a very
- * long page) still reaches a final analysis instead of hanging in "collecting" forever. */
+// Real scroll position, or a timeout override so a profile that can't fully auto-scroll
+// still reaches a final analysis instead of hanging.
 function isNearDocumentEndOrTimedOut(): boolean {
   return isNearDocumentEnd() || autoScroll.hasTimedOut(engine.getProfileKey());
 }
@@ -100,20 +74,16 @@ const engine = createCollectionEngine({
     setPanelProfileData({ profileKey, profile, collection });
   },
   onReset: (profileKey) => {
-    // A genuine navigation to a different profile — clear the displayed profile immediately so
-    // the panel never shows a moment of the previous person's evidence.
+    // A navigation to a different profile, clear the old evidence right away.
     setPanelProfileData({ profileKey, profile: null, collection: null });
   },
   onLeaveProfile: () => {
-    // Navigated to a non-profile LinkedIn page (feed, jobs, search, …) — `profileKey: null` is
-    // what PanelApp reads to show its neutral "open a profile to analyze it" state instead of
-    // a stale scanning/analysis view for whoever was last viewed.
+    // Navigated to a non-profile page, null profileKey shows the neutral empty state.
     setPanelProfileData({ profileKey: null, profile: null, collection: null });
   },
 });
 
-/** The opener button is re-verified on every tick rather than injected only once, so it
- * self-heals if LinkedIn's own SPA rendering were ever to remove it from `document.body`. */
+// Re-verified every tick so it self-heals if LinkedIn's SPA ever removes it.
 function tick(): void {
   ensureLinkWiseOpener(togglePanel);
   engine.tick();
@@ -135,24 +105,19 @@ function watchForChanges(): void {
     if (debounceHandle) clearTimeout(debounceHandle);
   });
 
-  // Debounced: covers both new content loading in as the user scrolls and LinkedIn's own
-  // client-side navigation to a different profile.
+  // Covers both new content loading in and LinkedIn's own client-side navigation.
   const observer = new MutationObserver(scheduleTick);
   observer.observe(document.body, { childList: true, subtree: true });
   registerCleanup(() => observer.disconnect());
 
-  // Scroll position matters for "has the user reached the end" independent of DOM mutations.
-  // A scroll inside an inner container (see findScrollContainer above) never bubbles to
-  // window, but a capture-phase listener on `document` still observes it regardless of which
-  // element actually scrolls — covers both LinkedIn's inner-container layout and a plain
-  // window-scrolling page, without needing to know in advance which one applies.
+  // A capture-phase listener on document catches scrolling inside an inner container too,
+  // not just window scrolling.
   window.addEventListener("scroll", scheduleTick, { passive: true });
   registerCleanup(() => window.removeEventListener("scroll", scheduleTick));
   document.addEventListener("scroll", scheduleTick, { passive: true, capture: true });
   registerCleanup(() => document.removeEventListener("scroll", scheduleTick, true));
 
-  // Periodic safety net: catches the settle transition, which depends on elapsed quiet time
-  // rather than any mutation or scroll event firing on its own.
+  // Catches the settle transition, which depends on elapsed quiet time, not an event firing.
   let intervalHandle = setInterval(runIntervalTick, TICK_INTERVAL_MS);
   registerCleanup(() => clearInterval(intervalHandle));
   function runIntervalTick(): void {
@@ -166,11 +131,8 @@ function watchForChanges(): void {
   }
 }
 
-// Loaded here (not only from the panel's own useGoalStore()) so an active goal from a previous
-// session is known immediately, before the user ever opens the panel — collection/auto-scroll
-// can then already be under way by the time they do open it, instead of only starting at that
-// point. Safe to call from both places: idempotent, and this module-level store has exactly one
-// underlying state regardless of how many callers initialize it.
+// Loaded here too (not just useGoalStore()) so an active goal is known before the panel opens,
+// letting collection/auto-scroll start immediately. Idempotent, safe to call from both places.
 initGoalStore();
 registerCleanup(subscribeGoalStore(tick));
 

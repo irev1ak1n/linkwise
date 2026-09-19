@@ -84,10 +84,8 @@ describe("requestAiAnalysis - graceful fallback", () => {
   });
 
   it("resolves to 'unavailable' (never rejects) when the extension context is invalidated", async () => {
-    // A LinkedIn tab left open across an extension reload keeps its OLD content script instance
-    // alive (LinkedIn is an SPA — a plain profile navigation never re-injects it), and
-    // chrome.runtime.sendMessage throws synchronously in that orphaned instance. This must
-    // degrade gracefully like every other failure mode, not reject and get stuck.
+    // A tab left open across a reload keeps its old content script alive, where
+    // chrome.runtime.sendMessage throws synchronously. Must degrade gracefully, not reject.
     (globalThis as unknown as { chrome: unknown }).chrome = {
       runtime: {
         get sendMessage(): never {

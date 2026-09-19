@@ -45,15 +45,8 @@ function installFakeChrome(tabs: Array<{ id: number }> = []): FakeChrome {
   return fake;
 }
 
-/**
- * Regression coverage for a real, live-discovered bug: reinjection into open LinkedIn tabs must
- * only ever run from a genuine chrome.runtime.onInstalled event (real install/update/reload),
- * never unconditionally at module load — an MV3 service worker restarts on ordinary events too
- * (e.g. the AI-analysis relay message a profile view sends a few seconds in), and reinjecting on
- * every one of those wake-ups was tearing down the very panel/analysis run that had just
- * triggered the wake-up. See index.ts's doc comment on reinjectIntoOpenLinkedInTabs for the full
- * story.
- */
+// Regression coverage: reinjection must only run from a genuine onInstalled event, never at
+// module load, since the service worker restarts on ordinary events too.
 describe("background/index dev reinjection", () => {
   beforeEach(() => {
     vi.resetModules();

@@ -1,6 +1,5 @@
-// The Express app factory — separated from index.ts's `listen()` call specifically so tests can
-// exercise real HTTP requests (via supertest-style fetch-to-a-listening-instance, or Express's
-// own request/response test doubles) without ever binding a port.
+// The Express app factory, separate from index.ts's listen() so tests can hit it without
+// binding a real port.
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import { loadConfig, redactedConfigSummary, type BackendConfig } from "./config";
@@ -18,19 +17,15 @@ export interface CreateAppOptions {
   timeoutMs?: number;
 }
 
-/** Generous enough for any real profile's evidence list, small enough that a malicious or
- * broken client can't tie up the process parsing an enormous body. Zod's own per-field limits
- * (see validation/requestSchema.ts) are the finer-grained cap; this is the coarse first line of
- * defense before JSON parsing even happens. */
+// Big enough for a real profile, small enough to stop an abusive body before JSON parsing.
 const MAX_BODY_SIZE = "1mb";
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const config = options.config ?? loadConfig();
   const app = express();
 
-  // Permissive CORS is fine for this milestone: a local-only backend the user's own extension
-  // calls from their own machine, with no sensitive data or write access behind it. Tighten
-  // this (e.g. to the specific chrome-extension://<id> origin) before any real deployment.
+  // Permissive CORS is fine for now, a local-only backend with no sensitive data. Tighten
+  // this to the extension's own origin before any real deployment.
   app.use(cors());
   app.use(express.json({ limit: MAX_BODY_SIZE }));
 
@@ -46,8 +41,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
     void handleGenerateCriteria(req, res, { config, client: options.criteriaClient, timeoutMs: options.timeoutMs });
   });
 
-  // Catches express.json()'s own parse failure on malformed JSON — never leak the raw parser
-  // error (which can quote back parts of the offending body) to the client.
+  // Catches malformed JSON. Never leak the raw parser error to the client.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err) {
       res.status(400).json({ status: "invalid_request", message: "The request body could not be parsed." });

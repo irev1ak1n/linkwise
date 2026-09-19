@@ -1,8 +1,6 @@
-// Regression guards for the writing-quality rules baked into SYSTEM_PROMPT — these check that
-// the key instructions are still present in the prompt text, protecting against a future edit
-// accidentally dropping one. This does NOT prove the model actually follows them (that's a
-// live-verification concern — see the project's own live-testing notes), only that the
-// instruction text itself hasn't regressed.
+// Regression guards checking key instructions are still present in SYSTEM_PROMPT, protecting
+// against a future edit dropping one. Doesn't prove the model follows them, just that the
+// instruction text hasn't regressed.
 import { describe, expect, it } from "vitest";
 import { SYSTEM_PROMPT } from "./prompt";
 

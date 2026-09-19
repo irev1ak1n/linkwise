@@ -1,8 +1,4 @@
-// The server-side system prompt for LinkWise's semantic reasoning layer. Kept entirely
-// server-side — never sent to, or constructible by, the extension. Every rule here exists
-// because the deterministic engine it sits beside already enforces it in code (see
-// ../guardrails/) — the prompt asks the model to reason the same way the guardrails will
-// verify, so a well-behaved response usually needs no correction at all.
+// The server-side system prompt. Never sent to the extension.
 import type { AnalyzeProfileRequest } from "../validation/requestSchema";
 
 export const SYSTEM_PROMPT = `You are LinkWise's semantic reasoning layer, evaluating how relevant one LinkedIn profile is to a user's stated networking or recruiting goal.
@@ -82,9 +78,7 @@ CONTACT AND SAVE GUIDANCE:
 - "contactRecommendation" is one of: recommended, maybe, not_recommended. Write "contactRecommendationReason" as a short reason — only add real information beyond the recommendation reason above; keep it brief.
 - "saveRecommendation" is one of: save, consider_saving, skip. Write "saveRecommendationReason" as a short explanation.`;
 
-/** Builds the user-turn content: the goal, its criteria (with importance, since a Must-Have
- * confidently missing behaves very differently downstream from an Optional one), and every
- * evidence item with its stable ID — nothing else. No raw HTML, no unrelated profile data. */
+// Builds the user message: goal, criteria, and evidence. Nothing else.
 export function buildUserPrompt(request: AnalyzeProfileRequest): string {
   const criteriaLines = request.goal.criteria
     .map((c) => `- [${c.id}] "${c.label}" — importance: ${c.importance}${c.category ? `, category: ${c.category}` : ""}`)

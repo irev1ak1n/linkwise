@@ -1,17 +1,14 @@
-// Deterministic, local, rule-based extraction of a draft goal (name + criteria) from a free-
-// text description. This is pattern matching and a small curated vocabulary — NOT AI/LLM
-// semantic understanding, and never presented as such. It is intentionally conservative: a
-// phrase it doesn't recognize is simply left out of the draft rather than guessed at, and the
-// user always reviews/edits the result before it's saved (see the in-page panel's GoalSetupSection).
+// Deterministic, local, rule-based extraction of a draft goal from a free-text description.
+// Pattern matching and a small vocabulary, not AI. Conservative on purpose, an unrecognized
+// phrase is just left out rather than guessed at.
 import type { CriterionCategory, CriterionImportance } from "../models/goal";
 
 export interface DraftCriterion {
   label: string;
   importance: CriterionImportance;
   category?: CriterionCategory;
-  /** Set (to the same value) on every criterion produced from one "X or Y" alternative phrase
-   * — see `expandSharedTailAlternatives` — so the panel can display them as one bullet joined
-   * by "or" instead of implying independent requirements. */
+  /** Set the same on every criterion from one "X or Y" phrase, so the panel can show them as
+   * one bullet joined by "or". */
   groupId?: string;
 }
 
@@ -22,10 +19,9 @@ export interface GoalDraft {
 
 export const GOAL_TEXT_MAX_LENGTH = 1000;
 
-/** A small, maintainable list of common professional/technical domain nouns — used only to
- * pick up an additional loose "context" criterion when the text mentions a recognizable field
- * that wasn't already captured by the more specific patterns below. Deliberately short: this
- * is a helpful bonus signal, not an attempt at a comprehensive taxonomy. */
+// A small list of common domain nouns, used to pick up a loose "context" criterion when the
+// text mentions a field not already captured by the patterns below. A bonus signal, not a
+// comprehensive taxonomy.
 const DOMAIN_VOCABULARY = [
   "robotics",
   "software",
@@ -63,9 +59,8 @@ function collapseWhitespace(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-/** Strips a plain trailing plural "s" from the last word only (never touches "ss"/very short
- * words) — "FRC mentors" -> "FRC mentor". A light heuristic, not a real morphological
- * analyzer; good enough since the user reviews the result anyway. */
+// Strips a trailing plural "s" from the last word only, "FRC mentors" becomes "FRC mentor".
+// A light heuristic, good enough since the user reviews the result anyway.
 function singularizeLastWord(phrase: string): string {
   const words = phrase.split(" ");
   const last = words[words.length - 1];
@@ -87,9 +82,7 @@ interface ExtractionSpan {
   end: number;
 }
 
-/** Replaces an already-consumed span with spaces (same length, so later regex indices in the
- * same pass stay valid) rather than deleting it — keeps every downstream extraction pass
- * working against the original text's positions. */
+// Replaces a consumed span with spaces of the same length, so later regex indices stay valid.
 function blank(text: string, span: ExtractionSpan): string {
   return text.slice(0, span.start) + " ".repeat(span.end - span.start) + text.slice(span.end);
 }
@@ -99,11 +92,9 @@ const SUBJECT_PATTERN = /\b(?:looking for|seeking|searching for|want to find|nee
 const LOCATION_PATTERN = /\bin\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2})\b/;
 const SKILL_EXPERIENCE_PATTERN = /\bwith\s+(.+?)\s+(?:experience|background)\b/i;
 
-/** Expands "mechanical or aerospace engineering" into ["mechanical engineering", "aerospace
- * engineering"] — distributing a shared trailing noun across "or"-joined single-word
- * alternatives. Left as separate, un-expanded phrases when the pattern doesn't clearly apply
- * (more than one multi-word alternative, or only one alternative at all), rather than
- * guessing. */
+// Expands "mechanical or aerospace engineering" into ["mechanical engineering", "aerospace
+// engineering"], distributing a shared trailing noun. Left unexpanded when the pattern
+// doesn't clearly apply.
 function expandSharedTailAlternatives(phrase: string): string[] {
   const parts = phrase.split(/\s+or\s+/i).map((p) => p.trim()).filter(Boolean);
   if (parts.length < 2) return [phrase];
@@ -120,12 +111,8 @@ function expandSharedTailAlternatives(phrase: string): string[] {
   return parts;
 }
 
-/**
- * Extracts a draft goal name and criteria from a natural-language description. Deterministic:
- * the same text always produces the same draft. Every criterion is derived from an actual
- * phrase in the input — never invented — and defaults to a reasonable importance the user is
- * expected to review (see the module doc comment).
- */
+// Extracts a draft goal name and criteria from a description. Deterministic, and every
+// criterion is derived from an actual phrase in the input, never invented.
 export function parseGoalDraftFromText(rawText: string): GoalDraft {
   const text = collapseWhitespace(rawText).slice(0, GOAL_TEXT_MAX_LENGTH);
   if (!text) return { name: "", criteria: [] };
@@ -145,8 +132,7 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
 
   let working = text;
 
-  // 1. Exclusions first, and blanked out of `working` so later passes never re-pick them up
-  // as a positive signal.
+  // 1. Exclusions first, blanked out so later passes never re-pick them up as a positive signal.
   let exclusionMatch: RegExpExecArray | null;
   EXCLUSION_PATTERN.lastIndex = 0;
   while ((exclusionMatch = EXCLUSION_PATTERN.exec(working)) !== null) {
@@ -156,7 +142,7 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
     EXCLUSION_PATTERN.lastIndex = exclusionMatch.index + 1;
   }
 
-  // 2. The core subject ("looking for FRC mentors") — becomes the goal name AND a MUST_HAVE.
+  // 2. The core subject ("looking for FRC mentors"), becomes the goal name and a MUST_HAVE.
   const subjectMatch = SUBJECT_PATTERN.exec(working);
   let name = "";
   if (subjectMatch) {
@@ -178,10 +164,8 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
     working = blank(working, { start: locationMatch.index, end: locationMatch.index + locationMatch[0].length });
   }
 
-  // 4. "with X (or Y) experience/background" — skill/domain descriptor(s). Alternatives from
-  // the same original phrase share a groupId so the panel can display them as one "X or Y"
-  // bullet rather than implying they're independently required (see criterionDisplay.ts) —
-  // display-only: each still scores as its own separate criterion, unchanged.
+  // 4. "with X (or Y) experience/background". Alternatives share a groupId for display, each
+  // still scores as its own separate criterion.
   const skillMatch = SKILL_EXPERIENCE_PATTERN.exec(working);
   if (skillMatch) {
     const phrase = collapseWhitespace(skillMatch[1]);
@@ -193,8 +177,8 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
     working = blank(working, { start: skillMatch.index, end: skillMatch.index + skillMatch[0].length });
   }
 
-  // 5. Remaining recognizable domain vocabulary anywhere else in the text — a lower-confidence
-  // OPTIONAL context signal, only added when not already captured above.
+  // 5. Remaining domain vocabulary anywhere else, a lower-confidence OPTIONAL signal, only
+  // added when not already captured above.
   const lowerWorking = working.toLowerCase();
   for (const term of DOMAIN_VOCABULARY) {
     if (seen.has(term)) continue;
@@ -209,10 +193,8 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
   return { name, criteria };
 }
 
-/** Words/phrases that mark a sentence as likely to describe WHO is being looked for, as
- * opposed to unrelated surrounding prose in a longer document (a cover letter, a job
- * description, meeting notes, etc.) — used only to rank sentences for `condenseForGoalText`,
- * never to extract criteria directly (that remains `parseGoalDraftFromText`'s job). */
+// Phrases that mark a sentence as likely describing who's being looked for, versus unrelated
+// prose. Used only to rank sentences for condenseForGoalText, not to extract criteria.
 const GOAL_SIGNAL_PHRASES = [
   "looking for",
   "seeking",
@@ -232,14 +214,9 @@ const GOAL_SIGNAL_PHRASES = [
   "qualifications",
 ];
 
-/**
- * Reduces a long document's text down to a goal-relevant draft under the character budget, by
- * SCORING and SELECTING whole sentences rather than cutting off mid-thought at an arbitrary
- * character count. A sentence scores higher for containing goal-signal phrases, domain
- * vocabulary, or capitalized (proper-noun-like) words. Falls back to the document's first
- * sentences only when nothing scores above zero, so a document with no recognizable signal at
- * all still yields *something* rather than nothing.
- */
+// Reduces a long document to a goal-relevant draft under the character budget, by scoring and
+// selecting whole sentences rather than cutting mid-thought. Falls back to the first sentences
+// if nothing scores above zero.
 export function condenseForGoalText(fullText: string, maxLength: number = GOAL_TEXT_MAX_LENGTH): string {
   const text = collapseWhitespace(fullText);
   if (text.length <= maxLength) return text;
@@ -259,20 +236,19 @@ export function condenseForGoalText(fullText: string, maxLength: number = GOAL_T
   const anySignal = scored.some((s) => s.score > 0);
   const ranked = anySignal
     ? [...scored].sort((a, b) => b.score - a.score || a.index - b.index)
-    : scored; // no signal anywhere — fall back to document order (first sentences), not a guess
+    : scored; // no signal anywhere, fall back to document order
 
   const selected: typeof scored = [];
   let length = 0;
   for (const candidate of ranked) {
-    if (candidate.score === 0 && anySignal) break; // never pad with zero-score filler once we have real signal
+    if (candidate.score === 0 && anySignal) break; // don't pad with filler once we have real signal
     const addition = (selected.length > 0 ? " " : "") + candidate.sentence;
     if (length + addition.length > maxLength) continue;
     selected.push(candidate);
     length += addition.length;
   }
 
-  // Restore original document order for readability, then hard-trim as a last-resort safety
-  // net in case even one sentence alone exceeds the budget.
+  // Restore document order for readability, then hard-trim as a last resort.
   const ordered = selected.sort((a, b) => a.index - b.index).map((s) => s.sentence);
   const joined = ordered.join(" ");
   return joined.length > maxLength ? `${joined.slice(0, maxLength - 3)}...` : joined;

@@ -1,7 +1,5 @@
-// A LinkedIn profile as read directly from the currently-rendered page — never fetched,
-// scraped from another page, or invented. Every field is optional because the adapter only
-// ever reports what it actually found; a field being absent means "not visible on this
-// profile as currently rendered," never "confirmed empty."
+// A LinkedIn profile read from the currently-rendered page, never fetched or invented. Every
+// field is optional, absent means "not visible right now," never "confirmed empty."
 
 export interface ProfileExperienceEntry {
   title?: string;
@@ -15,10 +13,8 @@ export interface ProfileEducationEntry {
   field?: string;
 }
 
-/** A generic named/described entry — used for the several profile sections (Projects,
- * Certifications, Organizations, Volunteering) that all render as either a list of short
- * "name + optional description" items or, when LinkedIn doesn't expose per-item structure,
- * one blob of section text. */
+// A generic named/described entry, shared by the sections that all render as a simple list
+// of "name + optional description" items.
 export interface ProfileListEntry {
   name?: string;
   description?: string;
@@ -28,15 +24,11 @@ export type ProfileProjectEntry = ProfileListEntry;
 export type ProfileCertificationEntry = ProfileListEntry;
 export type ProfileOrganizationEntry = ProfileListEntry;
 export type ProfileVolunteeringEntry = ProfileListEntry;
-/** `name` is the language itself, `description` its proficiency level when LinkedIn shows one
- * (e.g. "Native or bilingual proficiency"). */
+// name is the language itself, description its proficiency level when LinkedIn shows one.
 export type ProfileLanguageEntry = ProfileListEntry;
 
-/** Every section the adapter knows how to look for — used purely for progress display (“About
- * found, still watching for Education”), never to demand a profile contain all of them. A
- * profile missing a section here is simply a profile without that section, not an error.
- * Deliberately excludes identity fields (headline, location) that live in the top card rather
- * than a real LinkedIn "section" with its own heading. */
+// Every section the adapter knows to look for, used only for progress display, never to
+// demand a profile contain all of them. Excludes headline/location, which live in the top card.
 export type ProfileSectionName =
   | "about"
   | "experience"
@@ -73,11 +65,7 @@ export interface LinkedInProfile {
   organizations: ProfileOrganizationEntry[];
   volunteering: ProfileVolunteeringEntry[];
   languages: ProfileLanguageEntry[];
-  /**
-   * True once the adapter found at least a name or headline on the page — lets callers tell
-   * "this is a real, at-least-partially-read profile" apart from "nothing could be read at
-   * all" (e.g. the page hasn't finished rendering yet, or isn't a profile page).
-   */
+  /** True once at least a name or headline was found, versus nothing readable at all. */
   extracted: boolean;
 }
 
@@ -93,9 +81,8 @@ export const EMPTY_PROFILE: LinkedInProfile = {
   extracted: false,
 };
 
-/** Which known sections actually have content in this profile snapshot right now — the basis
- * for honest collection-progress display. Never implies a section that's absent is "missing
- * information"; some profiles genuinely have no Projects section, for example. */
+// Which known sections actually have content right now. An absent section isn't missing
+// information, some profiles genuinely have no Projects section.
 export function foundSections(profile: LinkedInProfile): ProfileSectionName[] {
   const found: ProfileSectionName[] = [];
   if (profile.about) found.push("about");
@@ -110,12 +97,8 @@ export function foundSections(profile: LinkedInProfile): ProfileSectionName[] {
   return found;
 }
 
-/** Every text field of a profile that matching is allowed to search, paired with a
- * human-readable label used in evidence, and the section it actually came from (used by the
- * evidence layer — see src/evidence/ — to apply section-appropriate role-level defaults; a
- * mention in "Experience" implies real engagement in a way the same words in "Skills" would
- * not) — the single source of truth for "where can a criterion's evidence come from," so the
- * matcher and any future field never drift apart. */
+// Every text field matching is allowed to search, with a display label and the section it
+// came from. The single source of truth for where evidence can come from.
 export interface ProfileTextField {
   label: string;
   text: string;

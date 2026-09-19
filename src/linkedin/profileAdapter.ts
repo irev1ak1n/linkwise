@@ -1,11 +1,8 @@
-// The ONE file that queries LinkedIn's own DOM for the profile surface. Every other module
-// (matching, storage, UI) works only with the LinkedInProfile type this file produces — never
-// with a LinkedIn selector directly — so the place that has to change when LinkedIn's markup
-// changes stays exactly one file.
+// The one file that queries LinkedIn's DOM. Every other module works with the LinkedInProfile
+// type this produces, never a LinkedIn selector directly, so only one file needs to change
+// when LinkedIn's markup changes.
 //
-// Reads only what is already rendered on the current page. Never fetches another page, never
-// expands a collapsed section by itself, never reads anything the user hasn't already
-// navigated to and had LinkedIn render for them.
+// Reads only what's already rendered. Never fetches another page or expands a section itself.
 import {
   EMPTY_PROFILE,
   type LinkedInProfile,
@@ -15,12 +12,8 @@ import {
   type ProfileSectionName,
 } from "../models/profile";
 
-/** How each known section's heading text is recognized. Most sections use LinkedIn's exact,
- * single-word heading; a few (Certifications, Organizations, Volunteering) render under
- * several real-world heading variants ("Licenses & certifications", "Volunteer Experience"),
- * so those match by substring instead of exact equality. One shared table drives both content
- * extraction (`findHeadingSection`) and section *detection* (`detectProfileSections`), so the
- * two can never drift apart. */
+// How each section's heading is recognized. A few sections have multiple real-world heading
+// variants, so those match by substring. Shared by extraction and detection so they can't drift.
 const SECTION_MATCHERS: { name: ProfileSectionName; matches: (headingText: string) => boolean }[] = [
   { name: "about", matches: (t) => t === "about" },
   { name: "experience", matches: (t) => t === "experience" },
@@ -42,11 +35,8 @@ function cleanText(text: string | null | undefined): string | undefined {
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
-/** LinkedIn commonly duplicates visible text inside an `aria-hidden` twin (for its own
- * accessibility markup) right next to a `visually-hidden` screen-reader copy of the SAME
- * text — reading `textContent` naively doubles it (e.g. "Software EngineerSoftware
- * Engineer"). Prefer the `aria-hidden="true"` copy when one exists; it is the one meant to be
- * visually read. */
+// LinkedIn duplicates text with a screen-reader copy next to an aria-hidden one, so reading
+// textContent naively doubles it. Prefer the aria-hidden copy when one exists.
 function visibleText(element: Element): string | undefined {
   const ariaHidden = element.querySelector('[aria-hidden="true"]');
   if (ariaHidden) return cleanText(ariaHidden.textContent);
@@ -57,15 +47,13 @@ function findMain(doc: Document): HTMLElement {
   return doc.querySelector<HTMLElement>('main[role="main"], main') ?? doc.body;
 }
 
-/** Headings are queried once by the caller and passed in here — five separate full-subtree
- * traversals (one per section) visibly degraded page responsiveness when extraction ran
- * repeatedly on every scroll/mutation tick. */
+// Headings are queried once by the caller, since five separate subtree traversals per tick
+// hurt page responsiveness.
 function findHeadingSection(headings: HTMLElement[], name: ProfileSectionName): HTMLElement | null {
   const matches = matcherFor(name);
   const match = headings.find((el) => matches((el.textContent ?? "").trim().toLowerCase()));
   if (!match) return null;
-  // The section content lives in a shared ancestor with the heading — walk up to the nearest
-  // <section>, falling back to a bounded ancestor walk if LinkedIn doesn't use <section> here.
+  // Walk up to the nearest <section>, or a bounded ancestor walk if there isn't one.
   const section = match.closest("section");
   if (section) return section;
   let node: HTMLElement | null = match.parentElement;
@@ -78,9 +66,7 @@ function findHeadingSection(headings: HTMLElement[], name: ProfileSectionName): 
   return match.parentElement;
 }
 
-/** The profile name heading. LinkedIn doesn't consistently render an `<h1>` here — the name is
- * often the first `<h2>` inside `<main>`, with section headings ("About", "Experience", …)
- * further down, so "first heading inside main" still resolves to the name by document order. */
+// The name heading. LinkedIn doesn't always render an h1 here, often it's the first h2.
 function findIdentityHeading(main: HTMLElement): HTMLElement | null {
   return main.querySelector<HTMLElement>("h1") ?? main.querySelector<HTMLElement>("h2");
 }
@@ -91,16 +77,11 @@ function extractName(main: HTMLElement): string | undefined {
 }
 
 const MAX_IDENTITY_CARD_WALK = 12;
-/** An upper bound on how much text a legitimate "top card" (name, headline, location,
- * follower count, connect/follow buttons) can plausibly contain — past this, an ancestor has
- * almost certainly widened out to the rest of the page. */
+// Past this much text, an ancestor has almost certainly widened out to the rest of the page.
 const MAX_IDENTITY_CARD_TEXT_LENGTH = 3000;
 
-/** The name heading's closest ancestor that also contains the headline/location/follower count.
- * Not reliably `.closest("section")` — on a real profile page that resolved to a much larger,
- * unrelated wrapper (most of the page), while the true top-card boundary was a plain `<div>`
- * further up. Walking up until text grows meaningfully past the name alone finds that boundary
- * regardless of element type. */
+// The name heading's ancestor that also has the headline/location. .closest("section") isn't
+// reliable here, so this walks up until the text grows meaningfully past just the name.
 function findIdentityCardContainer(heading: HTMLElement): HTMLElement | null {
   const nameLength = (heading.textContent ?? "").trim().length;
   let node: HTMLElement | null = heading.parentElement;
@@ -114,22 +95,15 @@ function findIdentityCardContainer(heading: HTMLElement): HTMLElement | null {
   return heading.parentElement;
 }
 
-/** A bare connection-degree badge ("· 1st", "2nd", "3rd+") — LinkedIn's own UI chrome, never a
- * real headline. Confirmed live: the identity-card container can also include the "mutual
- * connections" widget, whose entries carry THEIR OWN degree badges as plain short text — those
- * would otherwise satisfy `extractHeadline`'s generic "short plain text block" filter and get
- * returned before the real headline is ever reached. */
+// A bare connection-degree badge, LinkedIn UI chrome, never a real headline. The identity card
+// can include mutual-connection badges that would otherwise match the headline filter.
 function isConnectionDegreeBadge(text: string): boolean {
   return /^[·•]?\s*(1st|2nd|3rd)\+?$/i.test(text.trim());
 }
 
-/** Pronoun words LinkedIn's own "She/Her"-style badge is built from — confirmed live: this
- * badge sits in the identity card ABOVE the real headline in DOM order, as its own short plain
- * text span, so without this filter `extractHeadline`'s generic "short plain text block"
- * heuristic returned "She/Her" as the headline instead of the person's real one. Every
- * slash-separated part of the candidate text must be a recognized pronoun word — a real
- * headline containing a slash (e.g. "Software Engineer / Robotics Mentor") has multi-word parts
- * that can never all match, so this can't accidentally swallow one. */
+// Pronoun words for a "She/Her"-style badge, which sits above the real headline and would
+// otherwise get picked up as one. A real headline with a slash has multi-word parts, so this
+// can't accidentally match a real one.
 const PRONOUN_WORDS = new Set([
   "he",
   "him",
@@ -158,8 +132,7 @@ function isPronounBadge(text: string): boolean {
     .every((part) => PRONOUN_WORDS.has(part));
 }
 
-/** The headline sits just below the name, as a short (non-list, non-button) text block —
- * distinguished from surrounding chrome by being plain text without interactive children. */
+// The headline is a short plain-text block just below the name, no interactive children.
 function extractHeadline(main: HTMLElement): string | undefined {
   const heading = findIdentityHeading(main);
   if (!heading) return undefined;
@@ -167,7 +140,7 @@ function extractHeadline(main: HTMLElement): string | undefined {
   if (!container) return undefined;
 
   const name = extractName(main);
-  // LinkedIn doesn't consistently use one tag here — check div/span/p rather than assume.
+  // LinkedIn doesn't consistently use one tag here, check div/span/p rather than assume.
   const candidates = Array.from(container.querySelectorAll<HTMLElement>("div, span, p"));
   for (const el of candidates) {
     if (el.querySelector("h1, h2, button, a, ul, li")) continue;
@@ -196,9 +169,8 @@ function extractLocation(main: HTMLElement, headline: string | undefined): strin
   for (const el of candidates) {
     const text = visibleText(el);
     if (!text || text === headline || text.length > 100) continue;
-    // A location line is short and typically contains a comma or a recognizable geo pattern
-    // ("City, State", "City, Country", "Area") — a conservative, non-overfit heuristic rather
-    // than a hardcoded list of place names.
+    // A location line is short and usually has a comma or "area", rather than a hardcoded
+    // list of place names.
     if (/,/.test(text) || /\barea\b/i.test(text)) return text;
   }
   return undefined;
@@ -209,8 +181,7 @@ function extractAbout(headings: HTMLElement[]): string | undefined {
   return section ? sectionBodyText(section, "about") : undefined;
 }
 
-/** Strips a section's own heading text from its full text content — the same technique
- * `extractAbout` uses, factored out since the other list-style sections need it too. */
+// Strips a section's own heading text from its full text content.
 function sectionBodyText(section: HTMLElement, name: ProfileSectionName): string | undefined {
   const matches = matcherFor(name);
   const heading = Array.from(section.querySelectorAll<HTMLElement>("h2, h3")).find((h) =>
@@ -224,10 +195,8 @@ function sectionBodyText(section: HTMLElement, name: ProfileSectionName): string
   return cleanText(text.replace(/…\s*(see more|more)/gi, ""));
 }
 
-/** Current LinkedIn often doesn't render Experience as `<li>`/`<ul>` at all, just unlabeled
- * nested `<div>`s with no reliable boundary between roles — in that case the whole section's
- * text becomes one entry's `description` rather than guessing at fragile per-entry splits.
- * `<li>`-based extraction is tried first and preferred when a page does provide it. */
+// LinkedIn often doesn't render Experience as li/ul, just unlabeled nested divs with no
+// reliable boundary between roles. Falls back to one blob entry rather than guessing splits.
 function extractExperience(headings: HTMLElement[]): ProfileExperienceEntry[] {
   const section = findHeadingSection(headings, "experience");
   if (!section) return [];
@@ -286,10 +255,8 @@ function extractEducation(headings: HTMLElement[]): ProfileEducationEntry[] {
   return body ? [{ school: body }] : [];
 }
 
-/** Same "try `<li>` first, fall back to the section's blob text" shape as Experience/Education
- * — shared by every section (Projects, Certifications, Organizations, Volunteering) that is
- * just a list of short "name + optional description" entries, since they all render with the
- * same inconsistent structure across profiles. */
+// Same "try li first, fall back to blob text" shape as Experience/Education, shared by every
+// simple name-plus-description section.
 function extractListEntries(headings: HTMLElement[], name: ProfileSectionName): ProfileListEntry[] {
   const section = findHeadingSection(headings, name);
   if (!section) return [];
@@ -316,10 +283,8 @@ function extractListEntries(headings: HTMLElement[], name: ProfileSectionName): 
   return body ? [{ description: body }] : [];
 }
 
-/** A compact "Top skills" widget (a `<p>` label, not an `h2`/`h3` heading) often appears near
- * the top of a profile, listing a few skills separated by "•", even when no full "Skills"
- * section exists — checked first since it's the more commonly available source; a full section
- * (when present) is merged in alongside it, deduplicated. */
+// A compact "Top skills" widget, a p label not a heading, often appears even without a full
+// Skills section. Checked first, merged with a full section when one exists.
 function extractTopSkillsWidget(main: HTMLElement): string[] {
   const label = Array.from(main.querySelectorAll<HTMLElement>("p")).find(
     (p) => (p.textContent ?? "").trim().toLowerCase() === "top skills",
@@ -363,17 +328,15 @@ function extractSkills(main: HTMLElement, headings: HTMLElement[]): string[] {
   return [...new Set(skills)];
 }
 
-/** Reads the currently-rendered LinkedIn profile page. Never throws — a page that isn't a
- * profile, or hasn't finished rendering yet, simply yields fields that are all undefined
- * (`extracted: false`), never a guessed/partial value presented as real. */
+// Reads the currently-rendered profile page. Never throws, an unfinished page just yields
+// undefined fields with extracted: false.
 export function extractLinkedInProfile(doc: Document = document): LinkedInProfile {
   const main = findMain(doc);
   const name = extractName(main);
   const headline = extractHeadline(main);
   const location = extractLocation(main, headline);
 
-  // Queried once and reused by every section lookup below — see findHeadingSection's doc
-  // comment for why this matters when extraction runs repeatedly on scroll/mutation ticks.
+  // Queried once and reused below, see findHeadingSection for why that matters.
   const headings = Array.from(main.querySelectorAll<HTMLElement>("h2, h3"));
   const about = extractAbout(headings);
   const experience = extractExperience(headings);
@@ -405,13 +368,8 @@ export function extractLinkedInProfile(doc: Document = document): LinkedInProfil
   };
 }
 
-/**
- * Which known sections currently have a heading visible in the DOM, independent of whether
- * their body text has been successfully captured yet — a section can be detected (its heading
- * scrolled into view, content still lazy-loading) slightly before it is "found" (see
- * `foundSections`). Also recognizes the compact "Top skills" widget, which has no `h2`/`h3`
- * heading of its own. Used only for honest collection-progress display, never to change what
- * gets extracted. */
+// Which sections have a heading visible, whether or not their content is captured yet.
+// Used only for the collection-progress display, never to change what gets extracted.
 export function detectProfileSections(doc: Document = document): ProfileSectionName[] {
   const main = findMain(doc);
   const headings = Array.from(main.querySelectorAll<HTMLElement>("h2, h3"));
@@ -423,13 +381,8 @@ export function detectProfileSections(doc: Document = document): ProfileSectionN
   return detected;
 }
 
-/**
- * A stable identity for "which profile is this" — the `/in/<vanity-slug>/` path segment,
- * never the full URL (which can carry volatile tracking query params that change between
- * visits to the SAME person). Used to detect a genuine navigation to a DIFFERENT profile
- * (reset collection state) versus more content loading on the SAME one (keep accumulating).
- * Returns `null` when the current URL isn't a profile page at all.
- */
+// A stable profile identity, the vanity-slug path segment, never the full URL with its
+// volatile tracking params. Null when the URL isn't a profile page.
 export function profileIdentityKey(url: string): string | null {
   const match = /\/in\/([^/?#]+)/.exec(url);
   return match ? decodeURIComponent(match[1]) : null;

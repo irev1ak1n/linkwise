@@ -1,20 +1,11 @@
-// A user-authored goal ("what kind of person am I looking for") and its editable criteria.
-// Criteria are free-text and user-defined — there is no fixed taxonomy — matched
-// deterministically against profile text by src/matching (never by an AI call).
+// A user-authored goal and its editable criteria. Criteria are free-text with no fixed
+// taxonomy, matched deterministically against profile text, never by an AI call.
 
 export type CriterionImportance = "MUST_HAVE" | "PREFERRED" | "OPTIONAL" | "EXCLUDED";
 
-/** What KIND of fact a criterion represents — display-only, never read by matching (see
- * src/matching), which only ever looks at `label`/`importance`. Lets the in-page panel's
- * compact "Your ideal match" card show a short, readable heading ("Role", "Location", ...)
- * instead of a flat list, while the actual criterion driving the score stays exactly the same
- * object. Set by the NLP parser when it recognizes which extraction pattern produced a
- * criterion, or by the AI criteria generator (see src/ai/generateCriteriaClient.ts, which calls
- * this "type" on the wire but stores it here); left unset for manually-added criteria, which
- * fall back to an importance-based heading instead (see linkedin/panel/criterionDisplay.ts).
- * "role"/"location"/"experience"/"context"/"other" are the original local-parser categories;
- * the rest are the AI generator's richer taxonomy — both live in one union rather than two
- * separate near-identical types since both ultimately mean the same thing here. */
+// What kind of fact a criterion represents, display-only, never read by matching. Lets the
+// panel show a short heading like "Role" or "Location" instead of a flat list. Set by the NLP
+// parser or the AI criteria generator, left unset for manually-added criteria.
 export type CriterionCategory =
   | "role"
   | "location"
@@ -34,35 +25,24 @@ export type CriterionCategory =
   | "industry"
   | "interest";
 
-/** How a criterion's `value` should be compared — only meaningful alongside a non-null `value`
- * (a quantified threshold like "10+ service hours" or "at least 3 years"). Display-only, like
- * `category`/`value`/`sourceText`: matching (src/matching) still reads only `label`/
- * `importance`, so the label itself must already spell out the number and comparison in words
- * (see the AI criteria generator's prompt) — these fields exist for traceability/future display,
- * not because the matching engine consumes them today. */
+// How a criterion's value should be compared, only meaningful with a non-null value.
+// Display-only, matching still only reads label/importance.
 export type CriterionOperator = "at_least" | "at_most" | "equals";
 
 export interface Criterion {
   id: string;
-  /** Free text the user typed, e.g. "FRC mentor", "Python", "still in college" — or, for an
-   * AI-generated criterion, a complete phrase preserving the source description's meaning (see
-   * src/ai/generateCriteriaClient.ts's doc comment on why this must never be compressed to a
-   * bare keyword). This is the ONLY field src/matching ever reads. */
+  /** Free text the user typed, or a full phrase for an AI-generated criterion, never
+   * compressed to a bare keyword. The only field matching ever reads. */
   label: string;
   importance: CriterionImportance;
   category?: CriterionCategory;
-  /** Display-only — links criteria that came from the same "X or Y" alternative phrase in the
-   * original description (see nlp/goalTextParser.ts's expandSharedTailAlternatives, or the AI
-   * generator's own groupId field), so the panel can show them as one bullet joined by "or"
-   * instead of implying two independent requirements. Never read by matching: each criterion is
-   * still scored on its own. */
+  /** Display-only, links criteria from the same "X or Y" phrase so the panel can show them as
+   * one bullet. Never read by matching, each criterion is still scored on its own. */
   groupId?: string;
-  /** The literal quantity a criterion expresses (e.g. "10", "3 years") — set only alongside
-   * `operator`. Display-only; see `CriterionOperator`'s doc comment. */
+  /** The literal quantity a criterion expresses, set only alongside operator. Display-only. */
   value?: string;
   operator?: CriterionOperator;
-  /** The substring of the original description an AI-generated criterion was derived from —
-   * purely for the user's own traceability, never read by matching. */
+  /** The substring of the description an AI-generated criterion came from, for traceability only. */
   sourceText?: string;
 }
 
@@ -70,16 +50,14 @@ export interface Goal {
   id: string;
   name: string;
   criteria: Criterion[];
-  /** Free-form notes the user attaches to this search intent — persisted alongside the goal,
-   * never read by matching/scoring. Purely a place to jot context for themselves. */
+  /** Free-form notes the user attaches, never read by matching/scoring. */
   notes?: string;
 }
 
 let idCounter = 0;
 
-/** Timestamp-plus-counter id — unique within a single session, which is all that's needed
- * since goals/criteria are only ever referenced from local storage, never shared or synced
- * across devices in this milestone. */
+// Timestamp-plus-counter id, unique within a session, which is all that's needed since goals
+// are only ever referenced from local storage.
 export function generateId(prefix: string): string {
   idCounter += 1;
   return `${prefix}_${Date.now().toString(36)}_${idCounter}`;
@@ -97,9 +75,8 @@ export function createGoal(name: string): Goal {
   return { id: generateId("goal"), name, criteria: [] };
 }
 
-/** Starter examples, matching the mission's own suggestions — fully editable and deletable,
- * never treated as fixed/built-in by any code path. Seeded only the first time the extension
- * runs (see storage/goalsRepository.ts), so a user who deletes them never sees them return. */
+// Starter examples, fully editable and deletable. Seeded only the first time the extension
+// runs, so a deleted one never comes back.
 export function defaultGoals(): Goal[] {
   return [
     {

@@ -12,22 +12,14 @@ interface AnalysisViewProps {
   result: MatchResult;
   goal: Goal;
   profile: LinkedInProfile;
-  /** Always already resolved by the time this component ever renders — "ready" or
-   * "unavailable" only, never "idle"/"loading" (see PanelApp.tsx's `renderProfileSection`, which
-   * shows a LoadingView instead for as long as AI is still pending — no partial/local-only
-   * result is ever shown as a placeholder). */
+  /** Always already resolved, "ready" or "unavailable" only. PanelApp shows a LoadingView
+   * while AI is still pending. */
   aiState: Extract<AiAnalysisState, { status: "ready" } | { status: "unavailable" }>;
 }
 
-/** State B of the two-stage panel: the final, non-provisional Profile Analysis — only ever
- * rendered once collection has settled (or the user explicitly asked to analyze early), never
- * shown as a preview of an in-progress read. This is a statement of relevance to the user's
- * current goal, not a judgment of the person — the same profile can score very differently
- * under a different goal (see scoreProfile.test.ts's own worked example).
- *
- * Shows exactly ONE final analysis, never a local one and an AI one side by side (see
- * src/ai/mergeIntoAnalysis.ts) — the Match %/recommendation are always deterministic; only the
- * narrative text improves when AI succeeds. */
+// The final profile analysis, never a preview of an in-progress read. A statement of
+// relevance to the current goal, not a judgment of the person. Shows one result, never
+// local and AI side by side.
 export function AnalysisView({ result, goal, profile, aiState }: AnalysisViewProps) {
   const evidence = useMemo(() => buildProfileEvidence(profile), [profile]);
 

@@ -1,14 +1,12 @@
-// Local-only persistence for goals/criteria via chrome.storage.local — never synced to any
-// server, since no Finder-operated server exists. Seeds the starter example goals exactly
-// once, on first-ever run; a user who deletes them never sees them silently return.
+// Local-only persistence for goals/criteria, never synced to a server. Seeds the starter
+// goals exactly once, on first-ever run.
 import { defaultGoals, type Goal } from "../models/goal";
 
 const STORAGE_KEY = "finder.goals.v1";
 const SEEDED_KEY = "finder.goalsSeeded.v1";
 const SELECTED_GOAL_KEY = "finder.selectedGoalId.v1";
 
-/** Exported so other contexts (the in-page LinkWise panel) can watch these exact keys via
- * `chrome.storage.onChanged` without duplicating the literal strings. */
+// Exported so other contexts can watch these exact keys without duplicating the strings.
 export const GOALS_STORAGE_KEYS = { goals: STORAGE_KEY, selectedGoalId: SELECTED_GOAL_KEY };
 
 interface GoalsStorageShape {

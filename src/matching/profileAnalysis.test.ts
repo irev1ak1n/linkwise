@@ -64,10 +64,8 @@ describe("assessExperienceLevel", () => {
   });
 
   it("never reads an internship as full career-level experience (confirmed live on a real profile)", () => {
-    // Confirmed live: an engineering student with one internship, one part-time
-    // teaching-assistant role, and one unrelated part-time job read as "Extensive experience"
-    // before this fix — LinkedIn itself tags the internship's employment type as an
-    // internship, and that distinction should count for something here.
+    // A student with an internship and two other part-time roles read as "Extensive
+    // experience" before this fix. The internship distinction should count for something.
     const evidence = buildProfileEvidence(
       profile({
         experience: [

@@ -160,10 +160,8 @@ describe("AiAnalysisController - stale result handling", () => {
   });
 
   it("falls back to 'unavailable' instead of hanging forever if the request promise unexpectedly rejects", async () => {
-    // requestAiAnalysis is designed to always resolve (see analyzeProfileClient.ts), but this is
-    // the safety net for that contract — a real incident where a synchronous throw from an
-    // orphaned extension context (chrome.runtime undefined after a reload) turned into an
-    // unhandled rejection and left the UI stuck on "Analyzing profile…" forever.
+    // requestAiAnalysis should always resolve, but this is the safety net, a real incident
+    // where an orphaned context throwing synchronously left the UI stuck loading forever.
     const requestAiAnalysis = vi.fn(() => makePendingRequest(Promise.reject(new Error("unexpected"))).pending);
     const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 100 });
     const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };

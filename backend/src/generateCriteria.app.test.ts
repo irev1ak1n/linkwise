@@ -1,7 +1,6 @@
-// Backend endpoint contract tests for POST /api/generate-criteria — real HTTP requests against a
-// real Express app (via supertest, no port bound), with a fake CriteriaGenerationClient injected
-// so no OpenAI SDK or API key is ever involved. Kept as its own file (rather than folded into
-// app.test.ts) purely so each endpoint's contract tests stay easy to find on their own.
+// Backend endpoint contract tests for POST /api/generate-criteria, with a fake
+// CriteriaGenerationClient so no OpenAI SDK or API key is involved. Kept as its own file so
+// each endpoint's tests stay easy to find.
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "./app";

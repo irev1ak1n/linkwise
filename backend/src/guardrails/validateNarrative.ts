@@ -1,12 +1,6 @@
-// Guardrails for the NARRATIVE half of OpenAI's response (summary/strengths/gaps) — a separate
-// concern from `mergeCriterionAssessments.ts`, which guards the SCORE. Even when a criterion
-// assessment is correctly grounded, the free-text strengths/gaps arrays are still an
-// independent surface OpenAI could pad with unsupported claims, so they get their own
-// evidence-ID validation: "Every strength ... must reference actual evidence IDs" is enforced
-// here by DROPPING any strength that, after filtering out IDs that were never supplied, has
-// none left — an unsupported positive claim is removed entirely rather than shown with a
-// dangling citation. Gaps describe an ABSENCE, so they may legitimately cite no evidence at
-// all; only invalid IDs are stripped from them, never used as a reason to drop the gap.
+// Validates the narrative half of OpenAI's response (summary/strengths/gaps). A strength with
+// no valid evidence IDs left gets dropped entirely. A gap can legitimately have no evidence
+// since it describes an absence, only invalid IDs get stripped from it.
 import type { CriterionImportance } from "../../../src/models/goal";
 import type { AnalysisResponse, ConfidenceLevel } from "../openai/responseSchema";
 import { normalizeSummaryLength } from "./normalizeSummary";
@@ -25,11 +19,7 @@ export interface ValidatedGap {
 }
 
 export interface ValidatedNarrative {
-  /** undefined when OpenAI's summary was empty/whitespace-only — callers fall back to the
-   * local template summary in that case, never an empty string shown as-is. Length-normalized
-   * (see normalizeSummary.ts) so a summary that ran long never breaks the panel's layout or the
-   * "never exceed 60 words" requirement — a mechanical, sentence-boundary-safe trim, never
-   * another API call. */
+  /** Undefined if OpenAI's summary was empty, so callers fall back to the local one. */
   summary: string | undefined;
   strengths: ValidatedStrength[];
   gaps: ValidatedGap[];
@@ -38,9 +28,7 @@ export interface ValidatedNarrative {
   recommendationReason: string;
   contactRecommendationReason: string;
   saveRecommendationReason: string;
-  /** OpenAI's own judgment of evidence completeness — already enum-validated by the Structured
-   * Outputs schema, so this is a plain passthrough rather than something to re-validate here.
-   * See scoring.ts's `confidenceLevelToFloat` for how it feeds the displayed MatchResult. */
+  /** Passed through as-is, already validated by the schema. */
   confidenceLevel: ConfidenceLevel;
 }
 

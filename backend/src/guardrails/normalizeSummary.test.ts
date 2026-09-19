@@ -28,7 +28,7 @@ describe("normalizeSummaryLength - over budget", () => {
     const result = normalizeSummaryLength(summary);
     expect(words(result)).toBeLessThanOrEqual(60);
     expect(words(result)).toBeGreaterThan(0);
-    // Only whole sentences were kept — result is a clean prefix of the original sentences.
+    // Only whole sentences were kept, result is a clean prefix of the original sentences.
     expect(summary.startsWith(result)).toBe(true);
   });
 

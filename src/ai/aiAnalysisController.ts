@@ -1,8 +1,5 @@
-// The debounce/cache/cancellation state machine behind the "analyze this profile with AI"
-// flow — deliberately a plain, framework-free class rather than living inside a React hook
-// directly, so it can be unit-tested with fake timers without any React rendering machinery
-// (matching this project's established pattern of keeping stateful logic in plain modules and
-// hooks as thin wrappers — see goalStore.ts / useGoalStore.ts).
+// The debounce/cache/cancellation logic behind AI analysis. A plain class, not a hook,
+// so it can be tested with fake timers without any React rendering.
 import type { Goal } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 import type { MatchResult } from "../matching/scoreProfile";
@@ -12,9 +9,7 @@ import { computeAnalysisCacheKey } from "./analysisCacheKey";
 import { getCachedAnalysis, getOrStartInFlight, setCachedAnalysis } from "./aiAnalysisCache";
 import type { AiAnalysisOutcome } from "./apiTypes";
 
-/** Rapid successive criteria edits (or profile evidence updates while still scanning) should
- * settle before spending an API call on each one — see the mission's own "debounce rapid
- * criteria changes so we don't create unnecessary API calls." */
+// Lets rapid edits settle before spending an API call on each one.
 export const AI_ANALYSIS_DEBOUNCE_MS = 800;
 
 export type AiAnalysisState =
@@ -24,7 +19,7 @@ export type AiAnalysisState =
   | { status: "unavailable"; reason: string };
 
 export interface AiAnalysisControllerOptions {
-  /** Injectable for tests — the real caller never needs to pass this. */
+  /** For tests only. */
   requestAiAnalysis?: typeof defaultRequestAiAnalysis;
   debounceMs?: number;
 }
@@ -41,9 +36,8 @@ export class AiAnalysisController {
     this.debounceMs = options.debounceMs ?? AI_ANALYSIS_DEBOUNCE_MS;
   }
 
-  /** Cancels whatever is currently pending (debounce timer and/or in-flight request) without
-   * forgetting what the "current" request key is — used when a NEW request supersedes an old
-   * one. Use `reset()` instead when tearing down entirely (disabled / unmounting). */
+  /** Cancels anything pending without forgetting the current request key. Use reset() to tear
+   * down entirely. */
   private cancelPending(): void {
     if (this.debounceHandle) clearTimeout(this.debounceHandle);
     this.debounceHandle = null;
@@ -51,23 +45,14 @@ export class AiAnalysisController {
     this.pending = null;
   }
 
-  /** Full teardown — also forgets the latest request key, so a stray in-flight promise from
-   * before teardown can never be mistaken for still being "the current one" if it somehow
-   * resolves later. */
+  /** Full teardown. Forgets the latest key too, so a stray promise can't be mistaken as current. */
   reset(): void {
     this.cancelPending();
     this.latestKey = null;
   }
 
-  /**
-   * Requests (or reuses a cached/in-flight) AI analysis for this exact profile+goal
-   * combination, reporting state transitions through `onStateChange`. Any previously pending
-   * request for a DIFFERENT combination is cancelled first — "if the user navigates to a
-   * different profile [or changes the goal] while an AI request is running, cancel or ignore
-   * the old result" falls out of this by construction: a superseding call always wins, and a
-   * stale promise that resolves late is dropped via the `latestKey` check below rather than
-   * ever reaching `onStateChange`.
-   */
+  /** Requests (or reuses a cached) AI analysis for this profile and goal. A new call cancels
+   * any pending one for a different combination, and a late stale result gets dropped. */
   request(goal: Goal, profile: LinkedInProfile, localResult: MatchResult, onStateChange: (state: AiAnalysisState) => void): void {
     this.cancelPending();
 
@@ -90,7 +75,7 @@ export class AiAnalysisController {
       });
       promise
         .then((outcome) => {
-          if (this.latestKey !== cacheKey) return; // superseded by a newer request — never shown
+          if (this.latestKey !== cacheKey) return; // superseded, never shown
           if (outcome.status === "ok") {
             setCachedAnalysis(cacheKey, outcome);
             onStateChange({ status: "ready", outcome });
@@ -99,10 +84,8 @@ export class AiAnalysisController {
           }
         })
         .catch(() => {
-          // requestAiAnalysis is designed to always resolve, never reject — this only guards
-          // against a future/unexpected throw so a surprise here degrades to the same graceful
-          // fallback as every other failure mode instead of leaving the UI stuck on "loading"
-          // forever with no path back to local analysis.
+          // requestAiAnalysis should always resolve. This is just a safety net so an
+          // unexpected throw doesn't leave the UI stuck on loading.
           if (this.latestKey !== cacheKey) return;
           onStateChange({ status: "unavailable", reason: "unexpected_error" });
         });

@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
-// Regression coverage for the LinkWise-tab positioning bug: closing the panel (from any path)
-// must always reset the opener back to the viewport's right edge, and opening it must always
-// hug the panel's own left edge — driven purely by panel state, never by measuring LinkedIn's
-// own layout. React itself is mocked out here since this is specifically about the
-// open/close <-> opener-offset wiring, not panel content.
+// Regression coverage for the opener positioning: closing must reset it to the right edge,
+// opening must hug the panel's left edge. React is mocked out since this is about the
+// open/close wiring, not panel content.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-dom/client", () => ({

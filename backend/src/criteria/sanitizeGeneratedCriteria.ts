@@ -1,6 +1,5 @@
-// Guards against a Structured-Outputs-valid-but-degenerate response (empty labels, an absurd
-// criteria count, a groupId shared by only one criterion) before it ever reaches the extension —
-// the schema alone only guarantees SHAPE, not that the content is sane.
+// Catches a valid-but-degenerate response (empty labels, too many criteria, a lonely groupId)
+// before it reaches the extension. The schema only checks shape, not sanity.
 import type { GenerateCriteriaResponse, GeneratedCriterion } from "../openai/criteriaSchema";
 
 const MAX_CRITERIA = 30;
@@ -12,12 +11,8 @@ function trimTo(text: string, maxLength: number): string {
   return text.trim().slice(0, maxLength);
 }
 
-/** Some models occasionally emit the literal STRING "null" (or "none"/"undefined") for a
- * nullable free-text field instead of a real JSON null — observed live for `groupId` on an
- * otherwise-correct response. Left unnormalized, three unrelated criteria that each got this
- * placeholder string would all share the same "groupId", and the grouping logic below would
- * wrongly treat them as a real "X or Y or Z" alternative — corrupting AND into OR. Applied to
- * every nullable free-text field defensively, not just the one observed failing. */
+// Some models emit the literal string "null" instead of a real null. Left as-is, unrelated
+// criteria could end up sharing a fake groupId and get wrongly grouped as alternatives.
 function normalizeNullish(text: string | null): string | null {
   if (text === null) return null;
   const trimmed = text.trim();

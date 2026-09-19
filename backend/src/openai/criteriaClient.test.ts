@@ -1,6 +1,5 @@
-// No real OpenAI SDK, no API key, no network involved anywhere in this file —
-// `requestCriteriaGeneration` is exercised entirely through an injected fake
-// `CriteriaGenerationClient`.
+// No real OpenAI SDK, API key, or network here. requestCriteriaGeneration is exercised
+// through a fake CriteriaGenerationClient.
 import { describe, expect, it, vi } from "vitest";
 import { requestCriteriaGeneration, type CriteriaGenerationClient } from "./criteriaClient";
 import { loadConfig } from "../config";

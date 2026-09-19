@@ -1,8 +1,6 @@
-// Mounts the LinkWise panel directly into the LinkedIn page as a fixed, right-anchored,
-// full-height element — a page-mounted panel, not the browser's own side panel. Rendered
-// inside a shadow root so LinkedIn's CSS can never leak in and this panel's CSS can never leak
-// out. The React tree is created once and kept alive; toggling only shows/hides the host, so
-// re-opening never loses in-panel state or re-fetches anything.
+// Mounts the panel into the page as a fixed right-anchored element, inside a shadow root so
+// LinkedIn's CSS can't leak in or out. The React tree is created once, toggling just shows or
+// hides it so state is never lost.
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { PanelApp } from "./PanelApp";
@@ -25,7 +23,7 @@ function ensureHost(): HTMLDivElement {
     top: "0",
     right: "0",
     height: "100vh",
-    zIndex: "2147483646", // one below the opener button, which stays clickable to close
+    zIndex: "2147483646", // one below the opener button, so it stays clickable to close
     display: "none",
   });
   document.body.appendChild(host);
@@ -49,12 +47,8 @@ export function isPanelOpen(): boolean {
   return hostElement?.style.display === "block";
 }
 
-/**
- * Both open and close live here, alongside the opener-offset update, rather than leaving the
- * caller responsible for keeping the two in sync — the panel can be closed from more than one
- * place (the opener button's own toggle, or the panel's own "✕"), and every one of them must
- * reset the opener back to the viewport's right edge, not just the toggle path.
- */
+// Open and close both live here alongside the opener-offset update, since the panel can be
+// closed from more than one place and each needs to reset the opener.
 export function openPanel(): void {
   ensureHost().style.display = "block";
   setOpenerOffset(PANEL_WIDTH_PX);
@@ -70,10 +64,7 @@ export function togglePanel(): void {
   else openPanel();
 }
 
-/** Unmounts the React tree and removes the host entirely — used only when this content script
- * instance is being torn down for a fresh one to replace it (see content.ts's teardown token).
- * Never called during normal open/close; that only toggles visibility, which is what lets a
- * reopen skip re-fetching anything. */
+// Unmounts and removes the host entirely, used only during teardown, never normal open/close.
 export function destroyPanel(): void {
   root?.unmount();
   root = null;

@@ -17,15 +17,14 @@ describe("significantKeywords", () => {
   });
 
   it("drops generic qualifier words when a more specific keyword remains", () => {
-    // "engineering background" and "engineering experience" mean the same thing for
-    // matching purposes — the generic noun adds no real specificity of its own.
+    // "engineering background" and "engineering experience" mean the same thing for matching,
+    // the generic noun adds no real specificity of its own.
     expect(significantKeywords("Experience in the field of robotics")).toEqual(["field", "robotics"]);
     expect(significantKeywords("engineering background")).toEqual(["engineering"]);
   });
 
   it("keeps a generic qualifier word when it is the only word", () => {
-    // Never strip down to nothing — a criterion that really is just "experience" still needs
-    // that word to mean anything.
+    // Never strip down to nothing, a criterion that's really just "experience" still needs it.
     expect(significantKeywords("experience")).toEqual(["experience"]);
   });
 

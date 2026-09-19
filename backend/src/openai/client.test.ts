@@ -1,5 +1,5 @@
-// No real OpenAI SDK, no API key, no network involved anywhere in this file — `requestAnalysis`
-// is exercised entirely through an injected fake `AnalysisClient`.
+// No real OpenAI SDK, API key, or network here. requestAnalysis is exercised through a fake
+// AnalysisClient.
 import { describe, expect, it, vi } from "vitest";
 import { requestAnalysis, type AnalysisClient } from "./client";
 import { loadConfig } from "../config";

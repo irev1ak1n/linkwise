@@ -1,6 +1,5 @@
-// Backend endpoint contract tests — real HTTP requests against a real Express app (via
-// supertest, no port bound), with a fake AnalysisClient injected so no OpenAI SDK or API key is
-// ever involved.
+// Backend endpoint contract tests, real HTTP requests against a real Express app via
+// supertest, with a fake AnalysisClient so no OpenAI SDK or API key is involved.
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "./app";
@@ -124,8 +123,8 @@ describe("POST /api/analyze-profile - successful AI analysis", () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ai_analysis");
     expect(res.body.model).toBe("test-model");
-    // The score is now AI's own matchPercent, passed straight through — not recomputed by the
-    // deterministic weighted-average engine (which alone would have said 100 here).
+    // The score is AI's own matchPercent, passed straight through, not recomputed by the
+    // weighted-average engine (which alone would have said 100 here).
     expect(res.body.result.scorePercent).toBe(88);
     expect(res.body.result.reasons).toHaveLength(1);
     expect(res.body.narrative.strengths).toHaveLength(1);
@@ -177,7 +176,7 @@ describe("POST /api/analyze-profile - successful AI analysis", () => {
     const res = await request(app).post("/api/analyze-profile").send(validBody());
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ai_analysis");
-    // The real criterion "c1" was never addressed by that bogus assessment — falls back to local.
+    // The real criterion "c1" was never addressed by that bogus assessment, falls back to local.
     expect(res.body.result.missing.some((m: { criterion: { id: string } }) => m.criterion.id === "c1")).toBe(true);
   });
 });

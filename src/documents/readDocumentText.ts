@@ -1,25 +1,10 @@
-// Reads a locally-selected file's text content entirely client-side, inside the in-page
-// LinkWise panel — never uploaded anywhere, never sent to a server, no OCR. Supports plain
-// text/Markdown directly, and PDF/DOCX via bundled parsing libraries. A file this can't read
-// (wrong type, corrupted, or a scanned-image-only PDF with no text layer) produces an honest
-// error message, never a guessed/partial result.
-//
-// This module is never statically imported by the main content script — it's built as its own
-// separate lazy-loaded chunk (see scripts/build.mjs's `buildDocumentParsingChunk` and
-// documents/loadDocumentParser.ts) specifically because pdfjs-dist/mammoth are heavy enough that
-// bundling them into the always-injected content script measurably bloated it.
+// Reads a locally-selected file's text entirely client-side, never uploaded anywhere.
+// Supports text/Markdown directly, PDF/DOCX via bundled libraries. Loaded lazily, see
+// loadDocumentParser.ts, since pdfjs and mammoth are heavy.
 import * as pdfjsLib from "pdfjs-dist";
 
-// Confirmed live: Vite's `?url` asset resolution for the worker script does not produce a
-// usable URL in this build (a Rollup lib-mode ES build driven directly through Vite's JS API,
-// not the `vite build` CLI with a full app config) — the import silently resolved to something
-// pdfjs itself couldn't use, so it fell back to its own "fake worker" mode, which tries to
-// dynamically `import()` a `data:text/javascript` URL of its own bundled core. Chrome's default
-// extension CSP blocks that import outright, breaking PDF parsing entirely with a generic
-// "Setting up fake worker failed" error. `chrome.runtime.getURL(...)` against a real file this
-// project's own build script copies alongside this chunk (see scripts/build.mjs) is explicit,
-// has no bundler asset-resolution magic to go wrong, and matches how every other
-// extension-relative resource in this codebase is already addressed.
+// Points at a real copied worker file instead of Vite's asset URL resolution, which doesn't
+// produce a usable URL in this build and made pdfjs fall back to a mode Chrome's CSP blocks.
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL("content/pdf.worker.min.mjs");
 
 export interface DocumentReadResult {
@@ -27,7 +12,7 @@ export interface DocumentReadResult {
   error?: string;
 }
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB — generous for a text-based document, bounds worst-case parse time
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB, generous but bounds worst-case parse time
 
 async function readPlainText(file: File): Promise<DocumentReadResult> {
   try {
@@ -75,9 +60,7 @@ async function readDocxText(file: File): Promise<DocumentReadResult> {
   }
 }
 
-/** Dispatches by file extension — LinkedIn/browser file pickers don't reliably expose a
- * trustworthy MIME type for every one of these formats, but the extension is exactly what the
- * user chose when saving the file, so it's the more honest signal here. */
+// Dispatches by file extension, since MIME type isn't reliable across browsers here.
 export async function readDocumentText(file: File): Promise<DocumentReadResult> {
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return { error: "This file is too large (max 10 MB). Please use a shorter document." };

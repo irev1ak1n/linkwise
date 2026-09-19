@@ -1,8 +1,5 @@
-// The OpenAI SDK wrapper for POST /api/generate-criteria — structurally identical to
-// ./client.ts's analysis wrapper (same Structured Outputs pattern, same not_configured/timeout/
-// error handling), kept as its own small file rather than a generic merge of the two: each
-// wraps a different Structured Outputs schema, and duplicating this ~30-line shape is cheaper to
-// read and maintain than a shared generic would be for two call sites.
+// The OpenAI wrapper for POST /api/generate-criteria. Same shape as client.ts's analysis
+// wrapper, kept separate since each uses a different schema.
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { generateCriteriaResponseSchema, type GenerateCriteriaResponse } from "./criteriaSchema";

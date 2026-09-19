@@ -1,8 +1,5 @@
-// The wire contract for what the LinkWise backend's POST /api/analyze-profile returns —
-// mirrors backend/src/routes/analyzeProfile.ts's response shape exactly. `result` is JSON that
-// deserializes directly into a real `MatchResult` (see ../matching/scoreProfile.ts): the backend
-// computes it via the SAME `computeMatchResult` function this extension's local path uses, so
-// no remapping is needed on this side.
+// The wire contract for POST /api/analyze-profile's response. Mirrors the backend's shape
+// exactly, so result deserializes straight into a real MatchResult with no remapping.
 import type { MatchResult } from "../matching/scoreProfile";
 import type { CriterionCategory, CriterionImportance, CriterionOperator } from "../models/goal";
 import type { ExperienceLevel } from "../matching/profileAnalysis";
@@ -31,10 +28,7 @@ export interface AiNarrativeDTO {
   recommendationReason: string;
   contactRecommendationReason: string;
   saveRecommendationReason: string;
-  /** OpenAI's own judgment of evidence completeness for this analysis — already folded into
-   * `result.confidence` (see ../matching/scoreProfile.ts's MatchResult), but also surfaced here
-   * as a plain label so the panel can show it directly (e.g. "Medium confidence") rather than
-   * re-deriving words from a 0-1 float. */
+  /** A plain label so the panel can show e.g. "Medium confidence" directly. */
   confidenceLevel: AiConfidenceLevel;
 }
 
@@ -44,18 +38,13 @@ export type AnalyzeProfileApiResponse =
   | { status: "unavailable"; reason: string }
   | { status: "invalid_request"; message: string };
 
-/** What `requestAiAnalysis` (src/ai/analyzeProfileClient.ts) resolves to — collapses every
- * "AI isn't available right now" reason (backend offline, not configured, timeout, cancelled,
- * bad response, ...) into one `unavailable` outcome, since the extension always reacts to all
- * of them the same way: keep showing the local analysis. Only `ok` carries new data. */
+/** Collapses every "AI isn't available" reason into one outcome, since the extension always
+ * reacts the same way: keep showing the local analysis. */
 export type AiAnalysisOutcome =
   | { status: "ok"; model: string; result: MatchResult; narrative: AiNarrativeDTO }
   | { status: "unavailable"; reason: string };
 
-/** Mirrors backend/src/openai/criteriaSchema.ts's GeneratedCriterion exactly — `type`/`operator`
- * reuse the extension's own CriterionCategory/CriterionOperator unions rather than a separate
- * near-identical DTO union, since both sides were designed to use the same literal values (see
- * models/goal.ts's CriterionCategory doc comment). */
+// Mirrors the backend's GeneratedCriterion, reusing the extension's own category/operator types.
 export interface GeneratedCriterionDTO {
   label: string;
   type: CriterionCategory;
@@ -72,10 +61,7 @@ export type GenerateCriteriaApiResponse =
   | { status: "unavailable"; reason: string }
   | { status: "invalid_request"; message: string };
 
-/** What `requestGenerateCriteria` (src/ai/generateCriteriaClient.ts) resolves to — same
- * collapsing-every-failure-into-one-shape pattern as AiAnalysisOutcome above, since the caller
- * (src/ai/generateCriteria.ts) reacts to every failure the same way: fall back to the local
- * parser. */
+// Same collapsing pattern as AiAnalysisOutcome above, the caller always falls back to local.
 export type GenerateCriteriaOutcome =
   | { status: "ok"; name: string; criteria: GeneratedCriterionDTO[] }
   | { status: "unavailable"; reason: string };

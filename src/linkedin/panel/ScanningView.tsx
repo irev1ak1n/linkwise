@@ -20,10 +20,8 @@ interface ScanningViewProps {
   onAnalyzeNow: () => void;
 }
 
-/** State A of the two-stage panel: shown while collection hasn't settled. The single overall
- * "Sections analyzed" progress area — deliberately not split into per-category bars — reflects
- * whatever has actually been discovered on THIS profile so far and can grow as the user scrolls
- * further; it is never a fixed assumed total. */
+// Shown while collection hasn't settled yet. The progress bar reflects what's actually been
+// found so far, never a fixed assumed total.
 export function ScanningView({ profileName, goalName, collection, onAnalyzeNow }: ScanningViewProps) {
   const total = collection.sectionsDetected.length;
   const found = collection.sectionsFound.length;

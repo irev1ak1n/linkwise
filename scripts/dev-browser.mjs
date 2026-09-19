@@ -1,40 +1,22 @@
-// A small, dependency-light (playwright-core only) driver for a PERSISTENT local Chrome
-// profile with LinkWise loaded unpacked — the automation behind `npm run extension:reload`
-// and `npm run live:test`. Deliberately not a test framework: a handful of subcommands
-// (status/open/reload/smoke), no fixtures, no assertion library, no page-object model.
+// Drives a persistent local Chrome profile with LinkWise loaded unpacked, used by
+// npm run extension:reload and npm run live:test.
 //
-// Why a dedicated profile rather than the user's everyday Chrome: automating someone's main
-// browser profile (their real cookies, saved passwords, other extensions) is a much bigger
-// blast radius than this workflow needs. This profile lives at .dev-chrome-profile/
-// (gitignored, never committed) and is used for nothing but LinkWise development — sign into
-// LinkedIn here ONCE (`npm run dev:browser`) and the session persists across every future
-// reload/smoke run; nothing here ever touches or reads the user's regular Chrome profile.
+// Uses its own Chrome profile (.dev-chrome-profile/, gitignored) instead of the user's real
+// one, so it never touches their cookies or other extensions.
 //
-// Why CDP-attach rather than "launch fresh every time": launching a new Chrome process on
-// every `npm run extension:reload` would drop open tabs and be needlessly slow. Instead this
-// spawns the real system Chrome ONCE, as its own independent OS process with remote debugging
-// enabled, and every later command reconnects to that same running instance over CDP — the
-// same protocol chrome://extensions' own "Inspect" links use, nothing exotic.
+// Reconnects over CDP to one long-running Chrome instance instead of launching a fresh one
+// each time, so open tabs survive between runs.
 //
-// One unavoidable one-time manual step: current Chrome refuses to register an unpacked
-// extension supplied via --load-extension once remote debugging is enabled (confirmed live —
-// no error, it just silently doesn't load), and the "Load unpacked" button's native folder
-// picker cannot be driven by any automation tool (that's the whole reason it's still a native
-// OS dialog rather than a plain <input type=file>). So: the very first time, run
-// `npm run dev:browser` once, then close it, open this SAME profile directly
-// (`"<chrome path>" --user-data-dir=.dev-chrome-profile chrome://extensions`, no
-// --remote-debugging-port) and click "Load unpacked" -> dist yourself. After that one time,
-// Chrome remembers the unpacked extension across every future restart (remote-debugging-port
-// or not) and `npm run extension:reload` needs no further manual steps, ever.
+// One-time manual step: Chrome won't auto-load an unpacked extension once remote debugging is
+// on. Run npm run dev:browser once, close it, reopen this same profile without
+// --remote-debugging-port and click "Load unpacked" yourself. After that, Chrome remembers it.
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Forward slashes even on Windows (path.join would give backslashes there) — see
-// findChromeExecutable's doc comment for why a backslash-containing spawn argument is unsafe
-// in this environment specifically.
+// Forward slashes even on Windows, see findChromeExecutable for why backslashes break here.
 function toForwardSlashes(p) {
   return p.replace(/\\/g, "/");
 }
@@ -42,13 +24,10 @@ function toForwardSlashes(p) {
 const ROOT = toForwardSlashes(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 const DIST_DIR = `${ROOT}/dist`;
 const PROFILE_DIR = `${ROOT}/.dev-chrome-profile`;
-// Deliberately not the common 9222, to avoid colliding with some other CDP-enabled Chrome the
-// user might independently have running (their own everyday browsing, another tool, etc).
+// Not the common 9222, to avoid colliding with some other CDP-enabled Chrome.
 const CDP_PORT = 9233;
 const CDP_URL = `http://127.0.0.1:${CDP_PORT}`;
-// Must match src/linkedin/devTools.ts's RELOAD_REQUEST exactly — that file is the other half
-// of this bridge (window.postMessage -> content script -> chrome.runtime.sendMessage ->
-// background's chrome.runtime.reload()).
+// Must match src/linkedin/devTools.ts's RELOAD_REQUEST exactly.
 const RELOAD_MESSAGE_TYPE = "__linkwise_dev_reload__";
 const OPENER_SELECTOR = '[aria-label="Open or close the LinkWise panel"]';
 const PANEL_HOST_ID = "finder-linkwise-panel-host";
@@ -57,11 +36,8 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Forward slashes only, even on Windows — Windows' own process-creation APIs accept them fine,
- * and it sidesteps a real, confirmed-live quirk: a backslash-containing argument passed to a
- * Windows Node.exe invoked FROM Git Bash / MSYS can get its backslashes silently stripped by
- * MSYS's path-conversion layer before Node ever sees it (this broke `spawn` outright — the
- * path arrived as "C:Program FilesGoogleChromeApplication..." with every backslash gone). */
+// Forward slashes only. Git Bash strips backslashes from spawn args before Node sees them,
+// which broke this outright.
 function findChromeExecutable() {
   if (process.env.LINKWISE_CHROME_PATH) return process.env.LINKWISE_CHROME_PATH;
   const candidates = [
@@ -90,15 +66,8 @@ async function isDebuggerUp() {
   }
 }
 
-/**
- * Deliberately does NOT pass --load-extension/--disable-extensions-except — confirmed live that
- * current Chrome (152) silently refuses to register an unpacked extension supplied that way
- * once --remote-debugging-port is also present, no error shown, just nothing loads. LinkWise
- * must instead be loaded ONCE via the real "Load unpacked" button while this profile's Chrome
- * is running WITHOUT --remote-debugging-port (see the one-time setup note in CLAUDE.md) —
- * after that one-time registration, Chrome remembers the unpacked extension across restarts
- * and loads it automatically on every future launch, remote-debugging-port or not.
- */
+// No --load-extension flag here. Chrome silently ignores it once remote debugging is on, so
+// the extension has to be loaded once by hand instead (see the file header).
 function launchDetachedChrome() {
   mkdirSync(PROFILE_DIR, { recursive: true });
   if (!existsSync(DIST_DIR)) {
@@ -116,11 +85,10 @@ function launchDetachedChrome() {
     ],
     { detached: true, stdio: "ignore" },
   );
-  child.unref(); // survives after this Node process exits — that's the whole point
+  child.unref(); // keeps running after this script exits
 }
 
-/** Ensures the dev Chrome is running (launching it if needed) and returns a connected
- * playwright-core Browser attached over CDP. Idempotent and safe to call from every command. */
+// Launches Chrome if it's not already running and returns a connected browser.
 async function ensureBrowser() {
   if (!(await isDebuggerUp())) {
     console.log("Dev Chrome is not running — launching it now (this window stays open between runs)...");
@@ -141,12 +109,8 @@ async function ensureContext(browser) {
   return contexts[0] ?? (await browser.newContext());
 }
 
-/** Reuses a single LinkedIn tab across runs instead of piling up a new one every time this
- * script is invoked (confirmed live: without this, a dozen `smoke`/`open` calls left a dozen
- * open tabs behind). Closes every OTHER linkedin.com tab it finds first — this is a dev-only
- * profile with no other purpose, so an extra linkedin.com tab is always leftover clutter from a
- * previous run, never something worth preserving. Non-linkedin.com tabs (chrome://extensions,
- * anything the user opened by hand) are left alone. */
+// Reuses one LinkedIn tab across runs instead of piling up new ones. Closes any other
+// linkedin.com tabs first, leaves other tabs (like chrome://extensions) alone.
 async function getPrimaryLinkedInPage(context, url) {
   const linkedInPages = context.pages().filter((p) => p.url().includes("linkedin.com"));
   const [keep, ...extra] = linkedInPages;
@@ -173,7 +137,7 @@ async function cmdStatus() {
   console.log(`Dev Chrome: running (profile: ${PROFILE_DIR})`);
   console.log("Open tabs:");
   for (const page of context.pages()) console.log(`  - ${page.url()}`);
-  await browser.close(); // detaches only — CDP connections never terminate the real browser
+  await browser.close(); // just detaches, doesn't close the real browser
 }
 
 async function cmdOpen(url) {
@@ -184,10 +148,7 @@ async function cmdOpen(url) {
   await browser.close();
 }
 
-/** Triggers the extension's own self-reload bridge (see devTools.ts / background/index.ts) —
- * no chrome://extensions, no manual click, works whether or not a LinkedIn tab was already
- * open. Picks up whatever is currently in dist/, so always run `npm run build` first (or just
- * use `npm run verify`, which does that as part of full verification). */
+// Triggers the extension's self-reload bridge. Run npm run build first so it picks up dist/.
 async function cmdReload() {
   const browser = await ensureBrowser();
   const context = await ensureContext(browser);
@@ -199,13 +160,8 @@ async function cmdReload() {
   await browser.close();
 }
 
-/**
- * A quick functional smoke check, not a full test suite: opens a page, opens the LinkWise
- * panel, confirms it actually mounts, and reports any console/page errors seen along the way.
- * Pass a real profile URL as the first argument for a deeper check (it also waits briefly for
- * the AI-enhanced-vs-local status line); with no argument it only confirms the opener + panel
- * mount on the LinkedIn feed, which needs no active goal or scan to verify.
- */
+// Quick smoke check: opens a page, opens the panel, confirms it mounts, reports console errors.
+// Pass a profile URL for a deeper check including the AI status line.
 async function cmdSmoke(profileUrl) {
   const browser = await ensureBrowser();
   const context = await ensureContext(browser);

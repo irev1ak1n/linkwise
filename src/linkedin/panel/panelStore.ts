@@ -1,7 +1,5 @@
-// The bridge between the collection engine (content.ts) and the in-page panel's React tree —
-// both live in the same content-script bundle/JS realm now, so this is a plain in-memory
-// external store (no chrome.runtime messaging involved), read via React's
-// useSyncExternalStore in useCollectionData.ts.
+// The bridge between the collection engine and the panel's React tree. Both live in the same
+// JS realm, so this is a plain in-memory store, read via useSyncExternalStore.
 import type { CollectionState } from "../../models/collection";
 import type { LinkedInProfile } from "../../models/profile";
 

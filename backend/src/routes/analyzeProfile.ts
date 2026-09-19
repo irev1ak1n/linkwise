@@ -1,8 +1,5 @@
-// Orchestrates POST /api/analyze-profile: validate → call OpenAI (or report not-configured) →
-// guardrail-merge → deterministic score → validate narrative → respond. Every branch here
-// resolves to a 200 response with a `status` discriminator (except malformed input, which is a
-// real 400) — the extension never has to special-case HTTP-level failures separately from
-// "AI just isn't available right now"; both mean the same thing to it: fall back to local.
+// Handles POST /api/analyze-profile: validate, call OpenAI, merge, score, respond.
+// Every branch returns 200 with a status field, except malformed input which is a real 400.
 import type { Request, Response } from "express";
 import { analyzeProfileRequestSchema, trimOversizedText } from "../validation/requestSchema";
 import { requestAnalysis, type AnalysisClient } from "../openai/client";
@@ -14,7 +11,7 @@ import type { BackendConfig } from "../config";
 
 export interface AnalyzeProfileDeps {
   config: BackendConfig;
-  /** Injected only in tests — a fake AnalysisClient standing in for the real OpenAI SDK. */
+  /** Injected only in tests, a fake AnalysisClient. */
   client?: AnalysisClient;
   timeoutMs?: number;
 }
@@ -54,9 +51,7 @@ export async function handleAnalyzeProfile(req: Request, res: Response, deps: An
 
     res.status(200).json({ status: "ai_analysis", model: deps.config.openAiModel, result, narrative });
   } catch {
-    // A well-formed (Zod-valid) AI response can still fail to merge sensibly (e.g. it's
-    // internally inconsistent in a way the schema alone can't catch) — degrade gracefully
-    // rather than 500 the request; the extension falls back to local either way.
+    // A valid response can still fail to merge sensibly. Fall back instead of erroring.
     res.status(200).json({ status: "unavailable", reason: "processing_error" });
   }
 }

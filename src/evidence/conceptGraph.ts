@@ -1,22 +1,10 @@
-// A small, hand-curated concept graph — this is what makes evidence classification "semantic"
-// without a neural embedding model (see the milestone's own bundle-size/perf benchmark, noted
-// in scoreProfile.ts's module doc comment, for why one wasn't added). Two independent axes:
+// A small, hand-curated concept graph. This is what makes evidence classification "semantic"
+// without a neural embedding model. Two axes:
 //
-//   DOMAIN  — what field/topic is this text about (engineering, software, robotics, ...)?
-//             Detected by alias matching, same table used for both profile evidence and
-//             criterion parsing so the two vocabularies can never drift apart.
-//   ROLE LEVEL — how deeply engaged is the person with whatever domain applies (an ordered
-//             ladder: interested < learning < participant < experienced < leader/mentor)?
-//             Section context sets a default; explicit language in the text can raise it
-//             further, never lower it below the section's own baseline (with one deliberate
-//             exception: an explicit "student" self-description overrides a generic section
-//             default, since a headline default should never outrank someone plainly saying
-//             they're a student).
-//
-// This pair is exactly what lets the matcher distinguish "participated vs led", "member vs
-// mentor", "student vs professional" — the concept-distinction rules the milestone explicitly
-// calls for — as simple, explainable comparisons instead of trusting a similarity score alone
-// to preserve those distinctions.
+//   DOMAIN: what field is this text about (engineering, software, robotics)? Alias matching,
+//           shared between evidence extraction and criterion parsing.
+//   ROLE LEVEL: how deeply engaged is the person (interested < learning < participant <
+//           experienced < leader)? Section sets a default, explicit language can raise it.
 import type { ProfileSectionName } from "../models/profile";
 
 export const ROLE_LEVEL = {
@@ -30,9 +18,7 @@ export const ROLE_LEVEL = {
 
 export type RoleLevelName = keyof typeof ROLE_LEVEL;
 
-/** The baseline role level implied merely by WHERE a piece of text was found, before any
- * word-level signal in the text itself is considered — LinkedIn's own section semantics
- * ("Experience" = jobs held, "Education" = formal study) are real, honest signal. */
+// The baseline role level implied just by which section a piece of text came from.
 const SECTION_DEFAULT_ROLE_LEVEL: Partial<Record<ProfileSectionName | "headline" | "location", number>> = {
   about: ROLE_LEVEL.INTERESTED,
   experience: ROLE_LEVEL.PROFESSIONAL,
@@ -56,16 +42,11 @@ export function matchesAny(lowerText: string, phrases: string[]): boolean {
   return phrases.some((phrase) => wordBoundaryMatches(lowerText, phrase));
 }
 
-/** An explicit self-description as a student overrides a generic section default (mainly
- * "headline", which otherwise defaults to PARTICIPANT) — someone whose headline says "Computer
- * Science Student" is a student, not "participant tier". Not applied to "experience" entries:
- * describing OR teaching students there is real work (e.g. a teaching assistant role), not
- * evidence the profile's OWNER is a student. */
+// An explicit "student" self-description overrides the section default (mainly headline).
+// Not applied to "experience" entries, where teaching students is real work, not being one.
 const STUDENT_SELF_DESCRIPTION = ["student", "studying", "undergraduate", "undergrad"];
 
-/** Leadership/mentoring language — the strongest role signal, and detected the same way
- * regardless of which section it appears in, since genuinely leading or mentoring is leading
- * or mentoring whether it happened at a job, in a club, or as a volunteer. */
+// Leadership/mentoring language, the strongest signal, same regardless of section.
 export const LEADER_WORDS = [
   "led",
   "lead",
@@ -99,9 +80,8 @@ export const LEADER_WORDS = [
   "supervised",
 ];
 
-/** Professional/employment language — real workplace engagement. Excluded from "education"
- * entries specifically, since a degree titled "Software Engineering" is a field of study, not
- * a job title, even though it contains the same word a real job title would. */
+// Professional/employment language. Excluded from "education", where a degree title like
+// "Software Engineering" isn't a job title.
 export const PROFESSIONAL_WORDS = [
   "engineer",
   "developer",
@@ -121,7 +101,7 @@ export const PROFESSIONAL_WORDS = [
 ];
 const PROFESSIONAL_WORDS_EXCLUDED_SECTIONS = new Set<ProfileSectionName | "headline" | "location">(["education"]);
 
-/** Formal-learning language — degrees, coursework, enrollment. */
+// Formal-learning language, degrees, coursework, enrollment.
 export const LEARNER_WORDS = [
   "student",
   "studying",
@@ -139,8 +119,7 @@ export const LEARNER_WORDS = [
   "degree",
 ];
 
-/** Mere interest/enthusiasm — the weakest real signal, still worth distinguishing from nothing
- * at all. */
+// Mere interest, the weakest real signal, still worth distinguishing from nothing at all.
 export const INTERESTED_WORDS = ["interested in", "aspiring", "passionate about", "enthusiast", "hobby"];
 
 function boostFromWordLists(lowerText: string, section: ProfileSectionName | "headline" | "location"): number {
@@ -168,13 +147,8 @@ export function detectRoleLevel(text: string, section: ProfileSectionName | "hea
   return Math.max(sectionDefault, boostFromWordLists(lower, section));
 }
 
-/** One recognized domain/field concept: a canonical id plus every phrase that indicates it.
- * Shared by both evidence extraction (what does this profile text touch on?) and criterion
- * parsing (what is this criterion actually asking about?) — the same vocabulary on both sides
- * is what lets "Mechanical Engineering" satisfy "engineering background" without the two
- * needing to share a single literal word. Order matters only in that longer/more specific
- * aliases should be listed so multi-word phrases aren't shadowed by a shorter one — matching
- * itself checks every alias independently, so this is a robustness note, not a hard rule. */
+// One recognized domain, a canonical id plus every phrase that indicates it. Shared by
+// evidence extraction and criterion parsing, so the two vocabularies never drift apart.
 export interface DomainConcept {
   id: string;
   aliases: string[];
@@ -182,10 +156,8 @@ export interface DomainConcept {
 
 export const DOMAIN_CONCEPTS: DomainConcept[] = [
   {
-    // Deliberately excludes the bare word "engineer" — that's a profession-noun (see
-    // PROFESSIONAL_WORDS), not a domain by itself. Including it here would make "software
-    // engineer" falsely cross-match "Mechanical Engineering" evidence via this domain, purely
-    // because both contain the word "engineer".
+    // Excludes the bare word "engineer", that's a profession, not a domain. Otherwise
+    // "software engineer" would falsely cross-match "Mechanical Engineering" evidence.
     id: "engineering",
     aliases: [
       "engineering",

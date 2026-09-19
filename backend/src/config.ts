@@ -1,7 +1,4 @@
-// Reads backend configuration from the environment ONLY — see .env.example. This is the one
-// place `OPENAI_API_KEY`/`OPENAI_MODEL`/`PORT` are read from; nothing else in the backend
-// touches `process.env` directly, so there is exactly one place to audit for "does this ever
-// leak the key anywhere" (see `redactedConfigSummary`, used only for startup logging).
+// Reads config from the environment. The only place in the backend that touches process.env.
 import "dotenv/config";
 
 const DEFAULT_MODEL = "gpt-5.6-luna";
@@ -27,8 +24,7 @@ export function isAiConfigured(config: BackendConfig): boolean {
   return config.openAiApiKey !== undefined;
 }
 
-/** Safe to log or return in any diagnostic response — never includes the key itself, only
- * whether one is present. */
+/** Safe to log, never includes the actual key. */
 export function redactedConfigSummary(config: BackendConfig): { aiConfigured: boolean; model: string; port: number } {
   return { aiConfigured: isAiConfigured(config), model: config.openAiModel, port: config.port };
 }

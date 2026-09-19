@@ -1,11 +1,5 @@
-// Sends the analyze-profile request via the background service worker — NEVER a direct fetch
-// from the content script. This goes one step further than just "don't call OpenAI directly":
-// it also never calls the LinkWise backend directly from the content script either, relaying
-// through the background worker instead (see background/aiRelay.ts), since that's the context
-// with unambiguous cross-origin fetch permissions under Manifest V3 — the same reasoning this
-// project already applied to `chrome.runtime.reload()` earlier (a content script has a reduced
-// API surface; the background worker has the full one). The actual message-passing mechanics
-// (including graceful handling of an orphaned/invalidated extension context) live in
+// Sends the analyze-profile request through the background worker, never a direct fetch from
+// the content script (see background/aiRelay.ts). Message-passing mechanics live in
 // backgroundRelay.ts, shared with generateCriteriaClient.ts.
 import type { AnalyzeProfileRequestBody } from "./buildAnalyzeRequest";
 import type { AiAnalysisOutcome, AnalyzeProfileApiResponse } from "./apiTypes";

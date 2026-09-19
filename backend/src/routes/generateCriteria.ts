@@ -1,8 +1,5 @@
-// Orchestrates POST /api/generate-criteria: validate -> call OpenAI (or report not-configured) ->
-// sanitize -> respond. Mirrors routes/analyzeProfile.ts's shape: every branch resolves to a 200
-// with a `status` discriminator (malformed input excepted, a real 400), so the extension never
-// has to special-case HTTP-level failures separately from "AI just isn't available right now" —
-// both mean the same thing to it: fall back to the local parser.
+// Handles POST /api/generate-criteria: validate, call OpenAI, sanitize, respond.
+// Same shape as routes/analyzeProfile.ts.
 import type { Request, Response } from "express";
 import { generateCriteriaRequestSchema } from "../validation/generateCriteriaRequestSchema";
 import { requestCriteriaGeneration, type CriteriaGenerationClient } from "../openai/criteriaClient";
@@ -12,7 +9,7 @@ import type { BackendConfig } from "../config";
 
 export interface GenerateCriteriaDeps {
   config: BackendConfig;
-  /** Injected only in tests — a fake CriteriaGenerationClient standing in for the real OpenAI SDK. */
+  /** Injected only in tests, a fake CriteriaGenerationClient. */
   client?: CriteriaGenerationClient;
   timeoutMs?: number;
 }
@@ -48,8 +45,7 @@ export async function handleGenerateCriteria(req: Request, res: Response, deps: 
     const { name, criteria } = sanitizeGeneratedCriteria(aiResult.data);
     res.status(200).json({ status: "generated", name, criteria });
   } catch {
-    // A well-formed (Zod-valid) response that still fails to sanitize sensibly — degrade
-    // gracefully rather than 500; the extension falls back to the local parser either way.
+    // A valid response can still fail to sanitize. Fall back instead of erroring.
     res.status(200).json({ status: "unavailable", reason: "processing_error" });
   }
 }

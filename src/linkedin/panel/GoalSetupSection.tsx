@@ -9,22 +9,13 @@ interface GoalSetupSectionProps {
   onSetActiveCriteria: (name: string, criteria: DraftCriterionInput[]) => void;
 }
 
-/**
- * The whole Goal Setup half of the in-page LinkWise panel: describe who you're looking for, and
- * LinkWise turns it straight into your active goal's criteria — no separate review/edit list,
- * no explicit "commit" step. Clicking "Create criteria" IS the explicit action; whatever it
- * produces becomes the active goal immediately (see `onSetActiveCriteria`), and the result of
- * that goal shows up as the profile analysis right below it. This intentionally trades the old
- * criteria-by-criteria review UI for a single, focused flow: describe -> see the match.
- */
+// The Goal Setup half of the panel. Describe who you're looking for, LinkWise turns it
+// straight into criteria. No separate review step, "Create criteria" is the only action.
 export function GoalSetupSection({ goal, onSetActiveCriteria }: GoalSetupSectionProps) {
   const [text, setText] = useState("");
-  // True while a "Create criteria" request is out to the AI generator (or falling back to the
-  // local parser) — see generateFromText. Never left true on completion: the finally block below
-  // always clears it, whichever path produced the result.
+  // True while a "Create criteria" request is out, cleared in the finally block below either way.
   const [generating, setGenerating] = useState(false);
-  // Short-lived feedback shown right below the button — cleared the moment the user edits the
-  // description again, so it never lingers as stale confirmation of a since-changed request.
+  // Short-lived feedback below the button, cleared as soon as the description changes again.
   const [message, setMessage] = useState<string | null>(null);
 
   async function handleCreateCriteria(): Promise<void> {

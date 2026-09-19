@@ -1,8 +1,5 @@
-// Small, independently testable text-shape utilities used to check summary quality — both by
-// this backend's own tests (against known example text) and, informally, by live manual
-// verification against real model output. Deliberately NOT wired into request validation as a
-// pass/fail gate: sentence count and the 45-55 word target are prompt-quality concerns (verified
-// live), unlike the hard 60-word ceiling normalizeSummary.ts actually enforces mechanically.
+// Small text utilities for checking summary quality. Not used as a hard gate, just for tests
+// and manual checks against real model output.
 export function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }

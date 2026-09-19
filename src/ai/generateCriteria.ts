@@ -1,7 +1,5 @@
-// Orchestrates "turn this description into criteria": try the AI generator first, and fall back
-// to the existing deterministic local parser only when AI is unavailable or returns nothing
-// useful — never the other way around (see nlp/goalTextParser.ts, which remains the fallback,
-// not the primary path, per the mission this file implements).
+// Turns a description into criteria. Tries AI first, falls back to the local parser only
+// when AI is unavailable or returns nothing useful.
 import type { CriterionCategory, CriterionImportance, CriterionOperator } from "../models/goal";
 import { parseGoalDraftFromText } from "../nlp/goalTextParser";
 import { requestGenerateCriteria as defaultRequestGenerateCriteria } from "./generateCriteriaClient";
@@ -19,17 +17,11 @@ export interface CriteriaDraftItem {
 export interface CriteriaGenerationResult {
   name: string;
   criteria: CriteriaDraftItem[];
-  /** Which path actually produced these criteria — surfaced so the UI can be transparent about
-   * it (and so callers can tell "AI produced zero criteria" apart from "AI was unavailable,
-   * local also found nothing" if ever needed), never shown as a competing second result. */
+  /** Which path actually produced these criteria. */
   source: "ai" | "local";
 }
 
-/**
- * `description` should already be trimmed/non-empty — callers (GoalSetupSection) gate the
- * "Create criteria" button on that. Never throws: every failure mode (AI unavailable, timeout,
- * malformed response) resolves to the local-parser result instead.
- */
+// Never throws, every failure mode falls back to the local parser instead.
 export async function generateCriteria(
   description: string,
   options: { requestGenerateCriteria?: typeof defaultRequestGenerateCriteria } = {},

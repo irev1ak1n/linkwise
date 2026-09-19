@@ -98,8 +98,8 @@ describe("condenseForGoalText - long-document handling", () => {
 
     const condensed = condenseForGoalText(document);
     expect(condensed.length).toBeLessThanOrEqual(GOAL_TEXT_MAX_LENGTH);
-    // The relevant sentence must survive even though it's buried in the middle, not at the
-    // start — proof this isn't a blind "keep the first N characters" truncation.
+    // The relevant sentence must survive even buried in the middle, proof this isn't a blind
+    // "keep the first N characters" truncation.
     expect(condensed.toLowerCase()).toContain("frc mentors");
   });
 
@@ -122,8 +122,8 @@ describe("condenseForGoalText - long-document handling", () => {
 describe("parseGoalDraftFromText - never claims full understanding", () => {
   it("leaves unrecognized free text out of the draft rather than guessing", () => {
     const draft = parseGoalDraftFromText("Blorptastic wobble ferns under a purple moon.");
-    // Nothing here matches any known pattern or vocabulary term — an honest empty-ish draft
-    // is correct, not a fabricated guess.
+    // Nothing here matches any known pattern or vocabulary, an empty draft is correct here,
+    // not a fabricated guess.
     expect(draft.criteria).toEqual([]);
   });
 });

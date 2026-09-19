@@ -1,5 +1,4 @@
-// Bootstraps the LinkWise backend — separate from app.ts's `createApp()` so tests can exercise
-// the app without ever binding a real port.
+// Bootstraps the backend. Separate from app.ts so tests never bind a real port.
 import { createApp } from "./app";
 import { loadConfig, redactedConfigSummary } from "./config";
 

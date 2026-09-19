@@ -1,20 +1,15 @@
 // @vitest-environment jsdom
 // Regression coverage for the reinjection-safety mechanism: content.ts must behave correctly
-// both the first time it runs on an already-open profile page, and when re-injected into a
-// page that already has a (possibly orphaned) instance running — the scenario a development
-// reload's automatic reinjection (see background/index.ts) produces. React is mocked out since
-// this is about DOM bootstrapping/teardown, not panel rendering.
+// both on first run and when re-injected into a page with an orphaned instance already
+// running. React is mocked out since this is about DOM bootstrapping, not panel rendering.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-dom/client", () => ({
   createRoot: () => ({ render: vi.fn(), unmount: vi.fn() }),
 }));
 
-/** Replaces only LinkedIn's own root container's content, never `document.body` itself — a
- * real SPA navigation on LinkedIn only ever re-renders its own root, leaving whatever this
- * extension has appended directly to `body` (the opener, the panel host) completely
- * untouched. Wiping `body.innerHTML` wholesale here would be a test artifact no real
- * navigation produces. */
+// Replaces only LinkedIn's own root container, never document.body itself, since a real SPA
+// navigation never touches what this extension appended directly to body.
 function setProfilePage(name: string): void {
   let appRoot = document.getElementById("app-root");
   if (!appRoot) {
@@ -40,11 +35,8 @@ function stubNonProfileUrl(path: string): void {
   vi.stubGlobal("location", { href: `https://www.linkedin.com${path}` });
 }
 
-/** content.ts now reads goalStore.ts directly (to gate auto-scroll on an active goal existing —
- * see autoScroll.ts), which needs a working chrome.storage.local/onChanged, not just
- * chrome.runtime. Seeded as already-seeded-with-no-goals so every test here behaves exactly as
- * before: no goal is ever active, so auto-scroll/auto-analyze simply never engages and none of
- * these bootstrap/teardown assertions are affected. */
+// content.ts reads goalStore.ts directly, which needs chrome.storage.local/onChanged.
+// Seeded with no goals so auto-scroll never engages and these bootstrap assertions are unaffected.
 function installFakeChromeStorage() {
   const data: Record<string, unknown> = { "finder.goalsSeeded.v1": true, "finder.goals.v1": [] };
   return {
@@ -94,8 +86,8 @@ describe("content.ts bootstrap", () => {
     await import("./content");
     expect(document.querySelectorAll("#finder-linkwise-opener")).toHaveLength(1);
 
-    // A fresh module graph sharing the same `window` and `document` — exactly what a real
-    // chrome.scripting.executeScript re-injection produces (see background/index.ts).
+    // A fresh module graph sharing the same window and document, exactly what a real
+    // re-injection produces.
     vi.resetModules();
     await import("./content");
 
@@ -110,8 +102,7 @@ describe("content.ts bootstrap", () => {
     vi.resetModules();
     await import("./content");
 
-    // If the old instance's interval were still alive alongside the new one, this would be
-    // roughly double the first instance's count instead of matching it.
+    // If the old interval were still alive, this would be roughly double, not matching it.
     expect(vi.getTimerCount()).toBe(firstInstanceTimerCount);
   });
 
@@ -123,8 +114,7 @@ describe("content.ts bootstrap", () => {
     stubProfileUrl("alex-chen");
     vi.advanceTimersByTime(3000); // the periodic safety-net tick picks up the navigation
 
-    // The opener persists (SPA navigation doesn't remove document.body's children) and is
-    // still exactly one — the profile-level reset itself is covered in depth by
+    // The opener persists and stays exactly one. The reset itself is covered in
     // collectionEngine.test.ts's "profile navigation" suite.
     expect(document.querySelectorAll("#finder-linkwise-opener")).toHaveLength(1);
   });
@@ -137,13 +127,13 @@ describe("content.ts bootstrap", () => {
     expect(getPanelProfileData().profileKey).toBe("jordan-rivera");
 
     stubNonProfileUrl("/feed/");
-    // Once settled, the safety-net tick backs off to SETTLED_TICK_INTERVAL_MS (6000ms) — advance
-    // past that, not just TICK_INTERVAL_MS, so the interval actually fires again and notices.
+    // Once settled, the safety-net tick backs off to SETTLED_TICK_INTERVAL_MS (6000ms),
+    // so advance past that for it to fire again.
     vi.advanceTimersByTime(6000);
 
     expect(getPanelProfileData().profileKey).toBeNull();
     expect(getPanelProfileData().profile).toBeNull();
-    // The opener is shown on every LinkedIn page now, not just profiles — it must survive.
+    // The opener is shown on every LinkedIn page now, not just profiles, it must survive.
     expect(document.querySelectorAll("#finder-linkwise-opener")).toHaveLength(1);
   });
 
@@ -160,9 +150,8 @@ describe("content.ts bootstrap", () => {
     vi.advanceTimersByTime(3000);
     expect(getPanelProfileData().profileKey).toBe("jordan-rivera");
 
-    // Collection likely already settled during the 3000ms above (jsdom reports 0 for every
-    // scroll dimension, so "near document end" is trivially true) — once settled, the
-    // safety-net tick backs off to SETTLED_TICK_INTERVAL_MS (6000ms), so advance past that.
+    // Collection likely already settled during the 3000ms above, jsdom reports 0 for every
+    // scroll dimension so "near document end" is trivially true. Advance past the backed-off tick.
     stubNonProfileUrl("/jobs/");
     vi.advanceTimersByTime(6000);
     expect(getPanelProfileData().profileKey).toBeNull();

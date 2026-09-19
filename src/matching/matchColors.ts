@@ -1,21 +1,14 @@
-// The ONE place that decides what color/label a Match % renders as. Every UI surface that
-// shows a score (the summary card today, anything else added later) must go through
-// `matchDisplayState` rather than re-deriving thresholds itself — the mission is explicit that
-// a 25% score must never render green, and the only way to guarantee that across components is
-// to centralize the thresholds instead of letting each component pick its own.
+// The one place that decides what color and label a Match % renders as. Every UI surface must
+// go through matchDisplayState instead of re-deriving thresholds itself.
 import type { MatchResult } from "./scoreProfile";
 
 export type MatchBand = "low" | "potential" | "strong";
 
-/** 0-39 = Low Match (red), 40-69 = Potential Match (amber), 70-100 = Strong Match (green).
- * A starting point per the mission — recalibrate here, and only here, if real-profile testing
- * shows these bands feel wrong; every consumer picks it up automatically. */
+// 0-39 Low Match, 40-69 Potential Match, 70-100 Strong Match. Recalibrate only here if needed.
 const STRONG_THRESHOLD = 70;
 const POTENTIAL_THRESHOLD = 40;
 
-/** Below this evidence confidence (see scoreProfile.ts's MatchResult.confidence), a numeric
- * score is too speculative to present as a precise percentage — the UI shows "Limited profile
- * information" instead (see matchDisplayState's `low_confidence` state). */
+// Below this confidence, a score is too speculative to show as a precise percentage.
 const LOW_CONFIDENCE_THRESHOLD = 0.4;
 
 export function matchBand(scorePercent: number): MatchBand {
@@ -30,16 +23,14 @@ export const MATCH_BAND_LABELS: Record<MatchBand, string> = {
   strong: "Strong Match",
 };
 
-/** Hex colors for the three bands — used directly by inline-styled UI (the shadow-DOM panel
- * doesn't use a CSS framework) so a color change here is guaranteed to reach every consumer. */
+// Hex colors for the three bands, used directly by the inline-styled panel UI.
 export const MATCH_BAND_COLORS: Record<MatchBand, string> = {
   low: "#c0392b",
   potential: "#8a6d00",
   strong: "#057642",
 };
 
-/** The full set of states a score display can be in — a superset of MatchBand covering the
- * cases where showing a colored percentage at all would be misleading. */
+// Every state a score display can be in, beyond MatchBand, covering when a percentage would mislead.
 export type MatchDisplayState =
   | { kind: "excluded" }
   | { kind: "not_enough_info" }

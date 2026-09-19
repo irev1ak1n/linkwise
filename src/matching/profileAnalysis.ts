@@ -1,11 +1,6 @@
-// Builds the actual "Profile Analysis" the mission calls for — Summary, Why they match,
-// What's missing, an Experience assessment, and a Recommendation — entirely from controlled
-// templates and the evidence scoreProfileAgainstGoal / buildProfileEvidence already produced.
-// No generative API: every sentence is assembled from fixed phrase pools chosen by simple,
-// deterministic conditions on real data, so the same goal+profile always produces the same
-// analysis and every phrase traces back to a real MatchReason/MissingItem/EvidenceItem. The
-// architecture (a plain "build sentences from selected evidence" pass) stays free to swap in an
-// optional future generative pass later without touching scoreProfileAgainstGoal at all.
+// Builds the local Profile Analysis (summary, strengths, gaps, experience, recommendation)
+// from controlled templates over already-computed evidence. No generative API, so the same
+// goal and profile always produce the same analysis.
 import type { Goal } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 import type { ProfileEvidence } from "../models/evidence";
@@ -26,16 +21,14 @@ export const EXPERIENCE_LEVEL_LABELS: Record<ExperienceLevel, string> = {
 export interface StrengthItem {
   label: string;
   detail: string;
-  /** The local deterministic reason this traces back to — present for every LOCALLY-generated
-   * strength; absent for a strength sourced from the backend's OpenAI narrative instead (see
-   * src/ai/mergeIntoAnalysis.ts), which has no single local MatchReason to point to. */
+  /** The local reason this traces back to, absent for an AI-sourced strength. */
   reason?: MatchReason;
 }
 
 export interface GapItem {
   label: string;
   detail?: string;
-  /** See StrengthItem.reason's doc comment — absent for an AI-sourced gap. */
+  /** Absent for an AI-sourced gap. */
   missing?: MissingItem;
 }
 
@@ -56,28 +49,18 @@ export interface ProfileAnalysis {
   strengths: StrengthItem[];
   gaps: GapItem[];
   experienceLevel: ExperienceLevel;
-  /** A one-sentence explanation of the experience level, sourced from the backend's AI
-   * narrative (see src/ai/mergeIntoAnalysis.ts) — undefined for the local-only template, which
-   * has no natural-language generation of its own. */
+  /** Sourced from the AI narrative, undefined for the local-only template. */
   experienceLevelReason?: string;
   recommendation: Recommendation;
 }
 
-/** Confirmed live: without this, a mechanical engineering student with one internship, one
- * part-time instructional-aide role, and one unrelated part-time lifeguard job read as
- * "Extensive experience" — the section-default PROFESSIONAL role level (see conceptGraph.ts)
- * treats every "Experience" entry as equally career-grade, but LinkedIn itself tags an
- * internship as a distinct, bounded, trainee-level employment type. Excluding internship
- * entries from the full-professional tally (they still count toward the lesser "strong" tier
- * below) keeps "extensive"/"strong" meaning what they say, without touching the shared
- * ROLE_LEVEL ladder that criterion matching elsewhere still relies on. */
+// Without this, a student with a couple of internships read as "Extensive experience" since
+// every Experience entry defaults to PROFESSIONAL level. Internships still count toward the
+// lesser "strong" tier, just not the full professional tally.
 const INTERNSHIP_TEXT_PATTERN = /\b(intern|internship)\b/i;
 
-/** A general read of how much real professional/leadership depth the profile as a whole shows
- * — independent of any one goal's criteria, since this is a statement about the person's
- * overall evidence, not their fit for this specific search. Based only on evidence strength/
- * role level actually found in the profile text; never on age, tenure length, or any protected
- * characteristic, none of which this evidence model even represents. */
+// A general read of professional/leadership depth, independent of any one goal's criteria.
+// Never based on age or any protected characteristic, which this evidence model doesn't represent.
 export function assessExperienceLevel(evidence: ProfileEvidence): ExperienceLevel {
   const seniorRoles = evidence.companies.filter(
     (item) => item.roleLevel >= ROLE_LEVEL.PROFESSIONAL && !INTERNSHIP_TEXT_PATTERN.test(item.text),
@@ -191,9 +174,7 @@ function buildRecommendation(result: MatchResult, goalName: string): Recommendat
     : { label: "Not worth prioritizing for this goal", reason: `Very little relevant evidence found for "${goalName}".` };
 }
 
-/** This is a statement about relevance to the CURRENT goal only, not a judgment of the
- * person's worth — the same profile can (and often should) score completely differently under
- * a different goal (see scoreProfile.test.ts's own worked example). */
+// A statement about relevance to the current goal only, not a judgment of the person's worth.
 export function buildProfileAnalysis(goal: Goal, profile: LinkedInProfile, result: MatchResult, evidence: ProfileEvidence): ProfileAnalysis {
   const experienceLevel = assessExperienceLevel(evidence);
   return {

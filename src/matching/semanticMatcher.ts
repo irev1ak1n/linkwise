@@ -1,17 +1,9 @@
-// The hybrid evidence matcher: exact phrase matching where it's reliable (never removed — see
-// the mission's own "keep exact matching where it is reliable"), a deterministic concept graph
-// (src/evidence/conceptGraph.ts) for the domain+role-level reasoning that lets "Mechanical
-// Engineering" satisfy "engineering background" and, just as importantly, keeps "Robotics Club
-// member" from satisfying "FRC mentor", and a same-field keyword tier as the final fallback for
-// criteria the concept graph doesn't recognize at all (a specific technology, a place, a school
-// name — anything with no domain/role signal of its own).
+// The hybrid evidence matcher: exact phrase matching first, then a concept graph for domain
+// and role-level reasoning (lets "Mechanical Engineering" satisfy "engineering background" but
+// keeps "Robotics Club member" from satisfying "FRC mentor"), then a keyword tier as the final
+// fallback for anything the concept graph doesn't recognize.
 //
-// No neural embedding model is used here. See scoreProfile.ts's module doc comment for the
-// benchmark behind that call: a local model small enough to be worth trying (Transformers.js +
-// a quantized MiniLM) still adds roughly 30+MB and would have to run inside the LinkedIn
-// content-script bundle under the current architecture — the exact kind of heavy, blocking
-// work that caused a real page-freeze bug earlier in this project. The concept graph below
-// covers every distinction the milestone's own examples call for without that cost.
+// No neural embedding model here, see scoreProfile.ts for why.
 import type { Criterion } from "../models/goal";
 import type { LinkedInProfile, ProfileSectionName } from "../models/profile";
 import { profileTextFields } from "../models/profile";
@@ -35,17 +27,14 @@ export interface SemanticEvidence {
 export interface SemanticMatchResult {
   strength: EvidenceStrength;
   evidence?: SemanticEvidence;
-  /** A related-but-inconclusive mention, when one exists and strength isn't already
-   * strong/moderate — never invented, only ever pulled from real profile text. */
+  /** A related but inconclusive mention, never invented, only from real profile text. */
   partialEvidence?: SemanticEvidence;
-  /** A short, human-readable reason for the strength, used by profileAnalysis.ts and shown as
-   * the matcher's own explanation — never free-floating; always describes the evidence above. */
+  /** A short reason for the strength, always describes the evidence above. */
   explanation: string;
 }
 
-/** Sections whose presence indicates a reasonably-read profile — if NONE of these have loaded
- * yet, an unmatched criterion is genuinely UNKNOWN (we haven't seen enough to judge); once a
- * decent chunk of the profile is in, an unmatched criterion is honestly MISSING instead. */
+// Sections whose presence indicates a reasonably-read profile. Without any of these,
+// an unmatched criterion is genuinely unknown rather than missing.
 const CORE_SECTIONS: ProfileSectionName[] = ["about", "experience", "education"];
 
 const MENTOR_TRIGGER_WORDS = ["mentor", "mentoring", "mentors", "mentorship"];
@@ -92,9 +81,8 @@ function toSemanticEvidence(item: EvidenceItem, sectionLabel: string): SemanticE
   return { fieldLabel: sectionLabel, snippet: truncateSnippet(item.text), sourceSection: item.sourceSection };
 }
 
-/** Looks up the display label a field of this section normally carries, from the ordinary
- * text-field list, so evidence shown for a concept match reads the same way exact-match
- * evidence does ("Education: Duke University", not just "education"). */
+// Looks up the display label a field normally carries, so a concept match reads the same way
+// an exact match does ("Education: Duke University", not just "education").
 function sectionLabelFor(profile: LinkedInProfile, item: EvidenceItem): string {
   const field = profileTextFields(profile).find((f) => f.section === item.sourceSection && f.text === item.text);
   return field?.label ?? item.sourceSection;
@@ -126,9 +114,8 @@ function evaluateMultilingual(evidence: ProfileEvidence): SemanticMatchResult {
   return { strength: "missing", explanation: "No languages listed on the profile." };
 }
 
-/** Domain-agnostic role-marker criteria (bare "mentor" or "leadership", with no named field)
- * search every piece of evidence rather than requiring a domain overlap — leading a team is
- * leading a team whether the criterion said "robotics leadership" or just "leadership". */
+// Bare role-marker criteria like "mentor" or "leadership" search all evidence, no domain
+// overlap required, leading a team is leading a team regardless of field.
 function evaluateRoleMarker(
   profile: LinkedInProfile,
   evidence: ProfileEvidence,
@@ -161,9 +148,8 @@ function evaluateRoleMarker(
   return { strength: "missing", explanation: `No ${concept.requiredMarker === "mentor" ? "mentoring" : "leadership"} evidence found.` };
 }
 
-/** Seniority-style criteria ("engineering background", "professional experience", "software
- * engineer") — a domain must overlap, and strength then depends on how far the best matching
- * evidence's role level is from what the criterion asks for, not on a marker being present. */
+// Seniority-style criteria need a domain overlap. Strength depends on how far the best
+// evidence's role level is from what's asked for, not on a marker word being present.
 function evaluateSeniority(
   profile: LinkedInProfile,
   evidence: ProfileEvidence,
@@ -204,16 +190,9 @@ function evaluateSeniority(
   };
 }
 
-/** The same-field-keyword tier this project has used from the start — kept as-is for criteria
- * the concept graph has no domain/role opinion about (a specific technology, a place, a school
- * name). Exact-phrase matching already ran (and failed) before this is ever called — see
- * `evaluateCriterion` — so this only needs the keyword-coverage and partial-match tiers.
- *
- * Confirmed live: on a profile where only the location line has loaded (name + location, no
- * headline/about/experience/education at all), this tier still confidently declared "missing"
- * for a criterion like "Microsoft" — presenting a barely-read profile as a checked-and-absent
- * one. Falling through to "unknown" when no core section has loaded yet keeps this tier
- * consistent with every other evaluator in this file. */
+// The keyword tier for criteria the concept graph has no opinion about, like a specific
+// technology or school name. Exact-phrase matching already ran and failed by this point.
+// Falls through to "unknown" when no core section has loaded, matching every other evaluator.
 function evaluateKeywordFallback(criterion: Criterion, profile: LinkedInProfile, evidence: ProfileEvidence): SemanticMatchResult {
   const keywords = significantKeywords(criterion.label);
   if (keywords.length === 0) return { strength: "unknown", explanation: "This criterion has no specific terms to search for." };
@@ -255,11 +234,8 @@ function evaluateKeywordFallback(criterion: Criterion, profile: LinkedInProfile,
   return { strength: "missing", explanation: "No mention found on the profile." };
 }
 
-/** Evaluates one criterion against a profile's structured evidence. Exact phrase matching
- * always runs first (fast, and the most reliable signal there is); the concept graph only
- * takes over for criteria it actually recognizes something about, and even then only after
- * exact matching found nothing verbatim. Pure function: the same criterion, profile, and
- * evidence always produce the same result. */
+// Evaluates one criterion against a profile's evidence. Exact matching runs first, the
+// concept graph only takes over when it has an opinion and exact matching found nothing.
 export function evaluateCriterion(
   criterion: Criterion,
   profile: LinkedInProfile,

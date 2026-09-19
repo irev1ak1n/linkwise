@@ -1,32 +1,13 @@
-// The single guardrail policy deciding, PER CRITERION, whether to trust OpenAI's assessment or
-// fall back to the local deterministic one. This is what keeps "OpenAI improves criterion
-// understanding" from ever becoming "OpenAI can invent an unsupported fact" or "OpenAI can
-// override a hard guardrail" — the merged result this produces is what feeds
-// computeMatchResult (see ../../../src/matching/scoreProfile.ts), so every rule enforced here
-// applies before the score is even calculated, not after.
+// Decides, per criterion, whether to trust AI's assessment or fall back to the local one.
+// Order of rules:
+//   1. Local "unknown" wins. Only local knows if enough of the profile was even collected.
+//   2. A confirmed Excluded disqualification can never be undone by AI.
+//   3. If AI didn't address this criterion, keep local.
+//   4. An AI claim with no valid evidence ID is unsupported, fall back to local.
+//   5. AI can't downgrade a resolved local answer to "unknown".
+//   6. Otherwise use AI's assessment. This is where AI actually improves on local matching.
 //
-// The policy, in order:
-//   1. If the LOCAL result is "unknown", trust it completely and ignore AI for this criterion.
-//      Only the local engine actually knows whether enough of the profile was collected —
-//      OpenAI sees the same evidence list either way, so it has no additional information
-//      about collection completeness, and letting it assert something more confident here
-//      would be trusting a claim it has no real basis for.
-//   2. If the criterion is EXCLUDED and local already confirmed it ("strong"), that
-//      disqualification can never be undone by AI — a confirmed exclusion is a hard guardrail.
-//   3. If AI didn't address this criterion at all, keep the local result.
-//   4. If AI claims a positive strength (strong/moderate/weak) but cites zero evidence IDs that
-//      were actually supplied in the request, the claim is unsupported — fall back to local.
-//   5. If AI claims "unknown" while local already resolved a real answer, that would introduce
-//      LESS certainty than the system already has — keep local instead.
-//   6. Otherwise, AI provided a grounded, non-regressive assessment — use it. This is the case
-//      that actually delivers "AI improves on exact-keyword matching": a locally "missing" or
-//      "weak" criterion can be upgraded when OpenAI cites real evidence a keyword/concept-graph
-//      match didn't catch.
-//
-// A "strong"/"moderate" assessment is REQUIRED to carry real evidence by the time it reaches
-// computeMatchResult (it becomes a MatchReason, which the UI unconditionally reads `.evidence`
-// from) — this file guarantees that invariant for both the local and AI-derived paths, never
-// just assuming it holds.
+// Any "strong"/"moderate" result must carry real evidence by the time it's used for scoring.
 import type { CriterionAssessment } from "../../../src/matching/scoreProfile";
 import type { SemanticEvidence } from "../../../src/matching/semanticMatcher";
 import type { EvidenceStrength } from "../../../src/models/evidence";
@@ -35,8 +16,7 @@ import type { AnalysisResponse, CriterionAssessmentResponse } from "../openai/re
 
 export interface MergeResult {
   assessments: Map<string, CriterionAssessment>;
-  /** Which criterion IDs actually used a grounded AI assessment rather than the local floor —
-   * exposed for logging/debugging and for the narrative validator to cross-check against. */
+  /** Criterion IDs that actually used a grounded AI assessment instead of the local one. */
   aiInformedCriterionIds: Set<string>;
 }
 
@@ -48,17 +28,12 @@ function toSemanticEvidence(section: string, text: string): SemanticEvidence {
   return { fieldLabel: section, snippet: text, sourceSection: section as SemanticEvidence["sourceSection"] };
 }
 
-/** Filters an AI-cited evidence ID list down to only IDs that were genuinely supplied in the
- * request — never trust a citation to evidence that doesn't exist (see the mission's own "AI
- * may only reference evidence IDs provided in the request" rule). */
+// Keeps only evidence IDs that were actually supplied. Never trust a made-up citation.
 function keepValidEvidenceIds(evidenceIds: string[], suppliedIds: ReadonlySet<string>): string[] {
   return evidenceIds.filter((id) => suppliedIds.has(id));
 }
 
-/** Reconstructs the local floor as a `CriterionAssessment`, defensively downgrading a
- * positive claim ("strong"/"moderate") that somehow has no resolvable evidence ID down to
- * "weak" — a positive claim must never reach `computeMatchResult` without real evidence behind
- * it, even in a degenerate case the request-building step didn't anticipate. */
+// Builds the local assessment, downgrading a positive claim with no real evidence to "weak".
 function buildLocalAssessment(
   request: AnalyzeProfileRequest,
   evidenceById: ReadonlyMap<string, AnalyzeProfileRequest["profile"]["evidence"][number]>,
@@ -94,7 +69,7 @@ export function mergeCriterionAssessments(request: AnalyzeProfileRequest, aiResp
   for (const criterion of request.goal.criteria) {
     const localAssessment = buildLocalAssessment(request, evidenceById, criterion.id);
 
-    // Rule 1: local "unknown" is authoritative — only it tracks collection completeness.
+    // Rule 1: local unknown wins, only it tracks collection completeness.
     if (localAssessment.strength === "unknown") {
       assessments.set(criterion.id, localAssessment);
       continue;
@@ -122,14 +97,13 @@ export function mergeCriterionAssessments(request: AnalyzeProfileRequest, aiResp
       continue;
     }
 
-    // Rule 5: AI cannot introduce MORE uncertainty than the system already resolved.
+    // Rule 5: AI can't add uncertainty to a resolved answer.
     if (ai.assessment === "unknown") {
       assessments.set(criterion.id, localAssessment);
       continue;
     }
 
-    // Rule 6: grounded, non-regressive — use AI's assessment. `groundedEvidence` is guaranteed
-    // whenever `ai.assessment` is a positive strength (Rule 4 already excluded the alternative).
+    // Rule 6: grounded and non-regressive, so use AI's assessment.
     assessments.set(criterion.id, {
       strength: ai.assessment,
       evidence: groundedEvidence ? toSemanticEvidence(groundedEvidence.section, groundedEvidence.text) : undefined,

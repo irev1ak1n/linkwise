@@ -94,12 +94,12 @@ describe("buildFinalAnalysis - AI available", () => {
       ...createGoal("Test"),
       criteria: [createCriterion("FRC mentor", "MUST_HAVE"), createCriterion("Python", "MUST_HAVE")],
     };
-    const p = profile({ about: "I enjoy hiking." }); // matches nothing — should read as a weak/no match
+    const p = profile({ about: "I enjoy hiking." }); // matches nothing, should read as weak/no match
     const localResult = scoreProfileAgainstGoal(goal, p);
     const evidence = buildProfileEvidence(p);
 
-    // Even if the AI's OWN narrative reason sounds enthusiastic, the label is still computed
-    // deterministically from the (unchanged, weak) MatchResult — never overridden by AI's tone.
+    // Even if AI's narrative reason sounds enthusiastic, the label is still computed
+    // deterministically from the MatchResult, never overridden by AI's tone.
     const final = buildFinalAnalysis(goal, p, evidence, localResult, {
       result: localResult,
       narrative: narrative({ recommendationReason: "This looks like an amazing candidate!" }),
