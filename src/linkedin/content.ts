@@ -7,6 +7,12 @@
 // moves the page and settles as soon as useful evidence exists; "auto" scrolls the page toward
 // the bottom itself (see autoScroll.ts) so lazy-loaded sections load without the user
 // scrolling, then restores the original scroll position once settled.
+//
+// Switching mode mid-session never resets already-collected evidence for the current profile:
+// switching to "auto" while still collecting starts auto-scrolling on the very next tick,
+// reusing whatever was already found; switching to "auto" after "scroll" mode already settled
+// leaves that result alone (no rescan, no scroll-position change) and only applies to whichever
+// profile is opened next.
 import { foundSections, type LinkedInProfile } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
 import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
@@ -77,6 +83,10 @@ function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
 // The user's scroll position before an "auto" scan started, restored once it settles.
 const savedScrollPositions = new Map<string, number>();
 const restoredProfileKeys = new Set<string>();
+// Profiles LinkWise actually auto-scrolled at least once — the only ones whose position should
+// ever be restored. A profile that settled entirely under "scroll" mode was never moved in the
+// first place, so switching the preference to "auto" afterward must never snap it back.
+const autoScannedProfileKeys = new Set<string>();
 
 function maybeRestoreScrollPosition(profileKey: string): void {
   if (restoredProfileKeys.has(profileKey)) return;
@@ -120,8 +130,10 @@ function tick(): void {
 
   if (engine.getCollectionState().status === "settled") {
     // Never scroll again once settled, whichever mode produced that, this also prevents a
-    // duplicate auto scan and lets a goal change reuse the evidence without rescrolling.
-    if (getScanModeState().mode === "auto") maybeRestoreScrollPosition(profileKey);
+    // duplicate auto scan and lets a goal change reuse the evidence without rescrolling. Only
+    // restore position for a profile LinkWise actually auto-scrolled, never one that simply
+    // settled on its own under "scroll" mode before the preference changed.
+    if (autoScannedProfileKeys.has(profileKey)) maybeRestoreScrollPosition(profileKey);
     return;
   }
 
@@ -129,6 +141,7 @@ function tick(): void {
 
   const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
   if (autoScroll.shouldScrollNow(profileKey, goalActive, isNearDocumentEnd())) {
+    autoScannedProfileKeys.add(profileKey);
     const container = findScrollContainer();
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }
