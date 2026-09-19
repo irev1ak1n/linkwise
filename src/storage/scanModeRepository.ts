@@ -1,8 +1,8 @@
 // Local-only persistence for the user's chosen profile-scanning mode, same pattern as
 // goalsRepository.ts.
-export type ScanMode = "scroll" | "auto";
+import { DEFAULT_SCAN_MODE, type ScanMode } from "../models/scanMode";
 
-export const DEFAULT_SCAN_MODE: ScanMode = "scroll";
+export type { ScanMode };
 export const SCAN_MODE_STORAGE_KEY = "finder.scanMode.v1";
 
 function isScanMode(value: unknown): value is ScanMode {

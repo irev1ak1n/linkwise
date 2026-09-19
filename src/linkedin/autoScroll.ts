@@ -3,7 +3,14 @@
 //
 // LinkedIn lazy-loads sections as they near the viewport, so without scrolling nothing below
 // the fold gets collected. This drives that automatically, in small bursts, no user action
-// needed.
+// needed, and only ever in "auto" scan mode.
+//
+// The mode check at the top of shouldScrollNow is defense in depth, not the only gate: the
+// caller in content.ts already checks scanCoverage.ts's shouldAttemptAutoScroll before ever
+// reaching here. Even if some future caller skipped that check, this function refuses outright
+// unless mode is exactly "auto".
+import type { ScanMode } from "../models/scanMode";
+
 export interface AutoScrollOptions {
   now: () => number;
   /** Stop trying to scroll further after this long, give up and analyze with what we have. */
@@ -13,9 +20,9 @@ export interface AutoScrollOptions {
 }
 
 export interface AutoScrollDriver {
-  /** Call on every tick. Returns true when the caller should scroll once. Resets its timing
-   * whenever profileKey changes. */
-  shouldScrollNow(profileKey: string | null, goalActive: boolean, atRealDocumentEnd: boolean): boolean;
+  /** Call on every tick. Returns true when the caller should scroll once. Refuses outright
+   * unless mode is "auto". Resets its timing whenever profileKey changes. */
+  shouldScrollNow(mode: ScanMode, profileKey: string | null, goalActive: boolean, atRealDocumentEnd: boolean): boolean;
   /** True once maxDurationMs has elapsed since this profile was first seen. */
   hasTimedOut(profileKey: string | null): boolean;
 }
@@ -41,7 +48,8 @@ export function createAutoScrollDriver(options: AutoScrollOptions): AutoScrollDr
     lastScrollAt = null;
   }
 
-  function shouldScrollNow(profileKey: string | null, goalActive: boolean, atRealDocumentEnd: boolean): boolean {
+  function shouldScrollNow(mode: ScanMode, profileKey: string | null, goalActive: boolean, atRealDocumentEnd: boolean): boolean {
+    if (mode !== "auto") return false; // the hard gate, defense in depth against any caller mistake
     if (profileKey === null) return false;
     ensureTracking(profileKey);
     if (!goalActive || atRealDocumentEnd) return false;

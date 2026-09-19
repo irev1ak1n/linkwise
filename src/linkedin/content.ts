@@ -4,17 +4,26 @@
 // page or clicks anything.
 //
 // Two scanning modes, user-selectable (see panel/scanModeStore.ts): "scroll" (default) never
-// moves the page and settles as soon as useful evidence exists; "auto" scrolls the page toward
-// the bottom itself (see autoScroll.ts) so lazy-loaded sections load without the user
-// scrolling, then restores the original scroll position once settled.
+// moves the page, it only ever reacts to sections the user reveals by scrolling manually.
+// "auto" is the only mode allowed to scroll the page itself (see autoScroll.ts), so lazy-loaded
+// sections load without the user scrolling, then the original scroll position is restored once
+// the scan completes.
+//
+// Whether to attempt auto-scroll is decided in exactly one place, scanCoverage.ts's
+// shouldAttemptAutoScroll(mode, coverage). A Match % existing is not the same as the profile
+// being fully covered (see scanCoverage.ts), so that decision reads collection state, never the
+// analysis result. autoScroll.ts also refuses to scroll unless mode is "auto", as a second,
+// independent gate in case some future caller skips the check above.
 //
 // Switching mode mid-session never resets already-collected evidence for the current profile:
-// switching to "auto" while still collecting starts auto-scrolling on the very next tick,
-// reusing whatever was already found; switching to "auto" after "scroll" mode already settled
+// switching to "auto" while coverage is incomplete starts auto-scrolling on the very next tick,
+// reusing whatever was already found; switching to "auto" once coverage is already complete
 // leaves that result alone (no rescan, no scroll-position change) and only applies to whichever
-// profile is opened next.
+// profile is opened next. Switching back to "scroll" mid-scan stops any auto-scrolling
+// immediately, without resetting evidence or jumping back to the top.
 import { foundSections, type LinkedInProfile } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
+import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
 import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
 import { getPanelProfileData, setPanelProfileData } from "./panel/panelStore";
@@ -128,19 +137,23 @@ function tick(): void {
   const profileKey = engine.getProfileKey();
   if (profileKey === null) return;
 
-  if (engine.getCollectionState().status === "settled") {
-    // Never scroll again once settled, whichever mode produced that, this also prevents a
-    // duplicate auto scan and lets a goal change reuse the evidence without rescrolling. Only
-    // restore position for a profile LinkWise actually auto-scrolled, never one that simply
-    // settled on its own under "scroll" mode before the preference changed.
+  const mode = getScanModeState().mode;
+  const coverage = deriveScanCoverage(engine.getCollectionState());
+
+  if (coverage === "complete") {
+    // Nothing left to gain from scrolling further. Only restore position for a profile
+    // LinkWise actually auto-scrolled, never one that simply settled on its own under
+    // "scroll" mode before the preference changed.
     if (autoScannedProfileKeys.has(profileKey)) maybeRestoreScrollPosition(profileKey);
     return;
   }
 
-  if (getScanModeState().mode !== "auto") return; // "scroll" mode never moves the page
+  // The one strict gate: false for "scroll" mode no matter what else is true, so it can never
+  // move the page, and false once coverage is already complete.
+  if (!shouldAttemptAutoScroll(mode, coverage)) return;
 
   const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
-  if (autoScroll.shouldScrollNow(profileKey, goalActive, isNearDocumentEnd())) {
+  if (autoScroll.shouldScrollNow(mode, profileKey, goalActive, isNearDocumentEnd())) {
     autoScannedProfileKeys.add(profileKey);
     const container = findScrollContainer();
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });

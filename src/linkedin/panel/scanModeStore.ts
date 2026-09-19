@@ -1,6 +1,7 @@
 // The user's chosen profile-scanning mode, same external-store pattern as goalStore.ts.
 // Read synchronously by content.ts on every tick, and by the panel's toggle UI.
-import { DEFAULT_SCAN_MODE, SCAN_MODE_STORAGE_KEY, loadScanMode, saveScanMode, type ScanMode } from "../../storage/scanModeRepository";
+import { DEFAULT_SCAN_MODE, type ScanMode } from "../../models/scanMode";
+import { SCAN_MODE_STORAGE_KEY, loadScanMode, saveScanMode } from "../../storage/scanModeRepository";
 
 export type { ScanMode };
 
