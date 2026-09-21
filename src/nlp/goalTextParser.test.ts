@@ -48,6 +48,48 @@ describe("parseGoalDraftFromText - the mission's own example", () => {
   });
 });
 
+describe("parseGoalDraftFromText - organization membership and language ability", () => {
+  it("extracts a capitalized acronym plus 'member(s)' as a membership criterion (observed live: 'TSA Members with Multilingual Development Skills' returned zero criteria before this pattern existed)", () => {
+    const draft = parseGoalDraftFromText("TSA Members with Multilingual Development Skills");
+    const preferred = labelsFor("PREFERRED", draft.criteria);
+    expect(preferred).toContain("tsa member");
+  });
+
+  it("extracts plain-language multilingual ability from 'Multilingual' as its own criterion", () => {
+    const draft = parseGoalDraftFromText("TSA Members with Multilingual Development Skills");
+    const preferred = labelsFor("PREFERRED", draft.criteria);
+    expect(preferred).toContain("multilingual");
+  });
+
+  it("extracts a lowercase 'X association' phrase as a membership criterion, without requiring title case", () => {
+    const draft = parseGoalDraftFromText("Technology student association, speak several languages");
+    const preferred = labelsFor("PREFERRED", draft.criteria);
+    expect(preferred.some((l) => l.includes("technology student association"))).toBe(true);
+  });
+
+  it("extracts 'speak several languages' as multilingual ability, not just a bare 'languages' keyword", () => {
+    const draft = parseGoalDraftFromText("Technology student association, speak several languages");
+    const preferred = labelsFor("PREFERRED", draft.criteria);
+    expect(preferred).toContain("multilingual");
+  });
+
+  it("never returns zero criteria for either of these previously-broken real descriptions", () => {
+    expect(parseGoalDraftFromText("TSA Members with Multilingual Development Skills").criteria.length).toBeGreaterThan(0);
+    expect(parseGoalDraftFromText("Technology student association, speak several languages").criteria.length).toBeGreaterThan(0);
+  });
+
+  it("still recognizes a plain 'bilingual'/'trilingual' claim", () => {
+    expect(labelsFor("PREFERRED", parseGoalDraftFromText("Fluent in multiple languages, bilingual preferred.").criteria)).toContain(
+      "multilingual",
+    );
+  });
+
+  it("still leaves genuinely unrecognized nonsense text empty, this isn't a catch-all", () => {
+    const draft = parseGoalDraftFromText("Blorptastic wobble ferns under a purple moon.");
+    expect(draft.criteria).toEqual([]);
+  });
+});
+
 describe("parseGoalDraftFromText - exclusions", () => {
   it("extracts an exclusion phrase as an Excluded criterion, not a positive one", () => {
     const draft = parseGoalDraftFromText("Looking for software engineers, not recruiters, in Austin.");

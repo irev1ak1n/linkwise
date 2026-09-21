@@ -53,6 +53,10 @@ const DOMAIN_VOCABULARY = [
   "law",
   "medicine",
   "nursing",
+  "development",
+  "web development",
+  "programming",
+  "cybersecurity",
 ];
 
 function collapseWhitespace(text: string): string {
@@ -91,6 +95,15 @@ const EXCLUSION_PATTERN = /\b(?:not|no|excluding|except|avoid)\s+([a-zA-Z][a-zA-
 const SUBJECT_PATTERN = /\b(?:looking for|seeking|searching for|want to find|need to find|want|need)\s+(.+?)(?=\s+(?:in|with|who|that|near)\b|[,.;]|$)/i;
 const LOCATION_PATTERN = /\bin\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2})\b/;
 const SKILL_EXPERIENCE_PATTERN = /\bwith\s+(.+?)\s+(?:experience|background)\b/i;
+// A capitalized organization name or acronym directly followed by "member(s)", e.g. "TSA
+// members" or "Technology Student Association member". Requires the leading word to be
+// capitalized so this stays specific rather than matching any generic "team members" phrase.
+const ORGANIZATION_MEMBER_PATTERN = /\b([A-Z][A-Za-z]*(?:\s+[A-Za-z]+){0,4})\s+[Mm]embers?\b/;
+// A named group ending in a word like "association" or "club", even in ordinary sentence
+// case, e.g. "Technology student association" or "robotics club".
+const ORGANIZATION_NAME_PATTERN = /\b((?:[A-Za-z]+\s+){0,4}(?:association|society|club|organization))\b/i;
+// Speaking ability described in plain language rather than a bare "languages" keyword.
+const MULTILINGUAL_PATTERN = /\b(?:multilingual|bilingual|trilingual|speaks?\s+(?:several|multiple|many|two|three|four|five)\s+languages?)\b/i;
 
 // Expands "mechanical or aerospace engineering" into ["mechanical engineering", "aerospace
 // engineering"], distributing a shared trailing noun. Left unexpanded when the pattern
@@ -177,7 +190,26 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
     working = blank(working, { start: skillMatch.index, end: skillMatch.index + skillMatch[0].length });
   }
 
-  // 5. Remaining domain vocabulary anywhere else, a lower-confidence OPTIONAL signal, only
+  // 5. Organization membership, either "<Name> member(s)" or "<name> association/club/society".
+  const memberMatch = ORGANIZATION_MEMBER_PATTERN.exec(working);
+  if (memberMatch) {
+    addCriterion(`${singularizeLastWord(memberMatch[1])} member`, "PREFERRED", { category: "membership" });
+    working = blank(working, { start: memberMatch.index, end: memberMatch.index + memberMatch[0].length });
+  }
+  const orgNameMatch = ORGANIZATION_NAME_PATTERN.exec(working);
+  if (orgNameMatch) {
+    addCriterion(collapseWhitespace(orgNameMatch[1]), "PREFERRED", { category: "membership" });
+    working = blank(working, { start: orgNameMatch.index, end: orgNameMatch.index + orgNameMatch[0].length });
+  }
+
+  // 6. Multilingual ability described in plain language, not just a bare "languages" keyword.
+  const languageMatch = MULTILINGUAL_PATTERN.exec(working);
+  if (languageMatch) {
+    addCriterion("Multilingual", "PREFERRED", { category: "language" });
+    working = blank(working, { start: languageMatch.index, end: languageMatch.index + languageMatch[0].length });
+  }
+
+  // 7. Remaining domain vocabulary anywhere else, a lower-confidence OPTIONAL signal, only
   // added when not already captured above.
   const lowerWorking = working.toLowerCase();
   for (const term of DOMAIN_VOCABULARY) {

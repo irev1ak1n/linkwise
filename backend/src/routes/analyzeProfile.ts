@@ -39,6 +39,9 @@ export async function handleAnalyzeProfile(req: Request, res: Response, deps: An
     return;
   }
   if (aiResult.status === "error") {
+    // The client only ever sees "openai_error", but this is the one place the real reason
+    // is knowable at all, so it's the only place that can log it for diagnosis.
+    console.error("[analyze-profile] OpenAI call failed:", aiResult.message);
     res.status(200).json({ status: "unavailable", reason: "openai_error" });
     return;
   }
@@ -50,8 +53,9 @@ export async function handleAnalyzeProfile(req: Request, res: Response, deps: An
     const narrative = validateNarrative(aiResult.data, suppliedEvidenceIds);
 
     res.status(200).json({ status: "ai_analysis", model: deps.config.openAiModel, result, narrative });
-  } catch {
+  } catch (error) {
     // A valid response can still fail to merge sensibly. Fall back instead of erroring.
+    console.error("[analyze-profile] Failed to process a valid OpenAI response:", error);
     res.status(200).json({ status: "unavailable", reason: "processing_error" });
   }
 }

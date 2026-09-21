@@ -11,12 +11,17 @@ function trimTo(text: string, maxLength: number): string {
   return text.trim().slice(0, maxLength);
 }
 
-// Some models emit the literal string "null" instead of a real null. Left as-is, unrelated
-// criteria could end up sharing a fake groupId and get wrongly grouped as alternatives.
+const NULLISH_TOKENS = new Set(["null", "none", "undefined", "na"]);
+
+// Some models emit a nullish placeholder instead of a real null, sometimes with stray
+// punctuation around it (observed live: ":null"). Left as-is, unrelated criteria could end up
+// sharing a fake groupId and get wrongly grouped as alternatives.
 function normalizeNullish(text: string | null): string | null {
   if (text === null) return null;
   const trimmed = text.trim();
-  if (!trimmed || ["null", "none", "undefined", "n/a"].includes(trimmed.toLowerCase())) return null;
+  if (!trimmed) return null;
+  const bareToken = trimmed.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (NULLISH_TOKENS.has(bareToken)) return null;
   return trimmed;
 }
 

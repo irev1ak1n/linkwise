@@ -37,6 +37,7 @@ export async function handleGenerateCriteria(req: Request, res: Response, deps: 
     return;
   }
   if (aiResult.status === "error") {
+    console.error("[generate-criteria] OpenAI call failed:", aiResult.message);
     res.status(200).json({ status: "unavailable", reason: "openai_error" });
     return;
   }
@@ -44,8 +45,9 @@ export async function handleGenerateCriteria(req: Request, res: Response, deps: 
   try {
     const { name, criteria } = sanitizeGeneratedCriteria(aiResult.data);
     res.status(200).json({ status: "generated", name, criteria });
-  } catch {
+  } catch (error) {
     // A valid response can still fail to sanitize. Fall back instead of erroring.
+    console.error("[generate-criteria] Failed to process a valid OpenAI response:", error);
     res.status(200).json({ status: "unavailable", reason: "processing_error" });
   }
 }

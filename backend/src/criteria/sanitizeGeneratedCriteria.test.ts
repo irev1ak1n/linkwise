@@ -91,4 +91,13 @@ describe("sanitizeGeneratedCriteria", () => {
     expect(result.operator).toBeNull();
     expect(result.value).toBeNull();
   });
+
+  it("treats a nullish token with stray punctuation as no group too (observed live: the model emitted \":null\" for two unrelated AND-combined criteria, which would otherwise wrongly turn them into a 2-way OR alternative)", () => {
+    const response: GenerateCriteriaResponse = {
+      name: "Search",
+      criteria: [criterion({ label: "FRC mentor", groupId: ":null" }), criterion({ label: "Engineering experience", groupId: ":null" })],
+    };
+    const result = sanitizeGeneratedCriteria(response);
+    expect(result.criteria.map((c) => c.groupId)).toEqual([null, null]);
+  });
 });

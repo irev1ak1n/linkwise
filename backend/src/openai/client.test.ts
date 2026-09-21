@@ -45,7 +45,7 @@ describe("requestAnalysis - success", () => {
 });
 
 describe("requestAnalysis - timeout", () => {
-  it("returns a timeout status when the client hangs past the deadline", async () => {
+  it("returns a timeout status once every retry has also timed out", async () => {
     const config = loadConfig({ OPENAI_API_KEY: "sk-test" });
     const client: AnalysisClient = {
       analyze: (_system, _user, signal) =>
@@ -56,6 +56,37 @@ describe("requestAnalysis - timeout", () => {
 
     const result = await requestAnalysis(config, "system", "user", { client, timeoutMs: 20 });
     expect(result).toEqual({ status: "timeout" });
+  });
+
+  it("retries once after a timeout, and returns the result if the retry succeeds", async () => {
+    const config = loadConfig({ OPENAI_API_KEY: "sk-test" });
+    const response = fakeAnalysisResponse();
+    let attempt = 0;
+    const client: AnalysisClient = {
+      analyze: (_system, _user, signal) => {
+        attempt += 1;
+        if (attempt === 1) {
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(new Error("aborted")));
+          });
+        }
+        return Promise.resolve(response);
+      },
+    };
+
+    const result = await requestAnalysis(config, "system", "user", { client, timeoutMs: 20 });
+    expect(result).toEqual({ status: "ok", data: response });
+    expect(attempt).toBe(2);
+  });
+
+  it("does not retry a real (non-timeout) error, since it would just fail the same way again", async () => {
+    const config = loadConfig({ OPENAI_API_KEY: "sk-test" });
+    const analyze = vi.fn().mockRejectedValue(new Error("rate limited"));
+    const client: AnalysisClient = { analyze };
+
+    const result = await requestAnalysis(config, "system", "user", { client });
+    expect(result.status).toBe("error");
+    expect(analyze).toHaveBeenCalledTimes(1);
   });
 });
 
