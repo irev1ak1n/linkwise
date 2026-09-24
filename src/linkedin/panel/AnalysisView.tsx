@@ -4,6 +4,7 @@ import { matchDisplayColor, matchDisplayLabel, matchDisplayState } from "../../m
 import { EXPERIENCE_LEVEL_LABELS } from "../../matching/profileAnalysis";
 import { buildProfileEvidence } from "../../evidence/buildProfileEvidence";
 import { buildFinalAnalysis } from "../../ai/mergeIntoAnalysis";
+import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
 import type { AiAnalysisState } from "./useAiAnalysis";
 import type { Goal } from "../../models/goal";
 import type { LinkedInProfile } from "../../models/profile";
@@ -41,7 +42,11 @@ export function AnalysisView({ result, goal, profile, aiState }: AnalysisViewPro
         {scoreLabel && <div className="lw-summary-card__score">{scoreLabel}</div>}
         <div className="lw-summary-card__target">For: {goal.name}</div>
 
-        {aiState.status === "unavailable" && <p className="lw-ai-status">AI analysis unavailable — showing local analysis.</p>}
+        {aiState.status === "unavailable" && (
+          <p className="lw-ai-status">
+            AI analysis unavailable ({describeAiUnavailableReason(aiState.reason)}) — showing local analysis.
+          </p>
+        )}
         {final.source === "ai" && (
           <p className="lw-ai-status lw-ai-status--ai">
             AI-enhanced analysis

@@ -1,9 +1,23 @@
-// No real OpenAI SDK, API key, or network here. requestAnalysis is exercised through a fake
-// AnalysisClient.
+// requestAnalysis itself is exercised through a fake AnalysisClient (no real SDK/key/network).
+// createOpenAiAnalysisClient is the one function that touches the real "openai" package
+// directly, so its own tests mock that package instead (vi.mock calls are hoisted above these
+// imports by Vitest automatically) — this is the only place a malformed or refused
+// structured-output response (no output_parsed) can actually be exercised, since every other
+// test here bypasses this function entirely via the injected fake client.
 import { describe, expect, it, vi } from "vitest";
-import { requestAnalysis, type AnalysisClient } from "./client";
+import { createOpenAiAnalysisClient, requestAnalysis, type AnalysisClient } from "./client";
 import { loadConfig } from "../config";
 import type { AnalysisResponse } from "./responseSchema";
+
+const { parseMock } = vi.hoisted(() => ({ parseMock: vi.fn() }));
+vi.mock("openai", () => ({
+  default: class FakeOpenAi {
+    responses = { parse: parseMock };
+  },
+}));
+vi.mock("openai/helpers/zod", () => ({
+  zodTextFormat: vi.fn(() => ({ type: "json_schema" })),
+}));
 
 function fakeAnalysisResponse(overrides: Partial<AnalysisResponse> = {}): AnalysisResponse {
   return {
@@ -24,6 +38,65 @@ function fakeAnalysisResponse(overrides: Partial<AnalysisResponse> = {}): Analys
     ...overrides,
   };
 }
+
+describe("createOpenAiAnalysisClient", () => {
+  it("throws a clear error when OpenAI's response has no output_parsed (malformed/refused structured output)", async () => {
+    parseMock.mockResolvedValueOnce({ output_parsed: null });
+    const config = loadConfig({ OPENAI_API_KEY: "sk-test" });
+    const client = createOpenAiAnalysisClient(config);
+
+    await expect(client.analyze("system", "user", new AbortController().signal)).rejects.toThrow(
+      "OpenAI response could not be parsed into the expected structured format.",
+    );
+  });
+
+  it("that same malformed-response error surfaces through requestAnalysis as a real 'error' status, never a throw", async () => {
+    parseMock.mockResolvedValueOnce({ output_parsed: undefined });
+    const config = loadConfig({ OPENAI_API_KEY: "sk-test" });
+
+    const result = await requestAnalysis(config, "system", "user");
+
+    expect(result).toEqual({
+      status: "error",
+      message: "OpenAI response could not be parsed into the expected structured format.",
+    });
+  });
+
+  it("returns the parsed structured response when output_parsed is present", async () => {
+    const response = fakeAnalysisResponse();
+    parseMock.mockResolvedValueOnce({ output_parsed: response });
+    const config = loadConfig({ OPENAI_API_KEY: "sk-test" });
+    const client = createOpenAiAnalysisClient(config);
+
+    const result = await client.analyze("system", "user", new AbortController().signal);
+
+    expect(result).toEqual(response);
+  });
+
+  it("calls responses.parse with the configured model and the given prompts", async () => {
+    parseMock.mockResolvedValueOnce({ output_parsed: fakeAnalysisResponse() });
+    const config = loadConfig({ OPENAI_API_KEY: "sk-test", OPENAI_MODEL: "gpt-test-model" });
+    const client = createOpenAiAnalysisClient(config);
+
+    await client.analyze("sys prompt", "user prompt", new AbortController().signal);
+
+    expect(parseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gpt-test-model",
+        input: [
+          { role: "system", content: "sys prompt" },
+          { role: "user", content: "user prompt" },
+        ],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("throws if called without a configured API key, rather than silently constructing an unauthenticated client", () => {
+    const config = loadConfig({});
+    expect(() => createOpenAiAnalysisClient(config)).toThrow();
+  });
+});
 
 describe("requestAnalysis - API key missing", () => {
   it("returns not_configured without ever constructing a real client", async () => {
