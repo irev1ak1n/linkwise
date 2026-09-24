@@ -526,7 +526,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
       runtime: { reload: vi.fn() },
-      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.enhancedAnalysis.v1": true }),
     });
     setMainProfilePage();
 
@@ -544,7 +544,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
       runtime: { reload: vi.fn() },
-      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.enhancedAnalysis.v1": true }),
     });
     // No "/details/" links yet, matching a real, slow LinkedIn client-side render where the
     // page otherwise looks settled before these links exist in the DOM.
@@ -578,7 +578,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
       runtime: { reload: vi.fn() },
-      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.enhancedAnalysis.v1": true }),
     });
     const appRoot = document.createElement("div");
     appRoot.id = "app-root";
@@ -615,7 +615,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
       runtime: { reload: vi.fn() },
-      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.enhancedAnalysis.v1": true }),
     });
     const appRoot = document.createElement("div");
     appRoot.id = "app-root";
@@ -645,6 +645,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
       runtime: { reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "auto",
+        "finder.enhancedAnalysis.v1": true,
         "finder.autoScanSession.v1": {
           sessionId: "s1",
           profileKey: "irev1ak1n",
@@ -691,6 +692,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
       runtime: { reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "auto",
+        "finder.enhancedAnalysis.v1": true,
         "finder.autoScanSession.v1": {
           sessionId: "s2",
           profileKey: "irev1ak1n",

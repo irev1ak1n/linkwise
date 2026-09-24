@@ -16,9 +16,11 @@
 // independent gate in case some future caller skips the check above.
 //
 // Once the main page is fully covered, "auto" mode also visits this person's own
-// "/details/{section}/" pages one at a time — see autoScanSession.ts for the persisted,
-// frozen-queue checklist that drives this, and tickAutoScanCrawl below for the navigation
-// itself. Local code always controls navigation; OpenAI never decides which page to visit next.
+// "/details/{section}/" pages one at a time — but only when Enhanced analysis is on (see
+// enhancedAnalysisStore.ts); off, Auto scan stops at the main page. See autoScanSession.ts for
+// the persisted, frozen-queue checklist that drives the crawl, and tickAutoScanCrawl below for
+// the navigation itself. Local code always controls navigation; OpenAI never decides which page
+// to visit next.
 //
 // "See more" expansion (expandContent.ts) uses one shared safety system regardless of mode:
 // Auto scan always expands safe profile-information toggles, "Analyze as I scroll" only does
@@ -51,6 +53,7 @@ import { createAutoScrollDriver } from "./autoScroll";
 import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
 import { getScanModeState, initScanModeStore, subscribeScanModeStore, type ScanMode } from "./panel/scanModeStore";
 import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsStore } from "./panel/expandDetailsStore";
+import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedAnalysisStore } from "./panel/enhancedAnalysisStore";
 import { expandSeeMoreToggles } from "./expandContent";
 
 const DOCUMENT_END_MARGIN_PX = 600;
@@ -176,15 +179,23 @@ function publishAutoScanState(profileKey: string): void {
 }
 
 // Advances to whichever section comes next, or back to the original profile once the whole
-// queue is done. Never re-opens a URL already marked done this session.
+// queue is done. Never re-opens a URL already marked done this session. If Enhanced analysis
+// gets turned off mid-crawl, the section already open still finishes (see tickAutoScanCrawl),
+// but this is the one place that decides whether to open another one — so turning it off here
+// stops the crawl in place instead, keeping whatever evidence was already collected.
 function goToNextSectionOrFinish(session: AutoScanSession): void {
-  if (isSessionComplete(session)) {
-    if (normalizeProfileUrl(location.href) !== session.originalProfileUrl) {
-      location.assign(session.originalProfileUrl);
+  const finalSession = !isSessionComplete(session) && !getEnhancedAnalysisState().enabled ? forceCompleteSession(session) : session;
+  if (finalSession !== session) {
+    autoScanSession = finalSession;
+    void saveAutoScanSession(finalSession);
+  }
+  if (isSessionComplete(finalSession)) {
+    if (normalizeProfileUrl(location.href) !== finalSession.originalProfileUrl) {
+      location.assign(finalSession.originalProfileUrl);
     }
     return;
   }
-  const next = nextPendingSection(session);
+  const next = nextPendingSection(finalSession);
   if (next) location.assign(next.url);
 }
 
@@ -224,6 +235,7 @@ function tickAutoScanCrawl(): void {
       location.assign(mainProfileUrl);
       return;
     }
+    if (!getEnhancedAnalysisState().enabled) return; // main-page-only scan, never starts the crawler
     const coverage = deriveScanCoverage(engine.getCollectionState());
     if (coverage !== "complete") return;
 
@@ -263,7 +275,9 @@ function tickAutoScanCrawl(): void {
   if (!pending) return;
 
   if (currentUrl !== pending.normalizedUrl) {
-    if (sectionHandledUrl !== pending.normalizedUrl) location.assign(pending.url);
+    // Also passes through the Enhanced-analysis check, so a recovered session with a
+    // not-yet-visited pending section doesn't open it if the preference was turned off meanwhile.
+    if (sectionHandledUrl !== pending.normalizedUrl) goToNextSectionOrFinish(autoScanSession);
     return;
   }
 
@@ -395,6 +409,9 @@ registerCleanup(subscribeScanModeStore(tick));
 
 initExpandDetailsStore();
 registerCleanup(subscribeExpandDetailsStore(tick));
+
+initEnhancedAnalysisStore();
+registerCleanup(subscribeEnhancedAnalysisStore(tick));
 
 tick();
 watchForChanges();
