@@ -853,3 +853,154 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 });
+
+describe("content.ts bootstrap - Enhanced analysis toggle", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+    Object.defineProperty(document, "URL", { value: "http://localhost/", configurable: true });
+  });
+
+  function setMainProfilePage(): void {
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `
+      <main role="main">
+        <section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section>
+        <section>
+          <h2>Experience</h2>
+          <a href="/in/irev1ak1n/details/experience/">Show all</a>
+        </section>
+        <section>
+          <h2>Education</h2>
+          <a href="/in/irev1ak1n/details/education/">Show all</a>
+        </section>
+      </main>
+    `;
+  }
+
+  it("Auto scan with Enhanced analysis off scans only the main page: no /details/ navigation, analysis still completes", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      // Enhanced analysis left unset — the default, off.
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+    });
+    setMainProfilePage();
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(6000);
+
+    expect(assign).not.toHaveBeenCalled();
+
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    const data = getPanelProfileData();
+    expect(data.autoScanProgress).toBeNull(); // the crawler never started
+    expect(data.collection?.status).toBe("settled"); // the single-page scan still finishes on its own
+  });
+
+  it("turning Enhanced analysis on after the main page already settled starts the crawler without discarding its evidence", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+    });
+    setMainProfilePage();
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(6000);
+
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    expect(getPanelProfileData().autoScanProgress).toBeNull();
+    expect(getPanelProfileData().profile?.experience?.length).toBeGreaterThan(0); // main-page evidence already collected
+
+    const { setEnhancedAnalysisPreference } = await import("./panel/enhancedAnalysisStore");
+    setEnhancedAnalysisPreference(true);
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/experience/");
+    // The evidence collected before the crawler ever started is still there, not thrown away.
+    expect(getPanelProfileData().profile?.experience?.length).toBeGreaterThan(0);
+  });
+
+  it("turning Enhanced analysis off mid-crawl finishes the open section, then stops opening new ones", async () => {
+    const savedSession = {
+      sessionId: "toggle-1",
+      profileKey: "irev1ak1n",
+      originalProfileUrl: "https://www.linkedin.com/in/irev1ak1n/",
+      currentIndex: 0,
+      status: "scanning",
+      startedAt: Date.now(),
+      sections: [
+        {
+          type: "experience",
+          heading: "Experience",
+          url: "/in/irev1ak1n/details/experience/",
+          normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/experience/",
+          status: "pending",
+          attempts: 0,
+        },
+        {
+          type: "education",
+          heading: "Education",
+          url: "/in/irev1ak1n/details/education/",
+          normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/education/",
+          status: "pending",
+          attempts: 0,
+        },
+      ],
+    };
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.enhancedAnalysis.v1": true,
+        "finder.autoScanSession.v1": savedSession,
+      }),
+    });
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `
+      <main role="main">
+        <h1><span aria-hidden="true">Illia Reviakin</span></h1>
+        <ul><li><span aria-hidden="true">Software Engineer at Acme</span></li></ul>
+      </main>
+    `;
+
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    await import("./content");
+
+    // Step forward in small increments and toggle off the instant Experience is confirmed
+    // "scanning" (already open), rather than guessing a fixed delay — extraction can settle
+    // fast enough that a single larger jump would already have finished the whole section.
+    let sawScanning = false;
+    for (let elapsed = 0; elapsed < 5000 && !sawScanning; elapsed += 100) {
+      await vi.advanceTimersByTimeAsync(100);
+      if (getPanelProfileData().autoScanProgress?.sections[0].status === "scanning") sawScanning = true;
+    }
+    expect(sawScanning).toBe(true);
+
+    const { setEnhancedAnalysisPreference } = await import("./panel/enhancedAnalysisStore");
+    setEnhancedAnalysisPreference(false); // turned off while Experience is still open
+
+    await vi.advanceTimersByTimeAsync(6000); // let Experience finish, then the crawl should stop
+
+    const progress = getPanelProfileData().autoScanProgress;
+    // The already-open Experience section finished safely and kept its evidence.
+    expect(progress?.sections[0].status).toBe("done");
+    // Education never got opened.
+    expect(progress?.sections[1].status).toBe("failed");
+    expect(assign).not.toHaveBeenCalledWith("/in/irev1ak1n/details/education/");
+    expect(progress?.status).toBe("complete");
+    expect(getPanelProfileData().profile?.extracted).toBe(true); // evidence collected so far wasn't thrown away
+  });
+});
