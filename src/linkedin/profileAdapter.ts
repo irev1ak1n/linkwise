@@ -402,7 +402,10 @@ const DETAILS_PAGE_SLUGS: Record<string, ProfileSectionName> = {
   honors: "honors",
   certifications: "certifications",
   projects: "projects",
-  "volunteering-experience": "volunteering",
+  // LinkedIn's real read-only route is plural ("volunteering-experiences"). The distinct
+  // singular "volunteer-experiences" slug only ever appears in its edit-form deep links, which
+  // isProfileManagementUrl already rejects before a URL reaches this map.
+  "volunteering-experiences": "volunteering",
   organizations: "organizations",
 };
 

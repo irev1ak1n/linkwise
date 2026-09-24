@@ -335,7 +335,11 @@ describe("detailsPageSection", () => {
     expect(detailsPageSection(`${base}/certifications/`)).toBe("certifications");
     expect(detailsPageSection(`${base}/projects/`)).toBe("projects");
     expect(detailsPageSection(`${base}/organizations/`)).toBe("organizations");
-    expect(detailsPageSection(`${base}/volunteering-experience/`)).toBe("volunteering");
+    expect(detailsPageSection(`${base}/volunteering-experiences/`)).toBe("volunteering");
+  });
+
+  it("does not recognize the singular 'volunteer-experiences' slug, which only appears in edit-form links", () => {
+    expect(detailsPageSection("https://www.linkedin.com/in/irev1ak1n/details/volunteer-experiences/")).toBeNull();
   });
 
   it("returns null off a details page, and for an unrecognized slug", () => {

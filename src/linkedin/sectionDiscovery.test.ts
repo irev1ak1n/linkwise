@@ -110,6 +110,29 @@ describe("discoverProfileSections - safety and extensibility", () => {
   });
 });
 
+describe("discoverProfileSections - Volunteering: one canonical section, not two", () => {
+  it("resolves to a single, correctly-typed Volunteering entry, ignoring the singular edit-only slug entirely", () => {
+    // The exact shape seen on a real profile: a genuine read-only "volunteering-experiences"
+    // link plus several "volunteer-experiences" edit-form deep links for individual entries.
+    setBody(`
+      <main role="main">
+        <section>
+          <h2>Volunteering</h2>
+          <a href="/in/irev1ak1n/details/volunteer-experiences/edit/forms/1258231471/">Edit</a>
+          <a href="/in/irev1ak1n/details/volunteer-experiences/edit/forms/392080272/">Edit</a>
+          <a href="/in/irev1ak1n/details/volunteering-experiences/">Show all</a>
+        </section>
+      </main>
+    `);
+    const found = discoverProfileSections(document);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      type: "volunteering",
+      url: "/in/irev1ak1n/details/volunteering-experiences/",
+    });
+  });
+});
+
 describe("excludeFromAutoScanQueue", () => {
   it("drops a discovered Skills section, keeping everything else", () => {
     setBody(`
