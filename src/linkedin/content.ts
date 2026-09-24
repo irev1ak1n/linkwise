@@ -21,6 +21,12 @@
 // leaves that result alone (no rescan, no scroll-position change) and only applies to whichever
 // profile is opened next. Switching back to "scroll" mid-scan stops any auto-scrolling
 // immediately, without resetting evidence or jumping back to the top.
+//
+// "See more" expansion (expandContent.ts) uses one shared safety system regardless of mode:
+// Auto scan always expands safe profile-information toggles, "Analyze as I scroll" only does
+// when the user turns on "Expand profile details automatically" (see expandDetailsStore.ts).
+// Neither mode ever expands a control outside a recognized profile section (Activity, posts,
+// ads, and every other LinkedIn widget are excluded by construction, see expandContent.ts).
 import { foundSections, type LinkedInProfile } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
 import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
@@ -31,7 +37,9 @@ import { destroyPanel, togglePanel } from "./panel/mount";
 import { installDevTooling } from "./devTools";
 import { createAutoScrollDriver } from "./autoScroll";
 import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
-import { getScanModeState, initScanModeStore, subscribeScanModeStore } from "./panel/scanModeStore";
+import { getScanModeState, initScanModeStore, subscribeScanModeStore, type ScanMode } from "./panel/scanModeStore";
+import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsStore } from "./panel/expandDetailsStore";
+import { expandSeeMoreToggles } from "./expandContent";
 
 // How close to the bottom counts as "reached the end," tolerates LinkedIn's footer chrome.
 const DOCUMENT_END_MARGIN_PX = 600;
@@ -129,15 +137,28 @@ const engine = createCollectionEngine({
   },
 });
 
+// Reusable regardless of scan mode: Auto scan always expands safe profile-information "see
+// more" controls, "Analyze as I scroll" only does when the user has turned that on (see
+// expandDetailsStore.ts), and both always go through the exact same safety checks in
+// expandContent.ts — there is no separate, weaker safety logic for either mode.
+function shouldExpandDetailsThisTick(mode: ScanMode): boolean {
+  return mode === "auto" || getExpandDetailsState().enabled;
+}
+
 // Re-verified every tick so it self-heals if LinkedIn's SPA ever removes it.
 function tick(): void {
   ensureLinkWiseOpener(togglePanel);
+  const mode = getScanModeState().mode;
+  if (shouldExpandDetailsThisTick(mode)) {
+    // "auto" already drives scrolling itself and may expand anything on the page; "scroll" must
+    // never move the viewport, so it's restricted to toggles already naturally visible.
+    expandSeeMoreToggles(document, { restrictToViewport: mode !== "auto" });
+  }
   engine.tick();
 
   const profileKey = engine.getProfileKey();
   if (profileKey === null) return;
 
-  const mode = getScanModeState().mode;
   const coverage = deriveScanCoverage(engine.getCollectionState());
 
   if (coverage === "complete") {
@@ -205,6 +226,11 @@ registerCleanup(subscribeGoalStore(tick));
 // without resetting whatever evidence is already collected.
 initScanModeStore();
 registerCleanup(subscribeScanModeStore(tick));
+
+// Loaded here too so flipping the "Expand profile details automatically" checkbox takes
+// effect on the very next tick, same reasoning as the scan mode store above.
+initExpandDetailsStore();
+registerCleanup(subscribeExpandDetailsStore(tick));
 
 tick();
 watchForChanges();

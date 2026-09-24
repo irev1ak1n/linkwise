@@ -169,6 +169,19 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a949c;
   }
 
+  /* Compact checkbox next to the Scan mode toggle, only shown in "Analyze as I scroll". */
+  .lw-expand-details {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: #56687a;
+    cursor: pointer;
+  }
+  .lw-expand-details input {
+    margin: 0;
+  }
+
   /* Scanning state */
   .lw-scanning__title {
     font-weight: 600;
