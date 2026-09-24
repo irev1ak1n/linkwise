@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { detailsPageSection, detectProfileSections, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
+import {
+  detailsPageSection,
+  detectProfileSections,
+  extractLinkedInProfile,
+  isProfileManagementUrl,
+  normalizeProfileUrl,
+  profileIdentityKey,
+} from "./profileAdapter";
 
 function setBody(html: string): void {
   document.body.innerHTML = html;
@@ -334,6 +341,18 @@ describe("detailsPageSection", () => {
   it("returns null off a details page, and for an unrecognized slug", () => {
     expect(detailsPageSection("https://www.linkedin.com/in/irev1ak1n/")).toBeNull();
     expect(detailsPageSection("https://www.linkedin.com/in/irev1ak1n/details/recommendations/")).toBeNull();
+  });
+});
+
+describe("isProfileManagementUrl", () => {
+  it("recognizes an 'edit this entry' route", () => {
+    expect(isProfileManagementUrl("/in/irev1ak1n/details/education/edit/forms/12345/")).toBe(true);
+    expect(isProfileManagementUrl("https://www.linkedin.com/in/irev1ak1n/details/volunteer-experiences/edit/forms/1/")).toBe(true);
+  });
+
+  it("leaves a real read-only detail page alone", () => {
+    expect(isProfileManagementUrl("/in/irev1ak1n/details/education/")).toBe(false);
+    expect(isProfileManagementUrl("https://www.linkedin.com/in/irev1ak1n/details/experience/")).toBe(false);
   });
 });
 

@@ -414,6 +414,12 @@ export function detailsPageSection(url: string): ProfileSectionName | null {
   return DETAILS_PAGE_SLUGS[decodeURIComponent(match[1])] ?? null;
 }
 
+// LinkedIn's own "edit this entry" routes, e.g. "/details/education/edit/forms/12345/". The
+// crawler only ever reads a profile, never opens editing UI.
+export function isProfileManagementUrl(url: string): boolean {
+  return /\/edit(\/|$)/.test(url);
+}
+
 // Strips tracking params and resolves a relative href, keeping only what identifies the person
 // and, if present, which details page. The same person's main profile and every one of their
 // detail pages normalize predictably, so the crawler can compare URLs by exact string equality.

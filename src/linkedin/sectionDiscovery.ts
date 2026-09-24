@@ -2,7 +2,7 @@
 // page's own DOM. The link's href is the primary signal, not generated class names or heading
 // text: LinkedIn's own URL slug says exactly which section a "Show all" link points to, and
 // survives markup/wording changes that would break a heading-text match.
-import { detailsPageSection, normalizeProfileUrl } from "./profileAdapter";
+import { detailsPageSection, isProfileManagementUrl, normalizeProfileUrl } from "./profileAdapter";
 import type { ProfileSectionName } from "../models/profile";
 
 export interface DiscoveredSection {
@@ -42,6 +42,7 @@ export function discoverProfileSections(doc: Document = document): DiscoveredSec
     if (isInsideExcludedLandmark(link)) continue;
     const href = link.getAttribute("href");
     if (!href) continue;
+    if (isProfileManagementUrl(href)) continue; // never open an "edit this entry" route
     const normalizedUrl = normalizeProfileUrl(href);
     if (!normalizedUrl || !normalizedUrl.includes("/details/")) continue;
     if (byUrl.has(normalizedUrl)) continue;

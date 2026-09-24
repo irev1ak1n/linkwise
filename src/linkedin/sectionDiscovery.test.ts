@@ -109,3 +109,32 @@ describe("discoverProfileSections - safety and extensibility", () => {
     expect(discoverProfileSections(document)).toEqual([]);
   });
 });
+
+describe("discoverProfileSections - never queues an editing route", () => {
+  it("skips an 'edit this entry' link even when it's the only link for that section", () => {
+    setBody(`
+      <main role="main">
+        <section>
+          <h2>Volunteering</h2>
+          <a href="/in/irev1ak1n/details/volunteer-experiences/edit/forms/1258231471/">Edit</a>
+        </section>
+      </main>
+    `);
+    expect(discoverProfileSections(document)).toEqual([]);
+  });
+
+  it("prefers a real 'Show all' link over a sibling edit link for the same section", () => {
+    setBody(`
+      <main role="main">
+        <section>
+          <h2>Education</h2>
+          <a href="/in/irev1ak1n/details/education/edit/forms/12345/">Edit</a>
+          <a href="/in/irev1ak1n/details/education/">Show all 5 educations</a>
+        </section>
+      </main>
+    `);
+    const found = discoverProfileSections(document);
+    expect(found).toHaveLength(1);
+    expect(found[0].url).toBe("/in/irev1ak1n/details/education/");
+  });
+});
