@@ -56,7 +56,6 @@ export function GoalSetupSection({ goal, onSetActiveCriteria }: GoalSetupSection
           setText(e.target.value);
           setMessage(null);
         }}
-        placeholder={'Describe the kind of person you’re looking for — e.g. "FRC mentors in Charlotte with mechanical or aerospace engineering experience."'}
         rows={3}
       />
       <div className="lw-goal__footer">
