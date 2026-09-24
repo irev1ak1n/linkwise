@@ -26,6 +26,7 @@ export type ProfileOrganizationEntry = ProfileListEntry;
 export type ProfileVolunteeringEntry = ProfileListEntry;
 // name is the language itself, description its proficiency level when LinkedIn shows one.
 export type ProfileLanguageEntry = ProfileListEntry;
+export type ProfileHonorEntry = ProfileListEntry;
 
 // Every section the adapter knows to look for, used only for progress display, never to
 // demand a profile contain all of them. Excludes headline/location, which live in the top card.
@@ -38,7 +39,8 @@ export type ProfileSectionName =
   | "certifications"
   | "organizations"
   | "volunteering"
-  | "languages";
+  | "languages"
+  | "honors";
 
 export const ALL_PROFILE_SECTIONS: ProfileSectionName[] = [
   "about",
@@ -50,6 +52,7 @@ export const ALL_PROFILE_SECTIONS: ProfileSectionName[] = [
   "organizations",
   "volunteering",
   "languages",
+  "honors",
 ];
 
 export interface LinkedInProfile {
@@ -65,6 +68,7 @@ export interface LinkedInProfile {
   organizations: ProfileOrganizationEntry[];
   volunteering: ProfileVolunteeringEntry[];
   languages: ProfileLanguageEntry[];
+  honors: ProfileHonorEntry[];
   /** True once at least a name or headline was found, versus nothing readable at all. */
   extracted: boolean;
 }
@@ -78,6 +82,7 @@ export const EMPTY_PROFILE: LinkedInProfile = {
   organizations: [],
   volunteering: [],
   languages: [],
+  honors: [],
   extracted: false,
 };
 
@@ -94,6 +99,7 @@ export function foundSections(profile: LinkedInProfile): ProfileSectionName[] {
   if (profile.organizations.length > 0) found.push("organizations");
   if (profile.volunteering.length > 0) found.push("volunteering");
   if (profile.languages.length > 0) found.push("languages");
+  if (profile.honors.length > 0) found.push("honors");
   return found;
 }
 
@@ -177,6 +183,12 @@ export function profileTextFields(profile: LinkedInProfile): ProfileTextField[] 
         text: parts.join(" — "),
         section: "languages",
       });
+    }
+  }
+  for (const entry of profile.honors) {
+    const parts = [entry.name, entry.description].filter(Boolean);
+    if (parts.length > 0) {
+      fields.push({ label: `Honor${entry.name ? `: ${entry.name}` : ""}`, text: parts.join(" — "), section: "honors" });
     }
   }
   return fields;

@@ -13,6 +13,7 @@ function makeProfile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
     organizations: [],
     volunteering: [],
     languages: [],
+    honors: [],
     extracted: true,
     ...overrides,
   };
@@ -147,6 +148,7 @@ describe("scoreProfileAgainstGoal - honest incomplete state", () => {
       organizations: [],
       volunteering: [],
       languages: [],
+    honors: [],
       extracted: false,
     };
     const result = scoreProfileAgainstGoal(goal, profile);

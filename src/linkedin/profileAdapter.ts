@@ -24,6 +24,7 @@ const SECTION_MATCHERS: { name: ProfileSectionName; matches: (headingText: strin
   { name: "organizations", matches: (t) => t.includes("organization") },
   { name: "volunteering", matches: (t) => t.includes("volunteer") },
   { name: "languages", matches: (t) => t.includes("language") },
+  { name: "honors", matches: (t) => t.includes("honor") || t.includes("award") },
 ];
 
 function matcherFor(name: ProfileSectionName): (headingText: string) => boolean {
@@ -347,6 +348,7 @@ export function extractLinkedInProfile(doc: Document = document): LinkedInProfil
   const organizations = extractListEntries(headings, "organizations");
   const volunteering = extractListEntries(headings, "volunteering");
   const languages = extractListEntries(headings, "languages");
+  const honors = extractListEntries(headings, "honors");
 
   const extracted = Boolean(name || headline);
   if (!extracted) return { ...EMPTY_PROFILE };
@@ -364,6 +366,7 @@ export function extractLinkedInProfile(doc: Document = document): LinkedInProfil
     organizations,
     volunteering,
     languages,
+    honors,
     extracted,
   };
 }
@@ -382,8 +385,31 @@ export function detectProfileSections(doc: Document = document): ProfileSectionN
 }
 
 // A stable profile identity, the vanity-slug path segment, never the full URL with its
-// volatile tracking params. Null when the URL isn't a profile page.
+// volatile tracking params. Null when the URL isn't a profile page. Matches a "/details/..."
+// page the same as the main profile, since both share the same "/in/{slug}" prefix.
 export function profileIdentityKey(url: string): string | null {
   const match = /\/in\/([^/?#]+)/.exec(url);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+// LinkedIn's own URL slugs for a section's "Show all" detail page, stable and independent of
+// whatever heading text that page happens to render.
+const DETAILS_PAGE_SLUGS: Record<string, ProfileSectionName> = {
+  experience: "experience",
+  education: "education",
+  skills: "skills",
+  languages: "languages",
+  honors: "honors",
+  certifications: "certifications",
+  projects: "projects",
+  "volunteering-experience": "volunteering",
+  organizations: "organizations",
+};
+
+// Which single section a "/details/{slug}/" page is showing, or null off a details page (or
+// an unrecognized slug, e.g. recommendations, which isn't modeled here).
+export function detailsPageSection(url: string): ProfileSectionName | null {
+  const match = /\/details\/([^/?#]+)/.exec(url);
+  if (!match) return null;
+  return DETAILS_PAGE_SLUGS[decodeURIComponent(match[1])] ?? null;
 }

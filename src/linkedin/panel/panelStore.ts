@@ -3,15 +3,24 @@
 import type { CollectionState } from "../../models/collection";
 import type { LinkedInProfile } from "../../models/profile";
 
+// Diagnostics for the Auto scan checklist, shown in ScanningView while a multi-page crawl runs.
+export interface AutoScanProgress {
+  sessionId: string;
+  status: "scanning" | "complete";
+  currentIndex: number;
+  sections: { heading: string; url: string; status: string }[];
+}
+
 export interface PanelProfileData {
   profileKey: string | null;
   profile: LinkedInProfile | null;
   collection: CollectionState | null;
+  autoScanProgress?: AutoScanProgress | null;
 }
 
 type Listener = () => void;
 
-let data: PanelProfileData = { profileKey: null, profile: null, collection: null };
+let data: PanelProfileData = { profileKey: null, profile: null, collection: null, autoScanProgress: null };
 const listeners = new Set<Listener>();
 
 export function getPanelProfileData(): PanelProfileData {

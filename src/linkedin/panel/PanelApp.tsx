@@ -23,14 +23,18 @@ interface PanelAppProps {
 // user does anything. Analysis is AI-first: nothing shows while OpenAI's reasoning is still in
 // flight, only a loading state, so there's never a stale or partial result on screen.
 export function PanelApp({ onClose }: PanelAppProps) {
-  const { profileKey, profile, collection } = useCollectionData();
+  const { profileKey, profile, collection, autoScanProgress } = useCollectionData();
   const { selectedGoal: goal, loaded: goalsLoaded, setActiveGoalCriteria } = useGoalStore();
   const { mode: scanMode, setScanMode } = useScanMode();
   const { enabled: expandDetailsEnabled, setExpandDetailsPreference } = useExpandDetailsPreference();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
-  const isFinal = forced || collection?.status === "settled";
+  // A multi-page Auto scan overrides the single-page settle check: never final mid-crawl even
+  // if the currently-open page has settled, always final once the whole crawl completes.
+  const autoScanActive = autoScanProgress?.status === "scanning";
+  const autoScanComplete = autoScanProgress?.status === "complete";
+  const isFinal = forced || autoScanComplete || (!autoScanActive && collection?.status === "settled");
 
   // Memoized so this stays reference-stable, an unstable one would re-trigger AI on every render.
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
@@ -59,6 +63,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
           goalName={goal.name}
           collection={collection}
           scanMode={scanMode}
+          autoScanProgress={autoScanProgress}
           onAnalyzeNow={handleAnalyzeNow}
         />
       );

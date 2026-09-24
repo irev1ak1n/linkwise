@@ -19,6 +19,7 @@ function profile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
     organizations: [],
     volunteering: [],
     languages: [],
+    honors: [],
     extracted: true,
     ...overrides,
   };

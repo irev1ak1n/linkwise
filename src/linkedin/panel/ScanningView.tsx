@@ -1,6 +1,7 @@
 import type { CollectionState } from "../../models/collection";
 import type { ProfileSectionName } from "../../models/profile";
 import type { ScanMode } from "./scanModeStore";
+import type { AutoScanProgress } from "./panelStore";
 
 const SECTION_LABELS: Record<ProfileSectionName, string> = {
   about: "About",
@@ -12,6 +13,7 @@ const SECTION_LABELS: Record<ProfileSectionName, string> = {
   organizations: "Organizations",
   volunteering: "Volunteering",
   languages: "Languages",
+  honors: "Honors",
 };
 
 interface ScanningViewProps {
@@ -19,12 +21,13 @@ interface ScanningViewProps {
   goalName?: string;
   collection: CollectionState;
   scanMode: ScanMode;
+  autoScanProgress?: AutoScanProgress | null;
   onAnalyzeNow: () => void;
 }
 
 // Shown while collection hasn't settled yet. The progress bar reflects what's actually been
 // found so far, never a fixed assumed total.
-export function ScanningView({ profileName, goalName, collection, scanMode, onAnalyzeNow }: ScanningViewProps) {
+export function ScanningView({ profileName, goalName, collection, scanMode, autoScanProgress, onAnalyzeNow }: ScanningViewProps) {
   const total = collection.sectionsDetected.length;
   const found = collection.sectionsFound.length;
   const percent = total > 0 ? Math.round((found / total) * 100) : 0;
@@ -67,6 +70,17 @@ export function ScanningView({ profileName, goalName, collection, scanMode, onAn
         </>
       ) : (
         <p className="lw-fraction">Looking for profile sections…</p>
+      )}
+
+      {autoScanProgress && autoScanProgress.sections.length > 0 && (
+        <ul className="lw-checklist lw-checklist--detail-pages">
+          {autoScanProgress.sections.map((section) => (
+            <li key={section.url} className={`is-${section.status}`}>
+              <span aria-hidden="true">{section.status === "done" ? "✓" : section.status === "failed" ? "✕" : "○"}</span>{" "}
+              {section.heading}
+            </li>
+          ))}
+        </ul>
       )}
 
       <button type="button" className="lw-button lw-button--secondary" onClick={onAnalyzeNow}>
