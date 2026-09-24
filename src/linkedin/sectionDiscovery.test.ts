@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { discoverProfileSections } from "./sectionDiscovery";
+import { discoverProfileSections, excludeFromAutoScanQueue } from "./sectionDiscovery";
 
 function setBody(html: string): void {
   document.body.innerHTML = html;
@@ -107,6 +107,19 @@ describe("discoverProfileSections - safety and extensibility", () => {
   it("returns an empty list when there is no main content at all", () => {
     setBody(`<div>Not a profile page</div>`);
     expect(discoverProfileSections(document)).toEqual([]);
+  });
+});
+
+describe("excludeFromAutoScanQueue", () => {
+  it("drops a discovered Skills section, keeping everything else", () => {
+    setBody(`
+      <main role="main">
+        <section><h2>Experience</h2><a href="/in/irev1ak1n/details/experience/">Show all</a></section>
+        <section><h2>Skills</h2><a href="/in/irev1ak1n/details/skills/">Show all</a></section>
+      </main>
+    `);
+    const queued = excludeFromAutoScanQueue(discoverProfileSections(document));
+    expect(queued.map((s) => s.type)).toEqual(["experience"]);
   });
 });
 

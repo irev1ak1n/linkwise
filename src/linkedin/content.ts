@@ -28,7 +28,7 @@ import { EMPTY_PROFILE, foundSections, type LinkedInProfile } from "../models/pr
 import { createCollectionEngine } from "./collectionEngine";
 import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
 import { detectProfileSections, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
-import { discoverProfileSections } from "./sectionDiscovery";
+import { discoverProfileSections, excludeFromAutoScanQueue } from "./sectionDiscovery";
 import { mergeProfileEvidence } from "./profileEvidenceAccumulator";
 import {
   forceCompleteSession,
@@ -227,7 +227,7 @@ function tickAutoScanCrawl(): void {
     const coverage = deriveScanCoverage(engine.getCollectionState());
     if (coverage !== "complete") return;
 
-    const discovered = discoverProfileSections(document);
+    const discovered = excludeFromAutoScanQueue(discoverProfileSections(document));
     if (discovered.length === 0) {
       if (discoveryFirstEmptyAt === null) discoveryFirstEmptyAt = Date.now();
       if (Date.now() - discoveryFirstEmptyAt < DISCOVERY_SETTLE_MS) return; // give lazy-rendered links more time

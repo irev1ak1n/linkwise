@@ -2,7 +2,7 @@
 // page's own DOM. The link's href is the primary signal, not generated class names or heading
 // text: LinkedIn's own URL slug says exactly which section a "Show all" link points to, and
 // survives markup/wording changes that would break a heading-text match.
-import { detailsPageSection, isProfileManagementUrl, normalizeProfileUrl } from "./profileAdapter";
+import { detailsPageSection, detailsPageSlug, isProfileManagementUrl, normalizeProfileUrl } from "./profileAdapter";
 import type { ProfileSectionName } from "../models/profile";
 
 export interface DiscoveredSection {
@@ -58,4 +58,17 @@ export function discoverProfileSections(doc: Document = document): DiscoveredSec
     });
   }
   return Array.from(byUrl.values());
+}
+
+// Discoverable, but deliberately left out of the auto-scan crawl queue for now. Skills is
+// already covered by the main profile page's own evidence (see profileAdapter.ts); a dedicated
+// detail-page visit adds nothing today.
+const EXCLUDED_FROM_CRAWL_QUEUE = new Set(["skills"]);
+
+// A section left out here is simply absent from the queue, never a queued-then-failed entry.
+export function excludeFromAutoScanQueue(sections: DiscoveredSection[]): DiscoveredSection[] {
+  return sections.filter((section) => {
+    const slug = detailsPageSlug(section.normalizedUrl);
+    return !slug || !EXCLUDED_FROM_CRAWL_QUEUE.has(slug);
+  });
 }

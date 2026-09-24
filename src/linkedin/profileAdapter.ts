@@ -406,12 +406,17 @@ const DETAILS_PAGE_SLUGS: Record<string, ProfileSectionName> = {
   organizations: "organizations",
 };
 
+// The raw "/details/{slug}/" segment itself, decoded, or null off a details page.
+export function detailsPageSlug(url: string): string | null {
+  const match = /\/details\/([^/?#]+)/.exec(url);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // Which single section a "/details/{slug}/" page is showing, or null off a details page (or
 // an unrecognized slug, e.g. recommendations, which isn't modeled here).
 export function detailsPageSection(url: string): ProfileSectionName | null {
-  const match = /\/details\/([^/?#]+)/.exec(url);
-  if (!match) return null;
-  return DETAILS_PAGE_SLUGS[decodeURIComponent(match[1])] ?? null;
+  const slug = detailsPageSlug(url);
+  return slug ? (DETAILS_PAGE_SLUGS[slug] ?? null) : null;
 }
 
 // LinkedIn's own profile-management routes: editing an entry ("/edit/forms/12345/"), adding one

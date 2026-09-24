@@ -574,6 +574,43 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/experience/");
   });
 
+  it("never queues a Skills detail page, but still collects Skills evidence from the main page itself", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+    });
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `
+      <main role="main">
+        <section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section>
+        <section>
+          <h2>Experience</h2>
+          <a href="/in/irev1ak1n/details/experience/">Show all</a>
+        </section>
+        <section>
+          <h2>Skills</h2>
+          <ul><li><span aria-hidden="true">Python</span></li></ul>
+          <a href="/in/irev1ak1n/details/skills/">Show all</a>
+        </section>
+      </main>
+    `;
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(6000);
+
+    // Never navigates into Skills, only ever the Experience section.
+    expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/experience/");
+    expect(assign).not.toHaveBeenCalledWith(expect.stringContaining("/details/skills/"));
+
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    const progress = getPanelProfileData().autoScanProgress;
+    expect(progress?.sections.map((s) => s.heading)).not.toContain("Skills");
+    expect(getPanelProfileData().profile?.skills).toContain("Python"); // still collected from the main page
+  });
+
   it("visits a queued section, collects it, and moves directly to the next one", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
     vi.stubGlobal("chrome", {
