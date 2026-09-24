@@ -159,6 +159,21 @@ describe("discoverProfileSections - never queues an editing route", () => {
     expect(discoverProfileSections(document)).toEqual([]);
   });
 
+  it("prefers the shortest read-only URL when multiple non-management candidates exist for one section", () => {
+    setBody(`
+      <main role="main">
+        <section>
+          <h2>Languages</h2>
+          <a href="/in/irev1ak1n/details/languages/?trk=some_tracking_param">See languages</a>
+          <a href="/in/irev1ak1n/details/languages/">Show all 3 languages</a>
+        </section>
+      </main>
+    `);
+    const found = discoverProfileSections(document);
+    expect(found).toHaveLength(1);
+    expect(found[0].url).toBe("/in/irev1ak1n/details/languages/");
+  });
+
   it("prefers a real 'Show all' link over a sibling edit link for the same section", () => {
     setBody(`
       <main role="main">

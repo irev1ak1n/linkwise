@@ -30,6 +30,11 @@ function ownSectionHeading(link: Element): string | null {
   return null;
 }
 
+interface Candidate {
+  href: string;
+  heading: string | null;
+}
+
 // Structural discovery only, no OpenAI call here. An unrecognized slug is still queued as
 // "unknown" (extensible, never a hard-coded ceiling on which sections can exist), just without
 // a known ProfileSectionName to merge its evidence under.
@@ -37,27 +42,39 @@ export function discoverProfileSections(doc: Document = document): DiscoveredSec
   const main = doc.querySelector<HTMLElement>('main[role="main"], main') ?? doc.body;
   const links = Array.from(main.querySelectorAll<HTMLAnchorElement>('a[href*="/details/"]'));
 
-  const byUrl = new Map<string, DiscoveredSection>();
+  // Every non-management candidate href for a section, grouped by its normalized URL — the
+  // same section can appear as several distinct hrefs (a "Show all" link, a per-entry link, a
+  // tracking-param variant), and the canonical one is chosen only after seeing them all.
+  const candidatesByUrl = new Map<string, Candidate[]>();
   for (const link of links) {
     if (isInsideExcludedLandmark(link)) continue;
     const href = link.getAttribute("href");
     if (!href) continue;
-    if (isProfileManagementUrl(href)) continue; // never open an "edit this entry" route
+    if (isProfileManagementUrl(href)) continue; // never open an "edit this entry" or add/create route
     const normalizedUrl = normalizeProfileUrl(href);
     if (!normalizedUrl || !normalizedUrl.includes("/details/")) continue;
-    if (byUrl.has(normalizedUrl)) continue;
 
+    const candidates = candidatesByUrl.get(normalizedUrl) ?? [];
+    candidates.push({ href, heading: ownSectionHeading(link) });
+    candidatesByUrl.set(normalizedUrl, candidates);
+  }
+
+  const sections: DiscoveredSection[] = [];
+  for (const [normalizedUrl, candidates] of candidatesByUrl) {
+    // Shortest read-only href wins: a bare "/details/{slug}/" route is always shorter than one
+    // carrying tracking params or an extra path segment.
+    const chosen = candidates.reduce((shortest, c) => (c.href.length < shortest.href.length ? c : shortest));
     const knownType = detailsPageSection(normalizedUrl);
-    const heading = ownSectionHeading(link);
-    byUrl.set(normalizedUrl, {
+    const heading = candidates.map((c) => c.heading).find((h) => h) ?? null;
+    sections.push({
       type: knownType ?? "unknown",
       heading: heading ?? knownType ?? "Unknown section",
-      url: href,
+      url: chosen.href,
       normalizedUrl,
       confidence: knownType ? 1 : 0.5,
     });
   }
-  return Array.from(byUrl.values());
+  return sections;
 }
 
 // Discoverable, but deliberately left out of the auto-scan crawl queue for now. Skills is
