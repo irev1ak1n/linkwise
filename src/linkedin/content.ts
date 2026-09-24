@@ -188,6 +188,9 @@ function goToNextSectionOrFinish(session: AutoScanSession): void {
   if (finalSession !== session) {
     autoScanSession = finalSession;
     void saveAutoScanSession(finalSession);
+    // The caller already published the pre-finalize state, so the panel needs telling again —
+    // going home doesn't guarantee another crawl tick will, e.g. if the main page never re-settles.
+    publishAutoScanState(finalSession.profileKey);
   }
   if (isSessionComplete(finalSession)) {
     if (normalizeProfileUrl(location.href) !== finalSession.originalProfileUrl) {
