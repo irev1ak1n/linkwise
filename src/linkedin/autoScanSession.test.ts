@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  forceCompleteSession,
+  hasExceededOverallTimeout,
   isSessionComplete,
   isUrlAlreadyDone,
   markCurrentSectionDone,
@@ -121,6 +123,29 @@ describe("autoScanSession - discovery produced no queueable sections", () => {
   it("starts already complete when nothing was discovered", () => {
     const session = startAutoScanSession("irev1ak1n", "https://www.linkedin.com/in/irev1ak1n/", []);
     expect(isSessionComplete(session)).toBe(true);
+    expect(nextPendingSection(session)).toBeNull();
+  });
+});
+
+describe("autoScanSession - overall scan timeout", () => {
+  it("detects when the whole session has run past the allowed duration", () => {
+    const session = startAutoScanSession("irev1ak1n", "https://www.linkedin.com/in/irev1ak1n/", [section("skills", "Skills")], 1000);
+    expect(hasExceededOverallTimeout(session, 5000, 1000 + 5001)).toBe(true);
+    expect(hasExceededOverallTimeout(session, 5000, 1000 + 4000)).toBe(false);
+  });
+
+  it("forceCompleteSession marks every non-done section failed and ends the scan, never hanging", () => {
+    let session = startAutoScanSession("irev1ak1n", "https://www.linkedin.com/in/irev1ak1n/", [
+      section("skills", "Skills"),
+      section("education", "Education"),
+      section("projects", "Projects"),
+    ]);
+    session = markCurrentSectionDone(session); // Skills done, Education is current
+
+    session = forceCompleteSession(session);
+
+    expect(session.status).toBe("complete");
+    expect(session.sections.map((s) => s.status)).toEqual(["done", "failed", "failed"]);
     expect(nextPendingSection(session)).toBeNull();
   });
 });

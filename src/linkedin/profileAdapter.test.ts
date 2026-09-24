@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
+import { detailsPageSection, detectProfileSections, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
 
 function setBody(html: string): void {
   document.body.innerHTML = html;
@@ -314,5 +314,56 @@ describe("extractLinkedInProfile - determinism", () => {
     const first = extractLinkedInProfile(document);
     const second = extractLinkedInProfile(document);
     expect(second).toEqual(first);
+  });
+});
+
+describe("detailsPageSection", () => {
+  it("recognizes every real details-page slug", () => {
+    const base = "https://www.linkedin.com/in/irev1ak1n/details";
+    expect(detailsPageSection(`${base}/experience/`)).toBe("experience");
+    expect(detailsPageSection(`${base}/education/`)).toBe("education");
+    expect(detailsPageSection(`${base}/skills/`)).toBe("skills");
+    expect(detailsPageSection(`${base}/languages/`)).toBe("languages");
+    expect(detailsPageSection(`${base}/honors/`)).toBe("honors");
+    expect(detailsPageSection(`${base}/certifications/`)).toBe("certifications");
+    expect(detailsPageSection(`${base}/projects/`)).toBe("projects");
+    expect(detailsPageSection(`${base}/organizations/`)).toBe("organizations");
+    expect(detailsPageSection(`${base}/volunteering-experience/`)).toBe("volunteering");
+  });
+
+  it("returns null off a details page, and for an unrecognized slug", () => {
+    expect(detailsPageSection("https://www.linkedin.com/in/irev1ak1n/")).toBeNull();
+    expect(detailsPageSection("https://www.linkedin.com/in/irev1ak1n/details/recommendations/")).toBeNull();
+  });
+});
+
+describe("normalizeProfileUrl", () => {
+  it("resolves the main profile and every one of its detail pages to the same person", () => {
+    const urls = [
+      "https://www.linkedin.com/in/irev1ak1n/",
+      "https://www.linkedin.com/in/irev1ak1n/details/experience/",
+      "https://www.linkedin.com/in/irev1ak1n/details/education/",
+    ];
+    const normalized = urls.map(normalizeProfileUrl);
+    expect(normalized.every((u) => u?.includes("irev1ak1n"))).toBe(true);
+  });
+
+  it("normalizes tracking params and relative hrefs to the same canonical form", () => {
+    expect(normalizeProfileUrl("https://www.linkedin.com/in/irev1ak1n/details/experience/?originalSubdomain=en")).toBe(
+      "https://www.linkedin.com/in/irev1ak1n/details/experience/",
+    );
+    expect(normalizeProfileUrl("/in/irev1ak1n/details/experience/")).toBe(
+      "https://www.linkedin.com/in/irev1ak1n/details/experience/",
+    );
+  });
+
+  it("keeps the main profile and a details page as distinct normalized URLs", () => {
+    const main = normalizeProfileUrl("https://www.linkedin.com/in/irev1ak1n/");
+    const details = normalizeProfileUrl("https://www.linkedin.com/in/irev1ak1n/details/experience/");
+    expect(main).not.toBe(details);
+  });
+
+  it("returns null for a non-profile URL", () => {
+    expect(normalizeProfileUrl("https://www.linkedin.com/jobs/search/")).toBeNull();
   });
 });

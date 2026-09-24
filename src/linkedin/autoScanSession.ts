@@ -24,6 +24,7 @@ export interface AutoScanSession {
   sections: QueuedSection[];
   currentIndex: number;
   status: ScanSessionStatus;
+  startedAt: number;
 }
 
 export interface DiscoveredSectionInput {
@@ -45,6 +46,7 @@ export function startAutoScanSession(
   profileKey: string,
   originalProfileUrl: string,
   discovered: DiscoveredSectionInput[],
+  now = Date.now(),
 ): AutoScanSession {
   return {
     sessionId: generateSessionId(),
@@ -53,6 +55,7 @@ export function startAutoScanSession(
     sections: discovered.map((section) => ({ ...section, status: "pending", attempts: 0 })),
     currentIndex: 0,
     status: discovered.length > 0 ? "scanning" : "complete",
+    startedAt: now,
   };
 }
 
@@ -110,4 +113,15 @@ export function markCurrentSectionFailed(session: AutoScanSession, maxAttempts =
 
 export function isSessionComplete(session: AutoScanSession): boolean {
   return session.status === "complete";
+}
+
+export function hasExceededOverallTimeout(session: AutoScanSession, maxDurationMs: number, now = Date.now()): boolean {
+  return now - session.startedAt > maxDurationMs;
+}
+
+// The overall-scan-timeout escape hatch: whatever isn't already done gets marked failed and
+// the session ends, rather than a broken page hanging the scan forever.
+export function forceCompleteSession(session: AutoScanSession): AutoScanSession {
+  const sections = session.sections.map((s) => (s.status === "done" ? s : { ...s, status: "failed" as const }));
+  return { ...session, sections, currentIndex: sections.length, status: "complete" };
 }

@@ -1,7 +1,7 @@
 // The LinkWise content script, injected on every linkedin.com page. Home of the in-page panel,
 // mounted here so it shares this JS realm with collection (see panel/mount.ts). The opener
 // shows on every page, but collection only runs on a /in/... profile. Never fetches another
-// page or clicks anything.
+// page or clicks anything beyond a safe "see more" toggle.
 //
 // Two scanning modes, user-selectable (see panel/scanModeStore.ts): "scroll" (default) never
 // moves the page, it only ever reacts to sections the user reveals by scrolling manually.
@@ -15,24 +15,36 @@
 // analysis result. autoScroll.ts also refuses to scroll unless mode is "auto", as a second,
 // independent gate in case some future caller skips the check above.
 //
-// Switching mode mid-session never resets already-collected evidence for the current profile:
-// switching to "auto" while coverage is incomplete starts auto-scrolling on the very next tick,
-// reusing whatever was already found; switching to "auto" once coverage is already complete
-// leaves that result alone (no rescan, no scroll-position change) and only applies to whichever
-// profile is opened next. Switching back to "scroll" mid-scan stops any auto-scrolling
-// immediately, without resetting evidence or jumping back to the top.
+// Once the main page is fully covered, "auto" mode also visits this person's own
+// "/details/{section}/" pages one at a time — see autoScanSession.ts for the persisted,
+// frozen-queue checklist that drives this, and tickAutoScanCrawl below for the navigation
+// itself. Local code always controls navigation; OpenAI never decides which page to visit next.
 //
 // "See more" expansion (expandContent.ts) uses one shared safety system regardless of mode:
 // Auto scan always expands safe profile-information toggles, "Analyze as I scroll" only does
-// when the user turns on "Expand profile details automatically" (see expandDetailsStore.ts).
-// Neither mode ever expands a control outside a recognized profile section (Activity, posts,
-// ads, and every other LinkedIn widget are excluded by construction, see expandContent.ts).
-import { foundSections, type LinkedInProfile } from "../models/profile";
+// when the user has turned that on (see expandDetailsStore.ts). Neither mode ever expands a
+// control outside a recognized profile section.
+import { EMPTY_PROFILE, foundSections, type LinkedInProfile } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
 import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
-import { detectProfileSections, extractLinkedInProfile, profileIdentityKey } from "./profileAdapter";
+import { detectProfileSections, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
+import { discoverProfileSections } from "./sectionDiscovery";
+import { mergeProfileEvidence } from "./profileEvidenceAccumulator";
+import {
+  forceCompleteSession,
+  hasExceededOverallTimeout,
+  isSessionComplete,
+  markCurrentSectionDone,
+  markCurrentSectionFailed,
+  markCurrentSectionScanning,
+  nextPendingSection,
+  startAutoScanSession,
+  type AutoScanSession,
+} from "./autoScanSession";
+import { loadAutoScanSession, saveAutoScanSession } from "../storage/autoScanSessionRepository";
+import { loadProfileEvidence, saveProfileEvidence } from "../storage/profileEvidenceRepository";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
-import { getPanelProfileData, setPanelProfileData } from "./panel/panelStore";
+import { getPanelProfileData, setPanelProfileData, type AutoScanProgress } from "./panel/panelStore";
 import { destroyPanel, togglePanel } from "./panel/mount";
 import { installDevTooling } from "./devTools";
 import { createAutoScrollDriver } from "./autoScroll";
@@ -41,25 +53,29 @@ import { getScanModeState, initScanModeStore, subscribeScanModeStore, type ScanM
 import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsStore } from "./panel/expandDetailsStore";
 import { expandSeeMoreToggles } from "./expandContent";
 
-// How close to the bottom counts as "reached the end," tolerates LinkedIn's footer chrome.
 const DOCUMENT_END_MARGIN_PX = 600;
-// LinkedIn's DOM mutates a lot on its own, a short debounce here hurt page responsiveness.
 const MUTATION_DEBOUNCE_MS = 900;
 const TICK_INTERVAL_MS = 2500;
-// Once settled, back off the safety-net tick since further changes are rare.
 const SETTLED_TICK_INTERVAL_MS = 6000;
-// How long auto-scroll keeps trying before giving up and analyzing with what's loaded.
 const AUTO_SCROLL_MAX_DURATION_MS = 8000;
+
+// How long a detail page gets before its extraction is trusted, and how long before giving up
+// on it entirely. Generous: LinkedIn's own detail pages can be slow to render.
+const SECTION_SETTLE_MS = 1500;
+const SECTION_TIMEOUT_MS = 15000;
+const MAX_SECTION_ATTEMPTS = 2;
+// The whole multi-page crawl never runs longer than this, whatever isn't done yet gets marked
+// failed rather than the scan hanging forever on one bad page.
+const OVERALL_SCAN_TIMEOUT_MS = 120000;
 
 declare global {
   interface Window {
-    /** Set at the end of every run, a fresh injection calls it first to stop the old one.
-     * Re-injection gets a whole new JS realm, so window is the only thing shared between them. */
     __linkwiseTeardown__?: () => void;
   }
 }
 
 window.__linkwiseTeardown__?.();
+let torndown = false;
 const cleanupFns: (() => void)[] = [];
 function registerCleanup(fn: () => void): void {
   cleanupFns.push(fn);
@@ -67,7 +83,7 @@ function registerCleanup(fn: () => void): void {
 
 function findScrollContainer(): Element {
   const candidates = [document.scrollingElement, document.querySelector("main")].filter(
-    (el): el is Element => el != null, // scrollingElement can be undefined, not just null
+    (el): el is Element => el != null,
   );
   for (const candidate of candidates) {
     if (candidate.scrollHeight - candidate.clientHeight > 40) return candidate;
@@ -75,8 +91,6 @@ function findScrollContainer(): Element {
   return document.scrollingElement ?? document.documentElement;
 }
 
-// LinkedIn doesn't always scroll the document itself, sometimes the content scrolls inside
-// <main> instead. findScrollContainer picks whichever one actually has scrollable overflow.
 function isNearDocumentEnd(): boolean {
   const el = findScrollContainer();
   return el.scrollTop + el.clientHeight >= el.scrollHeight - DOCUMENT_END_MARGIN_PX;
@@ -84,25 +98,16 @@ function isNearDocumentEnd(): boolean {
 
 const autoScroll = createAutoScrollDriver({ now: () => Date.now(), maxDurationMs: AUTO_SCROLL_MAX_DURATION_MS });
 
-// Real scroll position, or a timeout override so a profile that can't fully auto-scroll
-// still reaches a final analysis instead of hanging. Only meaningful in "auto" mode.
 function isNearDocumentEndOrTimedOut(): boolean {
   return isNearDocumentEnd() || autoScroll.hasTimedOut(engine.getProfileKey());
 }
 
-// In "scroll" mode there's no auto-scroll timeout to fall back on, so settling instead allows
-// any real evidence beyond bare identity (name/headline) once things go quiet, rather than
-// waiting for the user to reach the actual bottom.
 function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
   return getScanModeState().mode === "scroll" && profile.extracted && foundSections(profile).length > 0;
 }
 
-// The user's scroll position before an "auto" scan started, restored once it settles.
 const savedScrollPositions = new Map<string, number>();
 const restoredProfileKeys = new Set<string>();
-// Profiles LinkWise actually auto-scrolled at least once — the only ones whose position should
-// ever be restored. A profile that settled entirely under "scroll" mode was never moved in the
-// first place, so switching the preference to "auto" afterward must never snap it back.
 const autoScannedProfileKeys = new Set<string>();
 
 function maybeRestoreScrollPosition(profileKey: string): void {
@@ -111,7 +116,7 @@ function maybeRestoreScrollPosition(profileKey: string): void {
   const savedTop = savedScrollPositions.get(profileKey);
   if (savedTop === undefined) return;
   const container = findScrollContainer();
-  if (Math.abs(container.scrollTop - savedTop) < 2) return; // already there
+  if (Math.abs(container.scrollTop - savedTop) < 2) return;
   container.scrollTo({ top: savedTop, behavior: "smooth" });
 }
 
@@ -123,35 +128,192 @@ const engine = createCollectionEngine({
   isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? isNearDocumentEndOrTimedOut() : isNearDocumentEnd()),
   hasEnoughEvidence: hasEnoughEvidenceToSettle,
   onUpdate: (profileKey, profile, collection) => {
-    setPanelProfileData({ profileKey, profile, collection });
+    setPanelProfileData({ profileKey, profile, collection, autoScanProgress: getPanelProfileData().autoScanProgress });
   },
   onReset: (profileKey) => {
-    // A navigation to a different profile, clear the old evidence right away and remember
-    // where the user was before any auto-scrolling starts.
     savedScrollPositions.set(profileKey, findScrollContainer().scrollTop);
-    setPanelProfileData({ profileKey, profile: null, collection: null });
+    setPanelProfileData({ profileKey, profile: null, collection: null, autoScanProgress: null });
   },
   onLeaveProfile: () => {
-    // Navigated to a non-profile page, null profileKey shows the neutral empty state.
-    setPanelProfileData({ profileKey: null, profile: null, collection: null });
+    setPanelProfileData({ profileKey: null, profile: null, collection: null, autoScanProgress: null });
   },
 });
 
-// Reusable regardless of scan mode: Auto scan always expands safe profile-information "see
-// more" controls, "Analyze as I scroll" only does when the user has turned that on (see
-// expandDetailsStore.ts), and both always go through the exact same safety checks in
-// expandContent.ts — there is no separate, weaker safety logic for either mode.
 function shouldExpandDetailsThisTick(mode: ScanMode): boolean {
   return mode === "auto" || getExpandDetailsState().enabled;
 }
 
-// Re-verified every tick so it self-heals if LinkedIn's SPA ever removes it.
+// --- Auto scan checklist state (separate from the single-page engine above, only ever driven
+// while mode is "auto") ---
+let autoScanSession: AutoScanSession | null = null;
+let autoScanEvidence: LinkedInProfile = { ...EMPTY_PROFILE };
+let autoScanLoadedForKey: string | null = null;
+let autoScanLoadInFlight = false;
+let sectionArrivedAt: number | null = null;
+let sectionHandledUrl: string | null = null;
+
+function publishAutoScanState(profileKey: string): void {
+  if (!autoScanSession) return;
+  const progress: AutoScanProgress = {
+    sessionId: autoScanSession.sessionId,
+    status: autoScanSession.status,
+    currentIndex: autoScanSession.currentIndex,
+    sections: autoScanSession.sections.map((s) => ({ heading: s.heading, url: s.url, status: s.status })),
+  };
+  setPanelProfileData({
+    profileKey,
+    profile: autoScanEvidence.extracted ? autoScanEvidence : getPanelProfileData().profile,
+    collection: engine.getCollectionState(),
+    autoScanProgress: progress,
+  });
+}
+
+// Advances to whichever section comes next, or back to the original profile once the whole
+// queue is done. Never re-opens a URL already marked done this session.
+function goToNextSectionOrFinish(session: AutoScanSession): void {
+  if (isSessionComplete(session)) {
+    if (normalizeProfileUrl(location.href) !== session.originalProfileUrl) {
+      location.assign(session.originalProfileUrl);
+    }
+    return;
+  }
+  const next = nextPendingSection(session);
+  if (next) location.assign(next.url);
+}
+
+// One tick of the multi-page crawl. Only ever called for "auto" mode. Local code alone decides
+// what happens next; OpenAI is never asked which page to visit.
+function tickAutoScanCrawl(): void {
+  const profileKey = profileIdentityKey(location.href);
+  if (profileKey === null) return;
+
+  if (autoScanLoadedForKey !== profileKey) {
+    if (autoScanLoadInFlight) return;
+    autoScanLoadInFlight = true;
+    autoScanSession = null;
+    autoScanEvidence = { ...EMPTY_PROFILE };
+    Promise.all([loadAutoScanSession(profileKey), loadProfileEvidence(profileKey)]).then(([session, evidence]) => {
+      autoScanSession = session;
+      autoScanEvidence = evidence;
+      autoScanLoadedForKey = profileKey;
+      autoScanLoadInFlight = false;
+      if (autoScanSession) publishAutoScanState(profileKey);
+      if (!torndown) tick(); // continue acting on the now-known state, rather than waiting for the next scheduled tick
+    });
+    return;
+  }
+
+  const currentUrl = normalizeProfileUrl(location.href);
+  if (!currentUrl) return;
+
+  if (autoScanSession === null) {
+    // Nothing started yet for this profile. Only ever begins from the main profile page, once
+    // the single-page engine says the main page itself is fully covered. Discovery needs the
+    // main page's own "Show all" links, so a stray direct visit to a details page (no session
+    // recovered) redirects to the main profile instead of guessing at a queue.
+    const mainProfileUrl = `https://www.linkedin.com/in/${profileKey}/`;
+    if (currentUrl !== mainProfileUrl) {
+      location.assign(mainProfileUrl);
+      return;
+    }
+    const coverage = deriveScanCoverage(engine.getCollectionState());
+    if (coverage !== "complete") return;
+
+    const discovered = discoverProfileSections(document);
+    autoScanEvidence = mergeProfileEvidence(autoScanEvidence, extractLinkedInProfile(document));
+    const session = startAutoScanSession(profileKey, currentUrl, discovered);
+    autoScanSession = session;
+    void saveAutoScanSession(session);
+    void saveProfileEvidence(profileKey, autoScanEvidence);
+    publishAutoScanState(profileKey);
+    goToNextSectionOrFinish(session);
+    return;
+  }
+
+  if (isSessionComplete(autoScanSession)) {
+    publishAutoScanState(profileKey);
+    return;
+  }
+
+  if (hasExceededOverallTimeout(autoScanSession, OVERALL_SCAN_TIMEOUT_MS)) {
+    autoScanSession = forceCompleteSession(autoScanSession);
+    void saveAutoScanSession(autoScanSession);
+    publishAutoScanState(profileKey);
+    goToNextSectionOrFinish(autoScanSession);
+    return;
+  }
+
+  const pending = nextPendingSection(autoScanSession);
+  if (!pending) return;
+
+  if (currentUrl !== pending.normalizedUrl) {
+    if (sectionHandledUrl !== pending.normalizedUrl) location.assign(pending.url);
+    return;
+  }
+
+  if (sectionHandledUrl === pending.normalizedUrl) return;
+
+  if (pending.status === "pending") {
+    autoScanSession = markCurrentSectionScanning(autoScanSession);
+    void saveAutoScanSession(autoScanSession);
+    sectionArrivedAt = Date.now();
+    publishAutoScanState(profileKey);
+    return;
+  }
+
+  if (sectionArrivedAt === null) sectionArrivedAt = Date.now();
+  const elapsed = Date.now() - sectionArrivedAt;
+  const sectionProfile = extractLinkedInProfile(document);
+  const settled = sectionProfile.extracted;
+
+  if (!settled) {
+    if (elapsed < SECTION_TIMEOUT_MS) return;
+    sectionArrivedAt = null;
+    const indexBeforeFailure = autoScanSession.currentIndex;
+    void (async () => {
+      autoScanSession = markCurrentSectionFailed(autoScanSession!, MAX_SECTION_ATTEMPTS);
+      await saveAutoScanSession(autoScanSession);
+      const verified = await loadAutoScanSession(profileKey);
+      if (verified) autoScanSession = verified;
+      publishAutoScanState(profileKey);
+      const retrying = autoScanSession.currentIndex === indexBeforeFailure;
+      if (retrying) return; // same section, try extracting again in place
+      goToNextSectionOrFinish(autoScanSession);
+    })();
+    return;
+  }
+
+  if (elapsed < SECTION_SETTLE_MS) return;
+
+  expandSeeMoreToggles(document, { restrictToViewport: false });
+  const finalSectionProfile = extractLinkedInProfile(document);
+  autoScanEvidence = mergeProfileEvidence(autoScanEvidence, finalSectionProfile);
+  sectionHandledUrl = pending.normalizedUrl;
+
+  void (async () => {
+    await saveProfileEvidence(profileKey, autoScanEvidence);
+    autoScanSession = markCurrentSectionDone(autoScanSession!);
+    await saveAutoScanSession(autoScanSession);
+    const verified = await loadAutoScanSession(profileKey);
+    if (verified) autoScanSession = verified;
+    sectionArrivedAt = null;
+    publishAutoScanState(profileKey);
+    goToNextSectionOrFinish(autoScanSession);
+  })();
+}
+
 function tick(): void {
+  if (torndown) return;
   ensureLinkWiseOpener(togglePanel);
   const mode = getScanModeState().mode;
+  const isDetailsPage = /\/details\//.test(location.href);
+
+  if (isDetailsPage && mode === "auto") {
+    tickAutoScanCrawl();
+    return;
+  }
+
   if (shouldExpandDetailsThisTick(mode)) {
-    // "auto" already drives scrolling itself and may expand anything on the page; "scroll" must
-    // never move the viewport, so it's restricted to toggles already naturally visible.
     expandSeeMoreToggles(document, { restrictToViewport: mode !== "auto" });
   }
   engine.tick();
@@ -162,15 +324,11 @@ function tick(): void {
   const coverage = deriveScanCoverage(engine.getCollectionState());
 
   if (coverage === "complete") {
-    // Nothing left to gain from scrolling further. Only restore position for a profile
-    // LinkWise actually auto-scrolled, never one that simply settled on its own under
-    // "scroll" mode before the preference changed.
     if (autoScannedProfileKeys.has(profileKey)) maybeRestoreScrollPosition(profileKey);
+    if (mode === "auto") tickAutoScanCrawl();
     return;
   }
 
-  // The one strict gate: false for "scroll" mode no matter what else is true, so it can never
-  // move the page, and false once coverage is already complete.
   if (!shouldAttemptAutoScroll(mode, coverage)) return;
 
   const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
@@ -191,19 +349,15 @@ function watchForChanges(): void {
     if (debounceHandle) clearTimeout(debounceHandle);
   });
 
-  // Covers both new content loading in and LinkedIn's own client-side navigation.
   const observer = new MutationObserver(scheduleTick);
   observer.observe(document.body, { childList: true, subtree: true });
   registerCleanup(() => observer.disconnect());
 
-  // A capture-phase listener on document catches scrolling inside an inner container too,
-  // not just window scrolling.
   window.addEventListener("scroll", scheduleTick, { passive: true });
   registerCleanup(() => window.removeEventListener("scroll", scheduleTick));
   document.addEventListener("scroll", scheduleTick, { passive: true, capture: true });
   registerCleanup(() => document.removeEventListener("scroll", scheduleTick, true));
 
-  // Catches the settle transition, which depends on elapsed quiet time, not an event firing.
   let intervalHandle = setInterval(runIntervalTick, TICK_INTERVAL_MS);
   registerCleanup(() => clearInterval(intervalHandle));
   function runIntervalTick(): void {
@@ -217,18 +371,12 @@ function watchForChanges(): void {
   }
 }
 
-// Loaded here too (not just useGoalStore()) so an active goal is known before the panel opens,
-// letting collection/auto-scroll start immediately. Idempotent, safe to call from both places.
 initGoalStore();
 registerCleanup(subscribeGoalStore(tick));
 
-// Loaded here too so a switch to "auto" mid-browsing starts scrolling on the very next tick,
-// without resetting whatever evidence is already collected.
 initScanModeStore();
 registerCleanup(subscribeScanModeStore(tick));
 
-// Loaded here too so flipping the "Expand profile details automatically" checkbox takes
-// effect on the very next tick, same reasoning as the scan mode store above.
 initExpandDetailsStore();
 registerCleanup(subscribeExpandDetailsStore(tick));
 
@@ -237,6 +385,7 @@ watchForChanges();
 registerCleanup(installDevTooling(() => getPanelProfileData()));
 
 window.__linkwiseTeardown__ = () => {
+  torndown = true;
   cleanupFns.forEach((fn) => fn());
   removeLinkWiseOpener();
   destroyPanel();

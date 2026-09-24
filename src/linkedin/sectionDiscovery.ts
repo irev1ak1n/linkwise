@@ -2,7 +2,7 @@
 // page's own DOM. The link's href is the primary signal, not generated class names or heading
 // text: LinkedIn's own URL slug says exactly which section a "Show all" link points to, and
 // survives markup/wording changes that would break a heading-text match.
-import { detailsPageSection } from "./profileAdapter";
+import { detailsPageSection, normalizeProfileUrl } from "./profileAdapter";
 import type { ProfileSectionName } from "../models/profile";
 
 export interface DiscoveredSection {
@@ -30,17 +30,6 @@ function ownSectionHeading(link: Element): string | null {
   return null;
 }
 
-function normalizeDetailsUrl(href: string): string | null {
-  try {
-    const url = new URL(href, "https://www.linkedin.com");
-    const match = /\/in\/([^/?#]+)\/details\/([^/?#]+)/.exec(url.pathname);
-    if (!match) return null;
-    return `https://www.linkedin.com/in/${match[1]}/details/${match[2]}/`;
-  } catch {
-    return null;
-  }
-}
-
 // Structural discovery only, no OpenAI call here. An unrecognized slug is still queued as
 // "unknown" (extensible, never a hard-coded ceiling on which sections can exist), just without
 // a known ProfileSectionName to merge its evidence under.
@@ -53,8 +42,8 @@ export function discoverProfileSections(doc: Document = document): DiscoveredSec
     if (isInsideExcludedLandmark(link)) continue;
     const href = link.getAttribute("href");
     if (!href) continue;
-    const normalizedUrl = normalizeDetailsUrl(href);
-    if (!normalizedUrl) continue;
+    const normalizedUrl = normalizeProfileUrl(href);
+    if (!normalizedUrl || !normalizedUrl.includes("/details/")) continue;
     if (byUrl.has(normalizedUrl)) continue;
 
     const knownType = detailsPageSection(normalizedUrl);

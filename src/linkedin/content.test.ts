@@ -43,6 +43,24 @@ function stubDetailsPageUrl(slug: string, section: string): void {
   Object.defineProperty(document, "URL", { value: href, configurable: true });
 }
 
+// A location stub whose assign() actually moves href (and document.URL, which expandContent.ts
+// reads separately), so the crawler's own real navigation calls are observable in a test.
+function stubNavigableLocation(initialHref: string): { assign: ReturnType<typeof vi.fn> } {
+  let href = initialHref;
+  const assign = vi.fn((url: string) => {
+    href = url;
+    Object.defineProperty(document, "URL", { value: href, configurable: true });
+  });
+  vi.stubGlobal("location", {
+    get href() {
+      return href;
+    },
+    assign,
+  });
+  Object.defineProperty(document, "URL", { value: href, configurable: true });
+  return { assign };
+}
+
 // content.ts reads goalStore.ts directly, which needs chrome.storage.local/onChanged.
 // Seeded with no goals so auto-scroll never engages and these bootstrap assertions are unaffected.
 function installFakeChromeStorage(overrides: Record<string, unknown> = {}) {
@@ -454,21 +472,283 @@ describe("content.ts bootstrap - safe expansion on profile detail pages (/detail
     expect(clicked).toBe(true);
   });
 
-  it("Auto scan expands a safe 'more' on a details page too, using the same expansion engine", async () => {
+  // Auto scan's own expansion on a details page is now driven by the checklist crawler (see
+  // the "Auto scan checklist" tests below), which arrives there as part of a real queued visit,
+  // not from any direct load of a details-page URL on its own.
+});
+
+describe("content.ts bootstrap - Auto scan checklist crawler", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+    Object.defineProperty(document, "URL", { value: "http://localhost/", configurable: true });
+  });
+
+  function setMainProfilePage(): void {
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `
+      <main role="main">
+        <section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section>
+        <section>
+          <h2>Experience</h2>
+          <a href="/in/irev1ak1n/details/experience/">Show all</a>
+        </section>
+        <section>
+          <h2>Education</h2>
+          <a href="/in/irev1ak1n/details/education/">Show all</a>
+        </section>
+      </main>
+    `;
+  }
+
+  function setDetailsPage(heading: string, itemText: string): void {
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `
+      <main role="main">
+        <h1><span aria-hidden="true">Illia Reviakin</span></h1>
+        <ul><li><span aria-hidden="true">${itemText}</span></li></ul>
+      </main>
+    `;
+    void heading; // kept for readability at call sites, the fixture itself is heading-agnostic
+  }
+
+  it("starts a crawl once the main page is fully covered, and navigates to the first section", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
       runtime: { reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
     });
-    stubDetailsPageUrl("irev1ak1n", "projects");
-    const { button } = setDetailsPageWithSafeSeeMore();
-    let clicked = false;
-    button.addEventListener("click", () => (clicked = true));
+    setMainProfilePage();
+
+    await import("./content");
+    // The Async variant flushes microtasks between timer firings, needed here since loading
+    // the (nonexistent) saved session and evidence is itself async.
+    // jsdom reports 0 for every scroll dimension, so "near document end" is trivially true —
+    // the main page settles almost immediately once ticked.
+    await vi.advanceTimersByTimeAsync(6000);
+
+    expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/experience/");
+  });
+
+  it("visits a queued section, collects it, and moves directly to the next one", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.autoScanSession.v1": {
+          sessionId: "s1",
+          profileKey: "irev1ak1n",
+          originalProfileUrl: "https://www.linkedin.com/in/irev1ak1n/",
+          currentIndex: 0,
+          status: "scanning",
+          startedAt: Date.now(),
+          sections: [
+            {
+              type: "experience",
+              heading: "Experience",
+              url: "/in/irev1ak1n/details/experience/",
+              normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/experience/",
+              status: "pending",
+              attempts: 0,
+            },
+            {
+              type: "education",
+              heading: "Education",
+              url: "/in/irev1ak1n/details/education/",
+              normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/education/",
+              status: "pending",
+              attempts: 0,
+            },
+          ],
+        },
+      }),
+    });
+    setDetailsPage("Experience", "Software Engineer at Acme");
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000); // load session, mark scanning
+    await vi.advanceTimersByTimeAsync(3000); // past the settle window, extract + merge + mark done
+
+    expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/education/");
+
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    expect(getPanelProfileData().autoScanProgress?.sections[0].status).toBe("done");
+  });
+
+  it("a section that never renders anything readable times out, gets one retry, then is marked failed and the scan moves on", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.autoScanSession.v1": {
+          sessionId: "s2",
+          profileKey: "irev1ak1n",
+          originalProfileUrl: "https://www.linkedin.com/in/irev1ak1n/",
+          currentIndex: 0,
+          status: "scanning",
+          startedAt: Date.now(),
+          sections: [
+            {
+              type: "education",
+              heading: "Education",
+              url: "/in/irev1ak1n/details/education/",
+              normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/education/",
+              status: "pending",
+              attempts: 0,
+            },
+            {
+              type: "honors",
+              heading: "Honors",
+              url: "/in/irev1ak1n/details/honors/",
+              normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/honors/",
+              status: "pending",
+              attempts: 0,
+            },
+          ],
+        },
+      }),
+    });
+    // No name/headline at all — extractLinkedInProfile never reports extracted: true, so this
+    // details page can never settle, exactly like a broken/never-loading LinkedIn page.
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `<main role="main"></main>`;
+
+    await import("./content");
+    const { getPanelProfileData } = await import("./panel/panelStore");
+
+    // Advance in small steps rather than one long jump, and stop the instant the first retry
+    // (attempts: 1, back to pending) is observed, so this doesn't depend on exact timing math.
+    let sawFirstRetry = false;
+    for (let elapsed = 0; elapsed < 25000 && !sawFirstRetry; elapsed += 500) {
+      await vi.advanceTimersByTimeAsync(500);
+      const section = getPanelProfileData().autoScanProgress?.sections[0];
+      if (section?.status === "pending" && elapsed > 4000) sawFirstRetry = true; // past the first mark-scanning
+    }
+    expect(sawFirstRetry).toBe(true);
+    expect(assign).not.toHaveBeenCalled(); // the retry happens in place, no navigation yet
+
+    // Same section, second failure: retry limit reached, marks failed, moves on to Honors.
+    let sawFailure = false;
+    for (let elapsed = 0; elapsed < 25000 && !sawFailure; elapsed += 500) {
+      await vi.advanceTimersByTimeAsync(500);
+      if (getPanelProfileData().autoScanProgress?.sections[0].status === "failed") sawFailure = true;
+    }
+    expect(sawFailure).toBe(true);
+    expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/honors/"); // scan continues
+  });
+
+  it("recovers an in-progress session after a fresh content script injection, without restarting the queue", async () => {
+    const savedSession = {
+      sessionId: "recover-1",
+      profileKey: "irev1ak1n",
+      originalProfileUrl: "https://www.linkedin.com/in/irev1ak1n/",
+      currentIndex: 1,
+      status: "scanning",
+      startedAt: Date.now(),
+      sections: [
+        {
+          type: "experience",
+          heading: "Experience",
+          url: "/in/irev1ak1n/details/experience/",
+          normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/experience/",
+          status: "done",
+          attempts: 0,
+        },
+        {
+          type: "education",
+          heading: "Education",
+          url: "/in/irev1ak1n/details/education/",
+          normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/education/",
+          status: "pending",
+          attempts: 0,
+        },
+      ],
+    };
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.autoScanSession.v1": savedSession,
+      }),
+    });
+    setDetailsPage("Education", "State University");
 
     await import("./content");
     await Promise.resolve();
     await Promise.resolve();
-    vi.advanceTimersByTime(3000);
 
-    expect(clicked).toBe(true);
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    const progress = getPanelProfileData().autoScanProgress;
+    expect(progress?.sessionId).toBe("recover-1");
+    expect(progress?.sections[0].status).toBe("done"); // Experience never reopens
+    expect(progress?.currentIndex).toBe(1); // resumed at Education, not restarted
+  });
+
+  it("redirects to the main profile when a details page loads directly with no session yet", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+    });
+    setDetailsPage("Experience", "Software Engineer at Acme");
+
+    await import("./content");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(assign).toHaveBeenCalledWith("https://www.linkedin.com/in/irev1ak1n/");
+  });
+
+  it("once complete, returns to the original profile and never restarts the crawl", async () => {
+    const completeSession = {
+      sessionId: "done-1",
+      profileKey: "irev1ak1n",
+      originalProfileUrl: "https://www.linkedin.com/in/irev1ak1n/",
+      currentIndex: 1,
+      status: "complete",
+      startedAt: Date.now(),
+      sections: [
+        {
+          type: "experience",
+          heading: "Experience",
+          url: "/in/irev1ak1n/details/experience/",
+          normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/experience/",
+          status: "done",
+          attempts: 0,
+        },
+      ],
+    };
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.autoScanSession.v1": completeSession,
+      }),
+    });
+    setMainProfilePage();
+
+    await import("./content");
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.advanceTimersByTime(6000);
+
+    // Already home and already complete — no navigation anywhere, no rediscovery.
+    expect(assign).not.toHaveBeenCalled();
   });
 });

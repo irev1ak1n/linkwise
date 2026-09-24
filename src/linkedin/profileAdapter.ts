@@ -413,3 +413,14 @@ export function detailsPageSection(url: string): ProfileSectionName | null {
   if (!match) return null;
   return DETAILS_PAGE_SLUGS[decodeURIComponent(match[1])] ?? null;
 }
+
+// Strips tracking params and resolves a relative href, keeping only what identifies the person
+// and, if present, which details page. The same person's main profile and every one of their
+// detail pages normalize predictably, so the crawler can compare URLs by exact string equality.
+export function normalizeProfileUrl(url: string): string | null {
+  const identity = profileIdentityKey(url);
+  if (!identity) return null;
+  const detailsMatch = /\/details\/([^/?#]+)/.exec(url);
+  if (detailsMatch) return `https://www.linkedin.com/in/${identity}/details/${decodeURIComponent(detailsMatch[1])}/`;
+  return `https://www.linkedin.com/in/${identity}/`;
+}
