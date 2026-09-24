@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { PanelApp } from "./PanelApp";
 import { getPanelStyles } from "./panelStyles";
 import { setOpenerOffset } from "../opener";
+import { setPanelVisible } from "./panelVisibilityStore";
 
 const HOST_ID = "finder-linkwise-panel-host";
 export const PANEL_WIDTH_PX = 360;
@@ -52,11 +53,13 @@ export function isPanelOpen(): boolean {
 export function openPanel(): void {
   ensureHost().style.display = "block";
   setOpenerOffset(PANEL_WIDTH_PX);
+  setPanelVisible(true);
 }
 
 export function closePanel(): void {
   if (hostElement) hostElement.style.display = "none";
   setOpenerOffset(0);
+  setPanelVisible(false);
 }
 
 export function togglePanel(): void {

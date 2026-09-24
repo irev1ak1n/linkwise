@@ -85,7 +85,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
           <p className="lw-empty">Loading your goals…</p>
         ) : (
           <>
-            <GoalSetupSection goal={goal} onSetActiveCriteria={setActiveGoalCriteria} />
+            <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
             {profileKey !== null && <ScanModeToggle mode={scanMode} onChange={setScanMode} />}
             {profileKey !== null && scanMode === "scroll" && (
               <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />

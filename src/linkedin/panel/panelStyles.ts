@@ -110,6 +110,10 @@ export function getPanelStyles(widthPx: number): string {
     align-items: center;
     margin-top: 8px;
   }
+  .lw-goal__actions {
+    display: flex;
+    gap: 8px;
+  }
   .char-count {
     font-size: 11px;
     color: #8a949c;
@@ -119,12 +123,6 @@ export function getPanelStyles(widthPx: number): string {
     font-size: 12px;
     color: #445;
     line-height: 1.4;
-  }
-  .lw-goal__active {
-    margin: 6px 0 0;
-    font-size: 11.5px;
-    color: #0a66c2;
-    font-weight: 600;
   }
 
   /* Scan mode toggle, compact and secondary to the goal/analysis content around it. */
