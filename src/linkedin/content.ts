@@ -68,6 +68,12 @@ const MAX_SECTION_ATTEMPTS = 2;
 // failed rather than the scan hanging forever on one bad page.
 const OVERALL_SCAN_TIMEOUT_MS = 120000;
 
+// LinkedIn's "Show all" links can render well after the main page otherwise looks settled —
+// observed as slow as ~9s on a cold navigation. An empty discovery result gets retried on
+// later ticks for this long before it's trusted, so a slow render doesn't permanently lock in
+// a queue with nothing in it.
+const DISCOVERY_SETTLE_MS = 20000;
+
 declare global {
   interface Window {
     __linkwiseTeardown__?: () => void;
@@ -151,6 +157,7 @@ let autoScanLoadedForKey: string | null = null;
 let autoScanLoadInFlight = false;
 let sectionArrivedAt: number | null = null;
 let sectionHandledUrl: string | null = null;
+let discoveryFirstEmptyAt: number | null = null;
 
 function publishAutoScanState(profileKey: string): void {
   if (!autoScanSession) return;
@@ -192,6 +199,7 @@ function tickAutoScanCrawl(): void {
     autoScanLoadInFlight = true;
     autoScanSession = null;
     autoScanEvidence = { ...EMPTY_PROFILE };
+    discoveryFirstEmptyAt = null;
     Promise.all([loadAutoScanSession(profileKey), loadProfileEvidence(profileKey)]).then(([session, evidence]) => {
       autoScanSession = session;
       autoScanEvidence = evidence;
@@ -220,6 +228,11 @@ function tickAutoScanCrawl(): void {
     if (coverage !== "complete") return;
 
     const discovered = discoverProfileSections(document);
+    if (discovered.length === 0) {
+      if (discoveryFirstEmptyAt === null) discoveryFirstEmptyAt = Date.now();
+      if (Date.now() - discoveryFirstEmptyAt < DISCOVERY_SETTLE_MS) return; // give lazy-rendered links more time
+    }
+
     autoScanEvidence = mergeProfileEvidence(autoScanEvidence, extractLinkedInProfile(document));
     const session = startAutoScanSession(profileKey, currentUrl, discovered);
     autoScanSession = session;

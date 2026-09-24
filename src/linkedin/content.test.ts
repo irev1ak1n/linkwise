@@ -540,6 +540,40 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/experience/");
   });
 
+  it("retries discovery instead of locking in an empty queue when the main page settles before its 'Show all' links render", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+    });
+    // No "/details/" links yet, matching a real, slow LinkedIn client-side render where the
+    // page otherwise looks settled before these links exist in the DOM.
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `
+      <main role="main">
+        <section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section>
+      </main>
+    `;
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000); // well past settle, still under DISCOVERY_SETTLE_MS
+
+    expect(assign).not.toHaveBeenCalled();
+
+    const main = document.querySelector("main")!;
+    main.innerHTML += `
+      <section>
+        <h2>Experience</h2>
+        <a href="/in/irev1ak1n/details/experience/">Show all</a>
+      </section>
+    `;
+    await vi.advanceTimersByTimeAsync(6000); // past DISCOVERY_SETTLE_MS if it hadn't already retried
+
+    expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/experience/");
+  });
+
   it("visits a queued section, collects it, and moves directly to the next one", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
     vi.stubGlobal("chrome", {
