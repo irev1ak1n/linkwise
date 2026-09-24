@@ -121,6 +121,17 @@ describe("excludeFromAutoScanQueue", () => {
     const queued = excludeFromAutoScanQueue(discoverProfileSections(document));
     expect(queued.map((s) => s.type)).toEqual(["experience"]);
   });
+
+  it("drops a discovered Interests section, keeping everything else", () => {
+    setBody(`
+      <main role="main">
+        <section><h2>Experience</h2><a href="/in/irev1ak1n/details/experience/">Show all</a></section>
+        <section><h2>Interests</h2><a href="/in/irev1ak1n/details/interests/">Show all</a></section>
+      </main>
+    `);
+    const queued = excludeFromAutoScanQueue(discoverProfileSections(document));
+    expect(queued.map((s) => s.type)).toEqual(["experience"]);
+  });
 });
 
 describe("discoverProfileSections - never queues an editing route", () => {

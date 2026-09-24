@@ -611,6 +611,34 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     expect(getPanelProfileData().profile?.skills).toContain("Python"); // still collected from the main page
   });
 
+  it("never queues Interests, and still reaches a complete scan rather than treating it as a failure", async () => {
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+    });
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `
+      <main role="main">
+        <section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section>
+        <section><h2>About</h2><span aria-hidden="true">A short bio.</span></section>
+        <section><h2>Interests</h2><a href="/in/irev1ak1n/details/interests/">Show all</a></section>
+      </main>
+    `;
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(6000);
+
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    const progress = getPanelProfileData().autoScanProgress;
+    // No sections were queueable at all (only Interests was discovered, and it's excluded), so
+    // the scan completes immediately rather than hanging or failing.
+    expect(progress?.status).toBe("complete");
+    expect(progress?.sections).toEqual([]);
+  });
+
   it("visits a queued section, collects it, and moves directly to the next one", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
     vi.stubGlobal("chrome", {

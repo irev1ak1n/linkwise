@@ -61,9 +61,9 @@ export function discoverProfileSections(doc: Document = document): DiscoveredSec
 }
 
 // Discoverable, but deliberately left out of the auto-scan crawl queue for now. Skills is
-// already covered by the main profile page's own evidence (see profileAdapter.ts); a dedicated
-// detail-page visit adds nothing today.
-const EXCLUDED_FROM_CRAWL_QUEUE = new Set(["skills"]);
+// already covered by the main profile page's own evidence (see profileAdapter.ts), and Interests
+// is low-value for matching and only lengthens the scan.
+const EXCLUDED_FROM_CRAWL_QUEUE = new Set(["skills", "interests"]);
 
 // A section left out here is simply absent from the queue, never a queued-then-failed entry.
 export function excludeFromAutoScanQueue(sections: DiscoveredSection[]): DiscoveredSection[] {

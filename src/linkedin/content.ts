@@ -227,11 +227,14 @@ function tickAutoScanCrawl(): void {
     const coverage = deriveScanCoverage(engine.getCollectionState());
     if (coverage !== "complete") return;
 
-    const discovered = excludeFromAutoScanQueue(discoverProfileSections(document));
-    if (discovered.length === 0) {
+    const rawDiscovered = discoverProfileSections(document);
+    if (rawDiscovered.length === 0) {
+      // Nothing rendered yet at all, distinct from "found sections, but every one is excluded
+      // by policy" below — only the former is worth waiting out a slow LinkedIn render for.
       if (discoveryFirstEmptyAt === null) discoveryFirstEmptyAt = Date.now();
       if (Date.now() - discoveryFirstEmptyAt < DISCOVERY_SETTLE_MS) return; // give lazy-rendered links more time
     }
+    const discovered = excludeFromAutoScanQueue(rawDiscovered);
 
     autoScanEvidence = mergeProfileEvidence(autoScanEvidence, extractLinkedInProfile(document));
     const session = startAutoScanSession(profileKey, currentUrl, discovered);
