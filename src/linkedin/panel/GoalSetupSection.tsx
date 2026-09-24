@@ -78,7 +78,7 @@ export function GoalSetupSection({ goal, onSetActiveCriteria }: GoalSetupSection
         </button>
       </div>
       {message && <p className="lw-goal__message">{message}</p>}
-      {goal && <p className="lw-goal__active">Active goal: {goal.name}</p>}
+      {goal?.description && <p className="lw-goal__active">Active goal: {goal.name}</p>}
     </section>
   );
 }
