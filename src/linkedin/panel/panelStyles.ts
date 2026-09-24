@@ -180,6 +180,24 @@ export function getPanelStyles(widthPx: number): string {
     margin: 0;
   }
 
+  /* Checkbox under the Scan mode toggle, only shown in "Auto scan profile". */
+  .lw-enhanced-analysis__label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: #56687a;
+    cursor: pointer;
+  }
+  .lw-enhanced-analysis__label input {
+    margin: 0;
+  }
+  .lw-enhanced-analysis__hint {
+    margin: 2px 0 0 20px;
+    font-size: 11px;
+    color: #8a949c;
+  }
+
   /* Scanning state */
   .lw-scanning__title {
     font-weight: 600;

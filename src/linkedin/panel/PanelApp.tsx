@@ -4,9 +4,11 @@ import { useGoalStore } from "./useGoalStore";
 import { useAiAnalysis } from "./useAiAnalysis";
 import { useScanMode } from "./useScanMode";
 import { useExpandDetailsPreference } from "./useExpandDetailsPreference";
+import { useEnhancedAnalysisPreference } from "./useEnhancedAnalysisPreference";
 import { GoalSetupSection } from "./GoalSetupSection";
 import { ScanModeToggle } from "./ScanModeToggle";
 import { ExpandDetailsCheckbox } from "./ExpandDetailsCheckbox";
+import { EnhancedAnalysisCheckbox } from "./EnhancedAnalysisCheckbox";
 import { ScanningView } from "./ScanningView";
 import { LoadingView } from "./LoadingView";
 import { AnalysisView } from "./AnalysisView";
@@ -27,6 +29,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { selectedGoal: goal, loaded: goalsLoaded, setActiveGoalCriteria } = useGoalStore();
   const { mode: scanMode, setScanMode } = useScanMode();
   const { enabled: expandDetailsEnabled, setExpandDetailsPreference } = useExpandDetailsPreference();
+  const { enabled: enhancedAnalysisEnabled, setEnhancedAnalysisPreference } = useEnhancedAnalysisPreference();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
@@ -94,6 +97,9 @@ export function PanelApp({ onClose }: PanelAppProps) {
             {profileKey !== null && <ScanModeToggle mode={scanMode} onChange={setScanMode} />}
             {profileKey !== null && scanMode === "scroll" && (
               <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />
+            )}
+            {profileKey !== null && scanMode === "auto" && (
+              <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />
             )}
             {renderProfileSection()}
           </>
