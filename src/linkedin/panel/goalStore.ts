@@ -137,7 +137,7 @@ export interface DraftCriterionInput {
 
 // Sets the active goal's criteria, updating the selected goal in place when one exists rather
 // than creating a new goal record each time. Only called from an explicit "Create criteria" click.
-export function setActiveGoalCriteria(name: string, criteria: DraftCriterionInput[]): void {
+export function setActiveGoalCriteria(name: string, description: string, criteria: DraftCriterionInput[]): void {
   const builtCriteria = criteria.map((c) =>
     createCriterion(c.label, c.importance, {
       category: c.category,
@@ -149,9 +149,11 @@ export function setActiveGoalCriteria(name: string, criteria: DraftCriterionInpu
   );
   const existing = state.goals.find((g) => g.id === state.selectedGoalId);
   if (existing) {
-    persistGoals(state.goals.map((g) => (g.id === existing.id ? { ...g, name: name || g.name, criteria: builtCriteria } : g)));
+    persistGoals(
+      state.goals.map((g) => (g.id === existing.id ? { ...g, name: name || g.name, description, criteria: builtCriteria } : g)),
+    );
   } else {
-    const goal: Goal = { ...createGoal(name || "My search"), criteria: builtCriteria };
+    const goal: Goal = { ...createGoal(name || "My search"), description, criteria: builtCriteria };
     persistGoals([...state.goals, goal]);
     selectGoal(goal.id);
   }

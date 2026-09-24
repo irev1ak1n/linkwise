@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Goal } from "../../models/goal";
 import { GOAL_TEXT_MAX_LENGTH } from "../../nlp/goalTextParser";
 import { generateCriteria } from "../../ai/generateCriteria";
@@ -6,7 +6,7 @@ import type { DraftCriterionInput } from "./goalStore";
 
 interface GoalSetupSectionProps {
   goal: Goal | null;
-  onSetActiveCriteria: (name: string, criteria: DraftCriterionInput[]) => void;
+  onSetActiveCriteria: (name: string, description: string, criteria: DraftCriterionInput[]) => void;
 }
 
 // The Goal Setup half of the panel. Describe who you're looking for, LinkWise turns it
@@ -18,17 +18,28 @@ export function GoalSetupSection({ goal, onSetActiveCriteria }: GoalSetupSection
   // Short-lived feedback below the button, cleared as soon as the description changes again.
   const [message, setMessage] = useState<string | null>(null);
 
+  // Loads the stored description into the textarea once, so the user's original wording is
+  // still there after reopening the panel. Never overwrites text the user is actively editing.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !goal?.description) return;
+    seededRef.current = true;
+    setText(goal.description);
+  }, [goal]);
+
   async function handleCreateCriteria(): Promise<void> {
     setGenerating(true);
     setMessage(null);
     try {
+      const description = text.trim();
       const result = await generateCriteria(text);
       if (result.criteria.length === 0) {
         setMessage("We couldn't find enough detail in that description — try adding a role, location, or experience.");
         return;
       }
       onSetActiveCriteria(
-        result.name || text.trim() || "My search",
+        result.name || "My search",
+        description,
         result.criteria.map((c) => ({
           label: c.label,
           importance: c.importance,

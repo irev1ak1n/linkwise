@@ -190,7 +190,7 @@ describe("goalStore", () => {
     initGoalStore();
     await waitUntil(() => getGoalStoreState().loaded);
 
-    setActiveGoalCriteria("FRC Mentors", [
+    setActiveGoalCriteria("FRC Mentors", "FRC mentors in Charlotte", [
       { label: "FRC mentor", importance: "MUST_HAVE", category: "role" },
       { label: "Charlotte", importance: "PREFERRED", category: "location" },
     ]);
@@ -200,6 +200,7 @@ describe("goalStore", () => {
     const active = selectActiveGoal(state);
     expect(active?.id).toBe("g1");
     expect(active?.name).toBe("FRC Mentors");
+    expect(active?.description).toBe("FRC mentors in Charlotte");
     expect(active?.criteria.map((c) => c.label)).toEqual(["FRC mentor", "Charlotte"]);
     expect(active?.criteria[0].category).toBe("role");
   });
@@ -211,11 +212,12 @@ describe("goalStore", () => {
     initGoalStore();
     await waitUntil(() => getGoalStoreState().loaded);
 
-    setActiveGoalCriteria("My search", [{ label: "Python", importance: "MUST_HAVE" }]);
+    setActiveGoalCriteria("My search", "python developer", [{ label: "Python", importance: "MUST_HAVE" }]);
 
     const state = getGoalStoreState();
     expect(state.goals).toHaveLength(1);
     expect(selectActiveGoal(state)?.name).toBe("My search");
+    expect(selectActiveGoal(state)?.description).toBe("python developer");
   });
 
   it("updateGoalNotes persists notes on the goal without touching its criteria", async () => {

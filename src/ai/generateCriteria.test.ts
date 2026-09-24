@@ -48,4 +48,11 @@ describe("generateCriteria - falls back to the local parser", () => {
     expect(result.source).toBe("local");
     expect(result.criteria).toEqual([]);
   });
+
+  it("gives a short readable fallback name when AI is unavailable, never the raw sentence", async () => {
+    const requestGenerateCriteria = fakeRequest({ status: "unavailable", reason: "not_configured" });
+    const result = await generateCriteria("Software/computer science skills, being able to create projects", { requestGenerateCriteria });
+    expect(result.name).not.toContain("...");
+    expect(result.name.length).toBeLessThan(60);
+  });
 });

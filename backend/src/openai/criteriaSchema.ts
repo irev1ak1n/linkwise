@@ -42,7 +42,7 @@ export const generatedCriterionSchema = z.object({
 });
 
 export const generateCriteriaResponseSchema = z.object({
-  // A short, human-readable name for this search, e.g. "FRC Mentors".
+  // A short natural title for who's being searched for, never a copy of the raw input.
   name: z.string(),
   criteria: z.array(generatedCriterionSchema),
 });

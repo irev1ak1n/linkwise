@@ -81,6 +81,15 @@ function titleCase(phrase: string): string {
     .join(" ");
 }
 
+const FALLBACK_NAME_MAX_WORDS = 6;
+
+// Used only when no subject pattern matched. Never the raw sentence truncated with "...".
+function deriveFallbackName(text: string): string {
+  const firstClause = text.split(/[,.;]/)[0]?.trim() || text;
+  const words = firstClause.split(/\s+/).filter(Boolean).slice(0, FALLBACK_NAME_MAX_WORDS);
+  return words.length > 0 ? titleCase(words.join(" ")) : "My search";
+}
+
 interface ExtractionSpan {
   start: number;
   end: number;
@@ -219,7 +228,7 @@ export function parseGoalDraftFromText(rawText: string): GoalDraft {
   }
 
   if (!name) {
-    name = text.length > 60 ? `${text.slice(0, 57)}...` : text;
+    name = deriveFallbackName(text);
   }
 
   return { name, criteria };

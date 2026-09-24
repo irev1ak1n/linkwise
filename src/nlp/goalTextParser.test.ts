@@ -115,6 +115,25 @@ describe("parseGoalDraftFromText - length handling", () => {
   });
 });
 
+describe("parseGoalDraftFromText - fallback name when no subject pattern matches", () => {
+  it("never falls back to a truncated copy of the raw sentence", () => {
+    const draft = parseGoalDraftFromText("Software/computer science skills, being able to create projects");
+    expect(draft.name).not.toContain("...");
+    expect(draft.name.length).toBeLessThan(60);
+  });
+
+  it("derives a short readable name from the first clause", () => {
+    const draft = parseGoalDraftFromText("technology student association, speak several languages");
+    expect(draft.name).toBe("Technology Student Association");
+  });
+
+  it("still derives a short name with no comma in the input at all", () => {
+    const draft = parseGoalDraftFromText("student interested in cybersecurity who has leadership experience");
+    expect(draft.name.length).toBeGreaterThan(0);
+    expect(draft.name.split(" ").length).toBeLessThanOrEqual(6);
+  });
+});
+
 describe("parseGoalDraftFromText - determinism", () => {
   it("produces identical output across repeated calls with the same input", () => {
     const text = "Seeking AI collaborators with machine learning experience, not students.";

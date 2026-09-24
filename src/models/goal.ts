@@ -50,6 +50,8 @@ export interface Goal {
   id: string;
   name: string;
   criteria: Criterion[];
+  /** The user's original typed description, never the AI-normalized name. */
+  description?: string;
   /** Free-form notes the user attaches, never read by matching/scoring. */
   notes?: string;
 }

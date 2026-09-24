@@ -31,7 +31,12 @@ OR vs AND: when the user lists true alternatives ("React or Vue", "mechanical or
 
 SOURCE TEXT: for each criterion, quote the substring of the original description it came from (or the closest paraphrase, if the phrase isn't contiguous).
 
-NAME: a short, human-readable name for this search (e.g. "FRC Mentors", "TSA Members").
+NAME: a short, natural title (usually 3-8 words) describing the KIND OF PERSON being searched for. Preserve the actual intent, never invent new requirements, and never copy or closely paraphrase the raw input sentence. Use natural title-style wording, no awkward fragments, no trailing punctuation.
+Examples:
+- "Software/computer science skills, being able to create projects" -> "Software Developers with Project-Building Experience"
+- "technology student association, speak several languages" -> "Multilingual TSA Members"
+- "FRC mentor in Charlotte with mechanical or aerospace engineering experience" -> "Charlotte FRC Mentors with Engineering Experience"
+- "student interested in cybersecurity who has leadership experience" -> "Cybersecurity Students with Leadership Experience"
 
 If the description is too vague or short to extract anything meaningful, return an empty criteria array rather than inventing criteria the text doesn't actually support.`;
 
