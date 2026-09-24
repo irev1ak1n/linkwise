@@ -354,6 +354,12 @@ describe("isProfileManagementUrl", () => {
     expect(isProfileManagementUrl("/in/irev1ak1n/details/education/")).toBe(false);
     expect(isProfileManagementUrl("https://www.linkedin.com/in/irev1ak1n/details/experience/")).toBe(false);
   });
+
+  it("recognizes an add/create form even without the word 'edit' in the path", () => {
+    expect(isProfileManagementUrl("/in/irev1ak1n/details/languages/edit/forms/new/")).toBe(true);
+    expect(isProfileManagementUrl("/in/irev1ak1n/details/skills/add/")).toBe(true);
+    expect(isProfileManagementUrl("/in/irev1ak1n/details/projects/create/")).toBe(true);
+  });
 });
 
 describe("normalizeProfileUrl", () => {

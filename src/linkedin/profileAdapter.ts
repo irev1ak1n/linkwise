@@ -414,10 +414,11 @@ export function detailsPageSection(url: string): ProfileSectionName | null {
   return DETAILS_PAGE_SLUGS[decodeURIComponent(match[1])] ?? null;
 }
 
-// LinkedIn's own "edit this entry" routes, e.g. "/details/education/edit/forms/12345/". The
-// crawler only ever reads a profile, never opens editing UI.
+// LinkedIn's own profile-management routes: editing an entry ("/edit/forms/12345/"), adding one
+// ("/edit/forms/new/"), or any other add/create form. The crawler only ever reads a profile, it
+// never opens editing or add/create UI, whatever slug that UI happens to live under.
 export function isProfileManagementUrl(url: string): boolean {
-  return /\/edit(\/|$)/.test(url);
+  return /\/edit(\/|$)|\/forms\/new(\/|$)|\/(add|create)(\/|$)/.test(url);
 }
 
 // Strips tracking params and resolves a relative href, keeping only what identifies the person

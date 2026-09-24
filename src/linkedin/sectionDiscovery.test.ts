@@ -123,6 +123,18 @@ describe("discoverProfileSections - never queues an editing route", () => {
     expect(discoverProfileSections(document)).toEqual([]);
   });
 
+  it("skips an add/create form even when it's the only link and has no 'edit' in its path", () => {
+    setBody(`
+      <main role="main">
+        <section>
+          <h2>Skills</h2>
+          <a href="/in/irev1ak1n/details/skills/add/">Add a skill</a>
+        </section>
+      </main>
+    `);
+    expect(discoverProfileSections(document)).toEqual([]);
+  });
+
   it("prefers a real 'Show all' link over a sibling edit link for the same section", () => {
     setBody(`
       <main role="main">
