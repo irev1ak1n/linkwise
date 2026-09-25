@@ -6,6 +6,7 @@ import {
   loadExpandDetailsPreference,
   saveExpandDetailsPreference,
 } from "../../storage/expandDetailsPreferenceRepository";
+import { isExtensionContextValid } from "../extensionContext";
 
 export interface ExpandDetailsState {
   enabled: boolean;
@@ -44,10 +45,12 @@ function handleStorageChange(changes: Record<string, chrome.storage.StorageChang
 let initialized = false;
 
 // Idempotent, safe to call from every render. Starts the storage listener and first read once.
+// A stale content script (extension already reloaded/updated) has no listener to register or
+// anything real to read, refresh() just resolves to the default in that case.
 export function initExpandDetailsStore(): void {
   if (initialized) return;
   initialized = true;
-  chrome.storage.onChanged.addListener(handleStorageChange);
+  if (isExtensionContextValid()) chrome.storage.onChanged.addListener(handleStorageChange);
   void refresh();
 }
 

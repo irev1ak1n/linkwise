@@ -2,6 +2,7 @@
 // Read synchronously by content.ts on every tick, and by the panel's toggle UI.
 import { DEFAULT_SCAN_MODE, type ScanMode } from "../../models/scanMode";
 import { SCAN_MODE_STORAGE_KEY, loadScanMode, saveScanMode } from "../../storage/scanModeRepository";
+import { isExtensionContextValid } from "../extensionContext";
 
 export type { ScanMode };
 
@@ -42,10 +43,12 @@ function handleStorageChange(changes: Record<string, chrome.storage.StorageChang
 let initialized = false;
 
 // Idempotent, safe to call from every render. Starts the storage listener and first read once.
+// A stale content script (extension already reloaded/updated) has no listener to register or
+// anything real to read, refresh() just resolves to a safe default in that case.
 export function initScanModeStore(): void {
   if (initialized) return;
   initialized = true;
-  chrome.storage.onChanged.addListener(handleStorageChange);
+  if (isExtensionContextValid()) chrome.storage.onChanged.addListener(handleStorageChange);
   void refresh();
 }
 

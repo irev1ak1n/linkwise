@@ -13,6 +13,7 @@ import {
   type Goal,
 } from "../../models/goal";
 import { GOALS_STORAGE_KEYS, loadGoals, loadSelectedGoalId, saveGoals, saveSelectedGoalId } from "../../storage/goalsRepository";
+import { isExtensionContextValid } from "../extensionContext";
 
 export interface GoalStoreState {
   goals: Goal[];
@@ -57,10 +58,12 @@ function handleStorageChange(changes: Record<string, chrome.storage.StorageChang
 let initialized = false;
 
 // Idempotent, safe to call from every render. Starts the storage listener and first read once.
+// A stale content script (extension already reloaded/updated) has no listener to register or
+// anything real to read, refresh() just resolves to safe defaults in that case.
 export function initGoalStore(): void {
   if (initialized) return;
   initialized = true;
-  chrome.storage.onChanged.addListener(handleStorageChange);
+  if (isExtensionContextValid()) chrome.storage.onChanged.addListener(handleStorageChange);
   void refresh();
 }
 

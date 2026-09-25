@@ -12,6 +12,7 @@ function installFakeChromeStorage(initial: Record<string, unknown>) {
   const listeners: ChangeListener[] = [];
 
   (globalThis as unknown as { chrome: unknown }).chrome = {
+    runtime: { id: "test-extension-id" },
     storage: {
       local: {
         get: (keys: string | string[]) =>

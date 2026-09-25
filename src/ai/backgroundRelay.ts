@@ -2,6 +2,8 @@
 // back (see analyzeProfileClient.ts and generateCriteriaClient.ts). Also handles an orphaned
 // extension context gracefully: an old tab left open across a reload can have chrome.runtime
 // go undefined, which should resolve to "unavailable" instead of throwing.
+import { isExtensionContextValid } from "../linkedin/extensionContext";
+
 let requestCounter = 0;
 function nextRequestId(prefix: string): string {
   requestCounter += 1;
@@ -32,6 +34,10 @@ export function sendBackgroundRelayRequest<TResponse, TOutcome>(
   const requestId = nextRequestId(options.idPrefix);
 
   const promise = new Promise<TOutcome>((resolve) => {
+    if (!isExtensionContextValid()) {
+      resolve(options.unavailable("extension_context_invalidated"));
+      return;
+    }
     try {
       chrome.runtime.sendMessage({ type: options.requestType, requestId, payload: options.payload }, (response: TResponse | undefined) => {
         if (chrome.runtime.lastError || !response) {
@@ -46,6 +52,7 @@ export function sendBackgroundRelayRequest<TResponse, TOutcome>(
   });
 
   function cancel(): void {
+    if (!isExtensionContextValid()) return; // no receiver left to cancel
     try {
       chrome.runtime.sendMessage({ type: options.cancelType, requestId }).catch(() => {
         // Background may already be gone. Nothing to do about a lost cancel.

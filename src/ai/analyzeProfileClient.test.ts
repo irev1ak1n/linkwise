@@ -18,7 +18,7 @@ function installFakeChromeRuntime(respond: (message: unknown) => AnalyzeProfileA
     if (callback) callback(response);
     return Promise.resolve(response);
   });
-  (globalThis as unknown as { chrome: unknown }).chrome = { runtime: { sendMessage, lastError: undefined } };
+  (globalThis as unknown as { chrome: unknown }).chrome = { runtime: { id: "test-extension-id", sendMessage, lastError: undefined } };
   return sendMessage;
 }
 
@@ -77,7 +77,7 @@ describe("requestAiAnalysis - graceful fallback", () => {
       callback?.(undefined);
     });
     (globalThis as unknown as { chrome: unknown }).chrome = {
-      runtime: { sendMessage, lastError: { message: "Could not establish connection." } },
+      runtime: { id: "test-extension-id", sendMessage, lastError: { message: "Could not establish connection." } },
     };
     const { promise } = requestAiAnalysis(fakePayload());
     expect(await promise).toEqual({ status: "unavailable", reason: "no_response" });
@@ -87,7 +87,7 @@ describe("requestAiAnalysis - graceful fallback", () => {
     // A tab left open across a reload keeps its old content script alive, where
     // chrome.runtime.sendMessage throws synchronously. Must degrade gracefully, not reject.
     (globalThis as unknown as { chrome: unknown }).chrome = {
-      runtime: {
+      runtime: { id: "test-extension-id",
         get sendMessage(): never {
           throw new TypeError("Cannot read properties of undefined (reading 'sendMessage')");
         },
@@ -109,7 +109,7 @@ describe("requestAiAnalysis - cancellation", () => {
 
   it("never throws even if the background is unreachable for the cancel message", () => {
     (globalThis as unknown as { chrome: unknown }).chrome = {
-      runtime: {
+      runtime: { id: "test-extension-id",
         sendMessage: vi.fn(() => Promise.reject(new Error("no receiver"))),
         lastError: undefined,
       },
@@ -122,7 +122,7 @@ describe("requestAiAnalysis - cancellation", () => {
     installFakeChromeRuntime(() => ({ status: "not_configured" }));
     const pending = requestAiAnalysis(fakePayload());
     (globalThis as unknown as { chrome: unknown }).chrome = {
-      runtime: {
+      runtime: { id: "test-extension-id",
         get sendMessage(): never {
           throw new TypeError("Cannot read properties of undefined (reading 'sendMessage')");
         },

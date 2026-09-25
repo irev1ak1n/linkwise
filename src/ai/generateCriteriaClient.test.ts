@@ -9,7 +9,7 @@ function installFakeChromeRuntime(respond: (message: unknown) => GenerateCriteri
     if (callback) callback(response);
     return Promise.resolve(response);
   });
-  (globalThis as unknown as { chrome: unknown }).chrome = { runtime: { sendMessage, lastError: undefined } };
+  (globalThis as unknown as { chrome: unknown }).chrome = { runtime: { id: "test-extension-id", sendMessage, lastError: undefined } };
   return sendMessage;
 }
 
@@ -57,7 +57,7 @@ describe("requestGenerateCriteria - graceful fallback", () => {
 
   it("resolves to 'unavailable' (never rejects) when the extension context is invalidated", async () => {
     (globalThis as unknown as { chrome: unknown }).chrome = {
-      runtime: {
+      runtime: { id: "test-extension-id",
         get sendMessage(): never {
           throw new TypeError("Cannot read properties of undefined (reading 'sendMessage')");
         },
@@ -79,7 +79,7 @@ describe("requestGenerateCriteria - cancellation", () => {
 
   it("never throws even if the background is unreachable for the cancel message", () => {
     (globalThis as unknown as { chrome: unknown }).chrome = {
-      runtime: { sendMessage: vi.fn(() => Promise.reject(new Error("no receiver"))), lastError: undefined },
+      runtime: { id: "test-extension-id", sendMessage: vi.fn(() => Promise.reject(new Error("no receiver"))), lastError: undefined },
     };
     const pending = requestGenerateCriteria("FRC mentor");
     expect(() => pending.cancel()).not.toThrow();
