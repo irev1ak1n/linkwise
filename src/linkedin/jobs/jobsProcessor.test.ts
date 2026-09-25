@@ -28,6 +28,15 @@ function plainCard(id: string, title: string): string {
   `;
 }
 
+function stateCard(id: string, title: string, state: string): string {
+  return `
+    <li data-occludable-job-id="${id}">
+      <a href="/jobs/view/${id}/" class="job-card-list__title--link"><span aria-hidden="true">${title}</span></a>
+      <ul><li class="job-card-container__footer-job-state">${state}</li></ul>
+    </li>
+  `;
+}
+
 describe("processJobCards", () => {
   beforeEach(() => {
     document.head.innerHTML = "";
@@ -72,6 +81,36 @@ describe("processJobCards", () => {
     processJobCards(document, settings({ keywordsText: "senior" }));
     const card = document.querySelector('[data-occludable-job-id="1"]');
     expect(card?.classList.contains("lw-job-hidden")).toBe(false);
+    expect(card?.classList.contains("lw-job-highlight")).toBe(false);
+  });
+
+  it("hides a viewed job card when viewedAction is hide", () => {
+    setBody(`<ul>${stateCard("1", "Engineer", "Viewed")}</ul>`);
+    processJobCards(document, settings({ viewedAction: "hide" }));
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
+  });
+
+  it("highlights a saved job card when savedAction is highlight", () => {
+    setBody(`<ul>${stateCard("1", "Engineer", "Saved")}</ul>`);
+    processJobCards(document, settings({ savedAction: "highlight" }));
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-highlight")).toBe(true);
+  });
+
+  it("applies applied, viewed, and saved rules independently on separate cards", () => {
+    setBody(`<ul>${appliedCard("1", "A")}${stateCard("2", "B", "Viewed")}${stateCard("3", "C", "Saved")}</ul>`);
+    processJobCards(document, settings({ appliedAction: "hide", viewedAction: "highlight", savedAction: "none" }));
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
+    expect(document.querySelector('[data-occludable-job-id="2"]')?.classList.contains("lw-job-highlight")).toBe(true);
+    const saved = document.querySelector('[data-occludable-job-id="3"]');
+    expect(saved?.classList.contains("lw-job-hidden")).toBe(false);
+    expect(saved?.classList.contains("lw-job-highlight")).toBe(false);
+  });
+
+  it("hide wins over highlight across different rules on the same card", () => {
+    setBody(`<ul>${stateCard("1", "Developer role", "Saved")}</ul>`);
+    processJobCards(document, settings({ savedAction: "highlight", keywordsText: "Developer", keywordAction: "hide" }));
+    const card = document.querySelector('[data-occludable-job-id="1"]');
+    expect(card?.classList.contains("lw-job-hidden")).toBe(true);
     expect(card?.classList.contains("lw-job-highlight")).toBe(false);
   });
 

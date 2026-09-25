@@ -1065,7 +1065,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
     expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
 
     const { setJobsSettings } = await import("./panel/jobsSettingsStore");
-    setJobsSettings({ appliedAction: "highlight", keywordsText: "", keywordAction: "none", caseInsensitive: true });
+    setJobsSettings({ appliedAction: "highlight", viewedAction: "none", savedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true });
     await vi.advanceTimersByTimeAsync(3000);
 
     const card = document.querySelector('[data-occludable-job-id="1"]');
@@ -1085,7 +1085,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
     await vi.advanceTimersByTimeAsync(3000);
 
     const { setJobsSettings } = await import("./panel/jobsSettingsStore");
-    setJobsSettings({ appliedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true });
+    setJobsSettings({ appliedAction: "none", viewedAction: "none", savedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true });
     await vi.advanceTimersByTimeAsync(3000);
 
     expect(document.querySelector('[data-occludable-job-id="1"]')?.className).toBe("");

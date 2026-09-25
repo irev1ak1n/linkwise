@@ -2,19 +2,27 @@ import type { JobCardAction } from "../../models/jobsSettings";
 
 export interface CardEvidence {
   applied: boolean;
+  viewed: boolean;
+  saved: boolean;
   matchedKeyword: string | null;
 }
 
 export interface JobFilterRules {
   appliedAction: JobCardAction;
+  viewedAction: JobCardAction;
+  savedAction: JobCardAction;
   keywordAction: JobCardAction;
 }
 
 export function decideCardAction(evidence: CardEvidence, rules: JobFilterRules): JobCardAction {
-  const appliedDecision = evidence.applied ? rules.appliedAction : "none";
-  const keywordDecision = evidence.matchedKeyword ? rules.keywordAction : "none";
+  const decisions = [
+    evidence.applied ? rules.appliedAction : "none",
+    evidence.viewed ? rules.viewedAction : "none",
+    evidence.saved ? rules.savedAction : "none",
+    evidence.matchedKeyword ? rules.keywordAction : "none",
+  ];
 
-  if (appliedDecision === "hide" || keywordDecision === "hide") return "hide";
-  if (appliedDecision === "highlight" || keywordDecision === "highlight") return "highlight";
+  if (decisions.includes("hide")) return "hide";
+  if (decisions.includes("highlight")) return "highlight";
   return "none";
 }

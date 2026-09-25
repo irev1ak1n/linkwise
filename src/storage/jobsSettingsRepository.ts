@@ -17,6 +17,8 @@ export async function loadJobsSettings(): Promise<JobsSettings> {
 
   return {
     appliedAction: isJobCardAction(value.appliedAction) ? value.appliedAction : DEFAULT_JOBS_SETTINGS.appliedAction,
+    viewedAction: isJobCardAction(value.viewedAction) ? value.viewedAction : DEFAULT_JOBS_SETTINGS.viewedAction,
+    savedAction: isJobCardAction(value.savedAction) ? value.savedAction : DEFAULT_JOBS_SETTINGS.savedAction,
     keywordsText: typeof value.keywordsText === "string" ? value.keywordsText : DEFAULT_JOBS_SETTINGS.keywordsText,
     keywordAction: isJobCardAction(value.keywordAction) ? value.keywordAction : DEFAULT_JOBS_SETTINGS.keywordAction,
     caseInsensitive: typeof value.caseInsensitive === "boolean" ? value.caseInsensitive : DEFAULT_JOBS_SETTINGS.caseInsensitive,

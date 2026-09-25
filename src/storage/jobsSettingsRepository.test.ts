@@ -35,7 +35,14 @@ describe("jobsSettingsRepository", () => {
   });
 
   it("round-trips a full settings object", async () => {
-    const settings = { appliedAction: "hide" as const, keywordsText: "Promoted, Senior", keywordAction: "highlight" as const, caseInsensitive: false };
+    const settings = {
+      appliedAction: "hide" as const,
+      viewedAction: "highlight" as const,
+      savedAction: "hide" as const,
+      keywordsText: "Promoted, Senior",
+      keywordAction: "highlight" as const,
+      caseInsensitive: false,
+    };
     await saveJobsSettings(settings);
     expect(await loadJobsSettings()).toEqual(settings);
   });
@@ -43,12 +50,16 @@ describe("jobsSettingsRepository", () => {
   it("falls back to defaults for an invalid stored action", async () => {
     await saveJobsSettings({
       appliedAction: "not-real" as never,
+      viewedAction: "also-not-real" as never,
+      savedAction: "hide",
       keywordsText: "test",
       keywordAction: "hide",
       caseInsensitive: true,
     });
     const loaded = await loadJobsSettings();
     expect(loaded.appliedAction).toBe("none");
+    expect(loaded.viewedAction).toBe("none");
+    expect(loaded.savedAction).toBe("hide");
     expect(loaded.keywordAction).toBe("hide");
   });
 });
