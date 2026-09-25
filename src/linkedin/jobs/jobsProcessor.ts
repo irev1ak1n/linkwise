@@ -1,6 +1,6 @@
 import type { JobsSettings } from "../../models/jobsSettings";
 import { findJobCards } from "./jobCardDetector";
-import { isJobCardApplied } from "./appliedJobDetector";
+import { isJobCardApplied } from "./jobStateDetector";
 import { extractCardText, matchedKeyword, parseKeywords } from "./keywordMatcher";
 import { decideCardAction } from "./jobFilterEngine";
 import { applyCardAction, ensureJobStylesInjected, restoreCard } from "./jobCardStyler";
