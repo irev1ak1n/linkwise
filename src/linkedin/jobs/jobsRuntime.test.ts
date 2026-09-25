@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_JOBS_SETTINGS, type JobsSettings } from "../../models/jobsSettings";
 import { isJobsSearchPage, resetJobsRuntime, runJobsTick } from "./jobsRuntime";
 
@@ -49,7 +49,7 @@ describe("runJobsTick", () => {
     expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
   });
 
-  it("restores then reapplies when settings change between ticks", () => {
+  it("transitions directly from hide to highlight, never restoring first", () => {
     document.body.innerHTML = `
       <li data-occludable-job-id="1">
         <a href="/jobs/view/1/"><span>A</span></a>
@@ -70,5 +70,52 @@ describe("runJobsTick", () => {
     document.querySelector('[data-occludable-job-id="1"]')!.classList.add("linkedin-own-class");
     runJobsTick("https://www.linkedin.com/jobs/search/", s);
     expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("linkedin-own-class")).toBe(true);
+  });
+
+  it("does not rewrite the class list when the desired state has not changed", () => {
+    document.body.innerHTML = `
+      <li data-occludable-job-id="1">
+        <a href="/jobs/view/1/"><span>A</span></a>
+        <ul><li class="job-card-container__footer-job-state">Applied</li></ul>
+      </li>
+    `;
+    const s = settings({ appliedAction: "hide" });
+    runJobsTick("https://www.linkedin.com/jobs/search/", s);
+    const card = document.querySelector('[data-occludable-job-id="1"]')!;
+    const classListSpy = vi.spyOn(card.classList, "add");
+    runJobsTick("https://www.linkedin.com/jobs/search/", s);
+    expect(classListSpy).not.toHaveBeenCalled();
+  });
+
+  it("applies a card's known state to its replacement node before fresh content renders", () => {
+    document.body.innerHTML = `
+      <li data-occludable-job-id="1">
+        <a href="/jobs/view/1/"><span>A</span></a>
+        <ul><li class="job-card-container__footer-job-state">Applied</li></ul>
+      </li>
+    `;
+    runJobsTick("https://www.linkedin.com/jobs/search/", settings({ appliedAction: "hide" }));
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
+
+    document.body.innerHTML = `<li data-occludable-job-id="1"><!----></li>`;
+    runJobsTick("https://www.linkedin.com/jobs/search/", settings({ appliedAction: "hide" }));
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
+  });
+
+  it("does not un-hide a card when its content momentarily renders as empty", () => {
+    document.body.innerHTML = `
+      <li data-occludable-job-id="1">
+        <a href="/jobs/view/1/"><span>A</span></a>
+        <ul><li class="job-card-container__footer-job-state">Applied</li></ul>
+      </li>
+    `;
+    const s = settings({ appliedAction: "hide" });
+    runJobsTick("https://www.linkedin.com/jobs/search/", s);
+    const card = document.querySelector('[data-occludable-job-id="1"]')!;
+    expect(card.classList.contains("lw-job-hidden")).toBe(true);
+
+    card.querySelector("a")!.innerHTML = "";
+    runJobsTick("https://www.linkedin.com/jobs/search/", s);
+    expect(card.classList.contains("lw-job-hidden")).toBe(true);
   });
 });
