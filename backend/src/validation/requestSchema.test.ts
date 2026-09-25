@@ -98,6 +98,12 @@ describe("analyzeProfileRequestSchema - malformed input", () => {
     expect(analyzeProfileRequestSchema.safeParse(body).success).toBe(false);
   });
 
+  it("accepts honors and awards evidence", () => {
+    const body = validBody();
+    body.profile.evidence.push({ id: "honors:0", section: "honors", text: "Dean's List", evidenceType: "honors" });
+    expect(analyzeProfileRequestSchema.safeParse(body).success).toBe(true);
+  });
+
   it("rejects an unrecognized evidence section", () => {
     const body = validBody();
     // @ts-expect-error deliberately invalid enum value
