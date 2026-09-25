@@ -5,10 +5,12 @@ import { useAiAnalysis } from "./useAiAnalysis";
 import { useScanMode } from "./useScanMode";
 import { useExpandDetailsPreference } from "./useExpandDetailsPreference";
 import { useEnhancedAnalysisPreference } from "./useEnhancedAnalysisPreference";
+import { useJobsSettings } from "./useJobsSettings";
 import { GoalSetupSection } from "./GoalSetupSection";
 import { ScanModeToggle } from "./ScanModeToggle";
 import { ExpandDetailsCheckbox } from "./ExpandDetailsCheckbox";
 import { EnhancedAnalysisCheckbox } from "./EnhancedAnalysisCheckbox";
+import { JobsSettingsSection } from "./JobsSettingsSection";
 import { ScanningView } from "./ScanningView";
 import { LoadingView } from "./LoadingView";
 import { AnalysisView } from "./AnalysisView";
@@ -30,6 +32,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { mode: scanMode, setScanMode } = useScanMode();
   const { enabled: expandDetailsEnabled, setExpandDetailsPreference } = useExpandDetailsPreference();
   const { enabled: enhancedAnalysisEnabled, setEnhancedAnalysisPreference } = useEnhancedAnalysisPreference();
+  const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
@@ -102,6 +105,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
               <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />
             )}
             {renderProfileSection()}
+            <JobsSettingsSection settings={jobsSettings} onChange={setJobsSettings} />
           </>
         )}
       </div>

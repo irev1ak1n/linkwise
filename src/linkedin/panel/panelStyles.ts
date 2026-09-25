@@ -457,5 +457,63 @@ export function getPanelStyles(widthPx: number): string {
     color: #c0392b;
     border-color: #f3c6c1;
   }
+
+  .lw-jobs-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid #e0e0e0;
+  }
+  .lw-jobs-settings__title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #56687a;
+  }
+  .lw-jobs-settings__group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .lw-jobs-settings__group-label {
+    font-size: 11.5px;
+    color: #445;
+    min-width: 90px;
+  }
+  .lw-jobs-settings__radio {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    color: #56687a;
+    cursor: pointer;
+  }
+  .lw-jobs-settings__keywords-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11.5px;
+    color: #445;
+  }
+  .lw-jobs-settings__keywords-input {
+    resize: vertical;
+    min-height: 40px;
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+  }
+  .lw-jobs-settings__checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: #56687a;
+    cursor: pointer;
+  }
 `;
 }
