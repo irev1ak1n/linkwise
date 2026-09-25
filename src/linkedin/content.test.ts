@@ -87,7 +87,7 @@ describe("content.ts bootstrap", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
-    vi.stubGlobal("chrome", { runtime: { reload: vi.fn() }, storage: installFakeChromeStorage() });
+    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn() }, storage: installFakeChromeStorage() });
     setProfilePage("Jordan Rivera");
     stubProfileUrl("jordan-rivera");
   });
@@ -130,6 +130,15 @@ describe("content.ts bootstrap", () => {
 
     // If the old interval were still alive, this would be roughly double, not matching it.
     expect(vi.getTimerCount()).toBe(firstInstanceTimerCount);
+  });
+
+  it("removes its opener and stops ticking once its extension context is invalidated", async () => {
+    await import("./content");
+    (globalThis.chrome as { runtime: { id?: string } }).runtime.id = undefined;
+    await vi.advanceTimersByTimeAsync(3500);
+
+    expect(document.querySelectorAll("#finder-linkwise-opener")).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("resets collection state for a new profile after an in-page (SPA) navigation, via a re-tick rather than reinjection", async () => {
@@ -219,7 +228,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
 
   it("Auto scan expands a safe profile 'see more' automatically", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
     });
     stubProfileUrl("irev1ak1n");
@@ -237,7 +246,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
 
   it("Analyze as I scroll with the checkbox OFF (the default) never expands anything automatically", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       // "finder.scanMode.v1" and the expand-details preference are both left unset, matching
       // their real defaults ("scroll" and off).
       storage: installFakeChromeStorage(),
@@ -257,7 +266,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
 
   it("Analyze as I scroll with the checkbox ON expands safe profile information", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "scroll",
         "finder.expandDetailsAutomatically.v1": true,
@@ -278,7 +287,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
 
   it("Analyze as I scroll, checkbox ON or OFF, never auto-scrolls the page either way", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "scroll",
         "finder.expandDetailsAutomatically.v1": true,
@@ -314,7 +323,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
 
   it("Analyze as I scroll with the checkbox ON does not expand a safe toggle that's off-screen, and never moves the page to reach it", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "scroll",
         "finder.expandDetailsAutomatically.v1": true,
@@ -339,7 +348,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
 
   it("Auto scan expands a safe toggle even when it's off-screen, since it already drives scrolling itself", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
     });
     stubProfileUrl("irev1ak1n");
@@ -358,7 +367,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
 
   it("Analyze as I scroll expands a toggle once it naturally becomes visible, after not expanding it while off-screen", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "scroll",
         "finder.expandDetailsAutomatically.v1": true,
@@ -435,7 +444,7 @@ describe("content.ts bootstrap - safe expansion on profile detail pages (/detail
 
   it("Analyze as I scroll with the checkbox OFF never expands anything on a details page", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage(),
     });
     stubDetailsPageUrl("irev1ak1n", "education");
@@ -453,7 +462,7 @@ describe("content.ts bootstrap - safe expansion on profile detail pages (/detail
 
   it("Analyze as I scroll with the checkbox ON expands a safe visible 'more' on a details page", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "scroll",
         "finder.expandDetailsAutomatically.v1": true,
@@ -525,7 +534,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
   it("starts a crawl once the main page is fully covered, and navigates to the first section", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.enhancedAnalysis.v1": true }),
     });
     setMainProfilePage();
@@ -543,7 +552,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
   it("retries discovery instead of locking in an empty queue when the main page settles before its 'Show all' links render", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.enhancedAnalysis.v1": true }),
     });
     // No "/details/" links yet, matching a real, slow LinkedIn client-side render where the
@@ -577,7 +586,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
   it("never queues a Skills detail page, but still collects Skills evidence from the main page itself", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.enhancedAnalysis.v1": true }),
     });
     const appRoot = document.createElement("div");
@@ -614,7 +623,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
   it("never queues Interests, and still reaches a complete scan rather than treating it as a failure", async () => {
     stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.enhancedAnalysis.v1": true }),
     });
     const appRoot = document.createElement("div");
@@ -642,7 +651,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
   it("visits a queued section, collects it, and moves directly to the next one", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "auto",
         "finder.enhancedAnalysis.v1": true,
@@ -689,7 +698,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
   it("a section that never renders anything readable times out, gets one retry, then is marked failed and the scan moves on", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "auto",
         "finder.enhancedAnalysis.v1": true,
@@ -781,7 +790,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     };
     stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "auto",
         "finder.autoScanSession.v1": savedSession,
@@ -803,7 +812,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
   it("redirects to the main profile when a details page loads directly with no session yet", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
     });
     setDetailsPage("Experience", "Software Engineer at Acme");
@@ -836,7 +845,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     };
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "auto",
         "finder.autoScanSession.v1": completeSession,
@@ -889,7 +898,7 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
   it("Auto scan with Enhanced analysis off scans only the main page: no /details/ navigation, analysis still completes", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       // Enhanced analysis left unset — the default, off.
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
     });
@@ -909,7 +918,7 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
   it("turning Enhanced analysis on after the main page already settled starts the crawler without discarding its evidence", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
     });
     setMainProfilePage();
@@ -959,7 +968,7 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     };
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": "auto",
         "finder.enhancedAnalysis.v1": true,
@@ -1048,7 +1057,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("hides applied jobs on a jobs search page", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
     });
     stubNonProfileUrl("/jobs/search/?keywords=engineer");
@@ -1063,7 +1072,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("switching from hide to highlight restores hidden cards and highlights them instead", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
     });
     stubNonProfileUrl("/jobs/search/?keywords=engineer");
@@ -1084,7 +1093,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("do nothing restores normal appearance", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
     });
     stubNonProfileUrl("/jobs/search/?keywords=engineer");
@@ -1102,7 +1111,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("keyword filtering hides matching cards, case-insensitively by default", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.jobsSettings.v1": { appliedAction: "none", keywordsText: "senior, contract", keywordAction: "hide", caseInsensitive: true },
       }),
@@ -1120,7 +1129,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("processes a newly inserted job card automatically", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
     });
     stubNonProfileUrl("/jobs/search/?keywords=engineer");
@@ -1137,7 +1146,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("does not touch job cards on a non-jobs page", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
     });
     stubNonProfileUrl("/feed/");
@@ -1151,7 +1160,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("reprocesses a new jobs search after SPA navigation", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
     });
     stubNonProfileUrl("/jobs/search/?keywords=engineer");
@@ -1171,7 +1180,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("hides viewed jobs when viewedAction is hide", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.jobsSettings.v1": { appliedAction: "none", viewedAction: "hide", savedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true },
       }),
@@ -1188,7 +1197,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("highlights saved jobs when savedAction is highlight", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.jobsSettings.v1": { appliedAction: "none", viewedAction: "none", savedAction: "highlight", keywordsText: "", keywordAction: "none", caseInsensitive: true },
       }),
@@ -1204,7 +1213,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("applied still hides while viewed and saved act independently at the same time", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.jobsSettings.v1": { appliedAction: "hide", viewedAction: "highlight", savedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true },
       }),
@@ -1224,7 +1233,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("hide wins over highlight when a saved card also matches a hide keyword", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.jobsSettings.v1": {
           appliedAction: "none",
@@ -1249,7 +1258,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("dynamically inserted cards receive applied, viewed, saved, and keyword rules", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.jobsSettings.v1": { appliedAction: "hide", viewedAction: "hide", savedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true },
       }),
@@ -1268,7 +1277,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
   it("reacts to a job card mutation immediately, without waiting for the general debounce", async () => {
     vi.stubGlobal("chrome", {
-      runtime: { reload: vi.fn() },
+      runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.jobsSettings.v1": { appliedAction: "hide", viewedAction: "none", savedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true },
       }),

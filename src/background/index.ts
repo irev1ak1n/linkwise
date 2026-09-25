@@ -22,8 +22,8 @@ if (DEV_TOOLING_ENABLED) {
 }
 
 // Re-injects the content script into open LinkedIn tabs after an install or reload, so a
-// rebuild never needs a manual page refresh. Safe to re-run since content.ts's teardown
-// token cleans up any previous instance first.
+// rebuild never needs a manual page refresh. Safe to re-run since runtimeTakeover.ts tears
+// down any previous instance first.
 //
 // Wired to onInstalled specifically, not every service worker wake-up. The worker restarts on
 // ordinary events too (like an AI relay message), and reinjecting then would tear down the

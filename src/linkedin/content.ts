@@ -60,6 +60,8 @@ import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedA
 import { expandSeeMoreToggles } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
+import { claimRuntime } from "./runtimeTakeover";
+import { watchForContextInvalidation } from "./extensionContext";
 
 const DOCUMENT_END_MARGIN_PX = 600;
 const MUTATION_DEBOUNCE_MS = 900;
@@ -82,18 +84,23 @@ const OVERALL_SCAN_TIMEOUT_MS = 120000;
 // a queue with nothing in it.
 const DISCOVERY_SETTLE_MS = 20000;
 
-declare global {
-  interface Window {
-    __linkwiseTeardown__?: () => void;
-  }
-}
-
-window.__linkwiseTeardown__?.();
 let torndown = false;
 const cleanupFns: (() => void)[] = [];
 function registerCleanup(fn: () => void): void {
   cleanupFns.push(fn);
 }
+
+// A dead instance's opener would otherwise be reused by the next one, still wired to its panel.
+function teardown(): void {
+  if (torndown) return;
+  torndown = true;
+  cleanupFns.forEach((fn) => fn());
+  removeLinkWiseOpener();
+  destroyPanel();
+}
+
+registerCleanup(claimRuntime(teardown));
+registerCleanup(watchForContextInvalidation(teardown));
 
 function findScrollContainer(): Element {
   const candidates = [document.scrollingElement, document.querySelector("main")].filter(
@@ -443,10 +450,3 @@ registerCleanup(subscribeJobsSettingsStore(tick));
 tick();
 watchForChanges();
 registerCleanup(installDevTooling(() => getPanelProfileData()));
-
-window.__linkwiseTeardown__ = () => {
-  torndown = true;
-  cleanupFns.forEach((fn) => fn());
-  removeLinkWiseOpener();
-  destroyPanel();
-};
