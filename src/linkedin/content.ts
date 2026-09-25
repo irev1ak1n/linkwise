@@ -3,6 +3,9 @@
 // shows on every page, but collection only runs on a /in/... profile. Never fetches another
 // page or clicks anything beyond a safe "see more" toggle.
 //
+// Jobs filtering (see jobs/jobsRuntime.ts) is a separate feature, only active on a jobs search
+// page, driven from the same tick loop below.
+//
 // Two scanning modes, user-selectable (see panel/scanModeStore.ts): "scroll" (default) never
 // moves the page, it only ever reacts to sections the user reveals by scrolling manually.
 // "auto" is the only mode allowed to scroll the page itself (see autoScroll.ts), so lazy-loaded
@@ -55,6 +58,8 @@ import { getScanModeState, initScanModeStore, subscribeScanModeStore, type ScanM
 import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsStore } from "./panel/expandDetailsStore";
 import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedAnalysisStore } from "./panel/enhancedAnalysisStore";
 import { expandSeeMoreToggles } from "./expandContent";
+import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
+import { runJobsTick } from "./jobs/jobsRuntime";
 
 const DOCUMENT_END_MARGIN_PX = 600;
 const MUTATION_DEBOUNCE_MS = 900;
@@ -338,6 +343,7 @@ function tickAutoScanCrawl(): void {
 function tick(): void {
   if (torndown) return;
   ensureLinkWiseOpener(togglePanel);
+  runJobsTick(location.href, getJobsSettingsState().settings);
   const mode = getScanModeState().mode;
   const isDetailsPage = /\/details\//.test(location.href);
 
@@ -415,6 +421,9 @@ registerCleanup(subscribeExpandDetailsStore(tick));
 
 initEnhancedAnalysisStore();
 registerCleanup(subscribeEnhancedAnalysisStore(tick));
+
+initJobsSettingsStore();
+registerCleanup(subscribeJobsSettingsStore(tick));
 
 tick();
 watchForChanges();

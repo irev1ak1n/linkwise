@@ -1004,3 +1004,159 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     expect(getPanelProfileData().profile?.extracted).toBe(true); // evidence collected so far wasn't thrown away
   });
 });
+
+describe("content.ts bootstrap - Jobs filtering", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  function appliedJobCard(id: string): string {
+    return `
+      <li data-occludable-job-id="${id}">
+        <a href="/jobs/view/${id}/"><span>Job ${id}</span></a>
+        <ul><li class="job-card-container__footer-job-state">Applied</li></ul>
+      </li>
+    `;
+  }
+
+  function plainJobCard(id: string, title: string): string {
+    return `<li data-occludable-job-id="${id}"><a href="/jobs/view/${id}/"><span>${title}</span></a></li>`;
+  }
+
+  function setJobsSearchPage(html: string): void {
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `<ul class="jobs-list">${html}</ul>`;
+  }
+
+  it("hides applied jobs on a jobs search page", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
+    });
+    stubNonProfileUrl("/jobs/search/?keywords=engineer");
+    setJobsSearchPage(appliedJobCard("1") + plainJobCard("2", "Engineer"));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
+    expect(document.querySelector('[data-occludable-job-id="2"]')?.classList.contains("lw-job-hidden")).toBe(false);
+  });
+
+  it("switching from hide to highlight restores hidden cards and highlights them instead", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
+    });
+    stubNonProfileUrl("/jobs/search/?keywords=engineer");
+    setJobsSearchPage(appliedJobCard("1"));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
+
+    const { setJobsSettings } = await import("./panel/jobsSettingsStore");
+    setJobsSettings({ appliedAction: "highlight", keywordsText: "", keywordAction: "none", caseInsensitive: true });
+    await vi.advanceTimersByTimeAsync(3000);
+
+    const card = document.querySelector('[data-occludable-job-id="1"]');
+    expect(card?.classList.contains("lw-job-hidden")).toBe(false);
+    expect(card?.classList.contains("lw-job-highlight")).toBe(true);
+  });
+
+  it("do nothing restores normal appearance", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
+    });
+    stubNonProfileUrl("/jobs/search/?keywords=engineer");
+    setJobsSearchPage(appliedJobCard("1"));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+
+    const { setJobsSettings } = await import("./panel/jobsSettingsStore");
+    setJobsSettings({ appliedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true });
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.className).toBe("");
+  });
+
+  it("keyword filtering hides matching cards, case-insensitively by default", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.jobsSettings.v1": { appliedAction: "none", keywordsText: "senior, contract", keywordAction: "hide", caseInsensitive: true },
+      }),
+    });
+    stubNonProfileUrl("/jobs/search/?keywords=engineer");
+    setJobsSearchPage(plainJobCard("1", "SENIOR Engineer") + plainJobCard("2", "Contract Role") + plainJobCard("3", "Junior Role"));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
+    expect(document.querySelector('[data-occludable-job-id="2"]')?.classList.contains("lw-job-hidden")).toBe(true);
+    expect(document.querySelector('[data-occludable-job-id="3"]')?.classList.contains("lw-job-hidden")).toBe(false);
+  });
+
+  it("processes a newly inserted job card automatically", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
+    });
+    stubNonProfileUrl("/jobs/search/?keywords=engineer");
+    setJobsSearchPage(plainJobCard("1", "Engineer"));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+
+    document.querySelector(".jobs-list")!.insertAdjacentHTML("beforeend", appliedJobCard("2"));
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(document.querySelector('[data-occludable-job-id="2"]')?.classList.contains("lw-job-hidden")).toBe(true);
+  });
+
+  it("does not touch job cards on a non-jobs page", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
+    });
+    stubNonProfileUrl("/feed/");
+    setJobsSearchPage(appliedJobCard("1"));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.className).toBe("");
+  });
+
+  it("reprocesses a new jobs search after SPA navigation", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.jobsSettings.v1": { appliedAction: "hide", keywordsText: "", keywordAction: "none", caseInsensitive: true } }),
+    });
+    stubNonProfileUrl("/jobs/search/?keywords=engineer");
+    setJobsSearchPage(appliedJobCard("1"));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
+
+    stubNonProfileUrl("/jobs/search/?keywords=designer");
+    document.body.innerHTML = "";
+    setJobsSearchPage(appliedJobCard("2"));
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(document.querySelector('[data-occludable-job-id="2"]')?.classList.contains("lw-job-hidden")).toBe(true);
+  });
+});
