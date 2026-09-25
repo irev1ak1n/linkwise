@@ -156,3 +156,6 @@ CLAUDE.local.md
 # extension:reload / live:test) — holds a real LinkedIn session cookie once signed in; never
 # shared or committed.
 .dev-chrome-profile/
+
+# JetBrains IDE files
+.idea/
