@@ -46,6 +46,7 @@ export const evidenceSectionSchema = z.enum([
   "organizations",
   "volunteering",
   "languages",
+  "honors",
   "headline",
   "location",
 ]);

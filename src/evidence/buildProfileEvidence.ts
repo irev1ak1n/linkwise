@@ -40,7 +40,7 @@ export function buildProfileEvidence(profile: LinkedInProfile): ProfileEvidence 
     locations: bySection(["location"]),
     languages: bySection(["languages"]),
     interests: all.filter((item) => INTEREST_TEXT_PATTERN.test(item.text)),
-    accomplishments: bySection(["certifications"]),
+    accomplishments: bySection(["certifications", "honors"]),
     all,
     sectionsWithContent: new Set(fields.map((field) => field.section)),
   };
