@@ -15,6 +15,12 @@ export function ensureJobStylesInjected(doc: Document): void {
   doc.head.appendChild(style);
 }
 
+export function getCardCurrentAction(card: HTMLElement): JobCardAction {
+  if (card.classList.contains(HIDDEN_CLASS)) return "hide";
+  if (card.classList.contains(HIGHLIGHT_CLASS)) return "highlight";
+  return "none";
+}
+
 export function applyCardAction(card: HTMLElement, action: JobCardAction): void {
   card.classList.remove(HIDDEN_CLASS, HIGHLIGHT_CLASS);
   if (action === "hide") card.classList.add(HIDDEN_CLASS);

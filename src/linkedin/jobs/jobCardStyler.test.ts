@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { applyCardAction, ensureJobStylesInjected, restoreCard } from "./jobCardStyler";
+import { applyCardAction, ensureJobStylesInjected, getCardCurrentAction, restoreCard } from "./jobCardStyler";
 
 function freshCard(): HTMLElement {
   const li = document.createElement("li");
@@ -52,6 +52,24 @@ describe("restoreCard", () => {
     applyCardAction(card, "highlight");
     restoreCard(card);
     expect(card.className).toBe("");
+  });
+});
+
+describe("getCardCurrentAction", () => {
+  it("reads none for a plain card", () => {
+    expect(getCardCurrentAction(freshCard())).toBe("none");
+  });
+
+  it("reads hide from an already-hidden card", () => {
+    const card = freshCard();
+    applyCardAction(card, "hide");
+    expect(getCardCurrentAction(card)).toBe("hide");
+  });
+
+  it("reads highlight from an already-highlighted card", () => {
+    const card = freshCard();
+    applyCardAction(card, "highlight");
+    expect(getCardCurrentAction(card)).toBe("highlight");
   });
 });
 

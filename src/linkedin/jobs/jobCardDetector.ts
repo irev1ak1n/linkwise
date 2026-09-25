@@ -35,3 +35,10 @@ export function findJobCards(root: ParentNode = document): JobCard[] {
     element,
   }));
 }
+
+// LinkedIn renders a card's outer wrapper before its title/content settle, so an empty title
+// means the card isn't ready to evaluate yet, not that it truly has no title.
+export function isJobCardRendered(card: HTMLElement): boolean {
+  const title = card.querySelector('.job-card-list__title--link, a[href*="/jobs/view/"]');
+  return !!title?.textContent?.trim();
+}

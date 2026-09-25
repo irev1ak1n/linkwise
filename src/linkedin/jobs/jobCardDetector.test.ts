@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { findJobCards } from "./jobCardDetector";
+import { findJobCards, isJobCardRendered } from "./jobCardDetector";
 
 function setBody(html: string): void {
   document.body.innerHTML = html;
@@ -82,5 +82,25 @@ describe("findJobCards", () => {
   it("returns nothing on a page with no job cards", () => {
     setBody(`<div>Not a jobs page</div>`);
     expect(findJobCards(document)).toEqual([]);
+  });
+});
+
+describe("isJobCardRendered", () => {
+  it("is false for a ghost placeholder with no title yet", () => {
+    setBody(`<li data-occludable-job-id="1"><!----></li>`);
+    const card = document.querySelector("li")!;
+    expect(isJobCardRendered(card)).toBe(false);
+  });
+
+  it("is true once the title link has real text", () => {
+    setBody(`<li data-occludable-job-id="1"><a href="/jobs/view/1/">Software Engineer</a></li>`);
+    const card = document.querySelector("li")!;
+    expect(isJobCardRendered(card)).toBe(true);
+  });
+
+  it("is false when the title link exists but is still empty", () => {
+    setBody(`<li data-occludable-job-id="1"><a href="/jobs/view/1/"></a></li>`);
+    const card = document.querySelector("li")!;
+    expect(isJobCardRendered(card)).toBe(false);
   });
 });
