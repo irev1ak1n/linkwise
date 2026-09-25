@@ -98,3 +98,20 @@ describe("isJobCardSaved", () => {
     expect(isJobCardSaved(card)).toBe(false);
   });
 });
+
+describe("new search-results layout", () => {
+  it("recognizes a bare Viewed <p>", () => {
+    const card = buildCard(`<p>Associate Engineer</p><p>Acme</p><p>Viewed</p>`);
+    expect(isJobCardViewed(card)).toBe(true);
+  });
+
+  it("recognizes a bare Saved <p>", () => {
+    expect(isJobCardSaved(buildCard(`<p>Engineer</p><p>Saved</p>`))).toBe(true);
+  });
+
+  it("does not mistake a title or company starting with the state word", () => {
+    const card = buildCard(`<p>Applied Scientist</p><p>Applied Materials</p><p>Saved Search Co</p>`);
+    expect(isJobCardApplied(card)).toBe(false);
+    expect(isJobCardSaved(card)).toBe(false);
+  });
+});

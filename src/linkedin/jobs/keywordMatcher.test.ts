@@ -72,3 +72,11 @@ describe("matchedKeyword", () => {
     expect(matchedKeyword("Remote Junior role", ["Staff", "Senior"], true)).toBeNull();
   });
 });
+
+describe("extractCardText on the new search-results layout", () => {
+  it("uses title, company and location but not state or posting lines", () => {
+    const card = document.createElement("div");
+    card.innerHTML = `<p>Kotlin Developer</p><p>Kaleidoscope</p><p>Remote</p><p>Viewed</p><p>Easy Apply</p>`;
+    expect(extractCardText(card)).toBe("Kotlin Developer Kaleidoscope Remote");
+  });
+});

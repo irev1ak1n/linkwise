@@ -16,7 +16,10 @@ export function parseKeywords(keywordsText: string): string[] {
 }
 
 export function extractCardText(card: HTMLElement): string {
-  const parts = Array.from(card.querySelectorAll<HTMLElement>(TEXT_SELECTORS)).map((el) => el.textContent ?? "");
+  let els = Array.from(card.querySelectorAll<HTMLElement>(TEXT_SELECTORS));
+  // New layout: title, company and location are the first three <p>s.
+  if (els.length === 0) els = Array.from(card.querySelectorAll<HTMLElement>("p")).slice(0, 3);
+  const parts = els.map((el) => el.textContent ?? "");
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 

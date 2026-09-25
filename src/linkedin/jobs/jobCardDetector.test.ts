@@ -104,3 +104,28 @@ describe("isJobCardRendered", () => {
     expect(isJobCardRendered(card)).toBe(false);
   });
 });
+
+describe("new search-results layout", () => {
+  const html = `
+    <div data-testid="lazy-column">
+      <div role="button" componentkey="job-card-component-ref-555">
+        <div componentkey="job-card-component-ref-555">
+          <p>Kotlin Developer</p><p>Acme</p><p>Charlotte, NC</p><p>Viewed</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  it("detects the outermost componentkey card with its job id", () => {
+    setBody(html);
+    const cards = findJobCards(document);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].jobId).toBe("555");
+    expect(cards[0].element.getAttribute("role")).toBe("button");
+  });
+
+  it("treats a card with a titled <p> as rendered", () => {
+    setBody(html);
+    expect(isJobCardRendered(findJobCards(document)[0].element)).toBe(true);
+  });
+});

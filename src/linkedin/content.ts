@@ -60,6 +60,7 @@ import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedA
 import { expandSeeMoreToggles } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
+import { JOB_CARD_SELECTOR } from "./jobs/jobCardDetector";
 import { claimRuntime } from "./runtimeTakeover";
 import { watchForContextInvalidation } from "./extensionContext";
 
@@ -399,12 +400,12 @@ function watchForChanges(): void {
   // even get replaced outright. Reacting to those immediately (not on the general debounce) keeps
   // a hidden card from flashing visible for the debounce window.
   const isJobCardOrHasOne = (node: Node) =>
-    node instanceof Element && (node.matches("[data-occludable-job-id]") || !!node.querySelector("[data-occludable-job-id]"));
+    node instanceof Element && (node.matches(JOB_CARD_SELECTOR) || !!node.querySelector(JOB_CARD_SELECTOR));
 
   const observer = new MutationObserver((records) => {
     const touchesJobCard = records.some(
       (r) =>
-        (r.target as Element).closest?.("[data-occludable-job-id]") ||
+        (r.target as Element).closest?.(JOB_CARD_SELECTOR) ||
         Array.from(r.addedNodes).some(isJobCardOrHasOne) ||
         Array.from(r.removedNodes).some(isJobCardOrHasOne),
     );
