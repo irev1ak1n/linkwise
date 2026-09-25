@@ -47,6 +47,18 @@ export function JobsSettingsSection({ settings, onChange }: JobsSettingsSectionP
         value={settings.appliedAction}
         onChange={(appliedAction) => onChange({ ...settings, appliedAction })}
       />
+      <ActionRadioGroup
+        name="lw-viewed-action"
+        label="Viewed jobs"
+        value={settings.viewedAction}
+        onChange={(viewedAction) => onChange({ ...settings, viewedAction })}
+      />
+      <ActionRadioGroup
+        name="lw-saved-action"
+        label="Saved jobs"
+        value={settings.savedAction}
+        onChange={(savedAction) => onChange({ ...settings, savedAction })}
+      />
       <label className="lw-jobs-settings__keywords-label">
         Keyword filters
         <textarea
