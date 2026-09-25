@@ -25,8 +25,14 @@ export function subscribeJobsSettingsStore(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
+let writeGeneration = 0;
+
+// A storage-change echo of our own recent write can resolve after a newer keystroke, otherwise
+// overwriting it with stale text mid-typing.
 async function refresh(): Promise<void> {
+  const generationAtStart = writeGeneration;
   const settings = await loadJobsSettings();
+  if (writeGeneration !== generationAtStart) return;
   setState({ settings, loaded: true });
 }
 
@@ -45,6 +51,7 @@ export function initJobsSettingsStore(): void {
 }
 
 export function setJobsSettings(settings: JobsSettings): void {
+  writeGeneration++;
   setState({ settings, loaded: true });
   void saveJobsSettings(settings);
 }
