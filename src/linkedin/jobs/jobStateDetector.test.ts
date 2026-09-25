@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { isJobCardApplied, isJobCardViewed } from "./jobStateDetector";
+import { isJobCardApplied, isJobCardSaved, isJobCardViewed } from "./jobStateDetector";
 
 function buildCard(html: string): HTMLElement {
   const li = document.createElement("li");
@@ -69,5 +69,32 @@ describe("isJobCardViewed", () => {
   it("returns false for a plain card with no state at all", () => {
     const card = buildCard(`<a href="/jobs/view/1/">Software Engineer</a>`);
     expect(isJobCardViewed(card)).toBe(false);
+  });
+});
+
+describe("isJobCardSaved", () => {
+  it("recognizes the real footer-job-state 'Saved' badge", () => {
+    const card = buildCard(`<li class="job-card-container__footer-job-state t-bold">Saved</li>`);
+    expect(isJobCardSaved(card)).toBe(true);
+  });
+
+  it("does not treat 'Applied' as saved", () => {
+    const card = buildCard(`<li class="job-card-container__footer-job-state">Applied</li>`);
+    expect(isJobCardSaved(card)).toBe(false);
+  });
+
+  it("does not treat 'Viewed' as saved", () => {
+    const card = buildCard(`<li class="job-card-container__footer-job-state">Viewed</li>`);
+    expect(isJobCardSaved(card)).toBe(false);
+  });
+
+  it("recognizes an aria-label starting with Saved", () => {
+    const card = buildCard(`<button aria-label="Saved">icon</button>`);
+    expect(isJobCardSaved(card)).toBe(true);
+  });
+
+  it("returns false for a plain card with no state at all", () => {
+    const card = buildCard(`<a href="/jobs/view/1/">Software Engineer</a>`);
+    expect(isJobCardSaved(card)).toBe(false);
   });
 });

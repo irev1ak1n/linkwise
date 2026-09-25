@@ -22,3 +22,7 @@ export function isJobCardApplied(card: HTMLElement): boolean {
 export function isJobCardViewed(card: HTMLElement): boolean {
   return hasJobState(card, /^viewed\b/i);
 }
+
+export function isJobCardSaved(card: HTMLElement): boolean {
+  return hasJobState(card, /^saved\b/i);
+}
