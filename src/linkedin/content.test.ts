@@ -1265,4 +1265,23 @@ describe("content.ts bootstrap - Jobs filtering", () => {
 
     expect(document.querySelector('[data-occludable-job-id="2"]')?.classList.contains("lw-job-hidden")).toBe(true);
   });
+
+  it("reacts to a job card mutation immediately, without waiting for the general debounce", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.jobsSettings.v1": { appliedAction: "hide", viewedAction: "none", savedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true },
+      }),
+    });
+    stubNonProfileUrl("/jobs/search/?keywords=engineer");
+    setJobsSearchPage(plainJobCard("1", "Engineer"));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+
+    document.querySelector(".jobs-list")!.insertAdjacentHTML("beforeend", appliedJobCard("2"));
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(document.querySelector('[data-occludable-job-id="2"]')?.classList.contains("lw-job-hidden")).toBe(true);
+  });
 });

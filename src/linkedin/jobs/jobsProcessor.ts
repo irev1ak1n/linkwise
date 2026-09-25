@@ -25,12 +25,6 @@ export function processJobCards(root: ParentNode, settings: JobsSettings): void 
     const keyword = keywords.length > 0 ? matchedKeyword(extractCardText(element), keywords, settings.caseInsensitive) : null;
     const desired = decideCardAction({ applied, viewed, saved, matchedKeyword: keyword }, settings);
 
-    // TEMP DEBUG
-    if (localStorage.getItem("lw_debug") === "1") {
-      // eslint-disable-next-line no-console
-      console.log("[LWJOBS]", JSON.stringify({ jobId, applied, viewed, saved, keyword, domCurrent, desired, t: Date.now() }));
-    }
-
     if (domCurrent !== desired) applyCardAction(element, desired);
     if (jobId) setTrackedState(jobId, desired);
   }

@@ -388,7 +388,22 @@ function watchForChanges(): void {
     if (debounceHandle) clearTimeout(debounceHandle);
   });
 
-  const observer = new MutationObserver(scheduleTick);
+  // Job cards render in a rapid burst of childList mutations as LinkedIn builds them out, and can
+  // even get replaced outright. Reacting to those immediately (not on the general debounce) keeps
+  // a hidden card from flashing visible for the debounce window.
+  const isJobCardOrHasOne = (node: Node) =>
+    node instanceof Element && (node.matches("[data-occludable-job-id]") || !!node.querySelector("[data-occludable-job-id]"));
+
+  const observer = new MutationObserver((records) => {
+    const touchesJobCard = records.some(
+      (r) =>
+        (r.target as Element).closest?.("[data-occludable-job-id]") ||
+        Array.from(r.addedNodes).some(isJobCardOrHasOne) ||
+        Array.from(r.removedNodes).some(isJobCardOrHasOne),
+    );
+    if (touchesJobCard) runJobsTick(location.href, getJobsSettingsState().settings);
+    scheduleTick();
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   registerCleanup(() => observer.disconnect());
 
