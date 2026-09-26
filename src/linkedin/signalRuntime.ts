@@ -3,6 +3,8 @@ import type { ProfileSignalDTO } from "../ai/signalTypes";
 import type { LinkedInProfile } from "../models/profile";
 import { SignalHighlighter } from "./signalHighlighter";
 import type { SignalTarget } from "./signalRanges";
+import { profileIdentityKey } from "./profileAdapter";
+import type { PanelProfileData } from "./panel/panelStore";
 
 export const INLINE_MIN_IMPORTANCE = 0.6;
 
@@ -16,6 +18,19 @@ export interface SignalTickInput {
 
 export function isMainProfilePage(href: string): boolean {
   return /linkedin\.com\/in\/[^/?#]+\/?(?:[?#]|$)/.test(href);
+}
+
+// Panel data can still describe the previous profile for a tick after SPA navigation.
+export function signalTickInput(enabled: boolean, href: string, data: PanelProfileData): SignalTickInput {
+  const profileKey = profileIdentityKey(href);
+  const current = profileKey !== null && data.profileKey === profileKey;
+  return {
+    enabled,
+    href,
+    profileKey,
+    profile: current ? data.profile : null,
+    ready: current && data.collection?.status === "settled" && data.autoScanProgress?.status !== "scanning",
+  };
 }
 
 export function signalTargets(signals: ProfileSignalDTO[]): SignalTarget[] {

@@ -62,7 +62,7 @@ import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore
 import { runJobsTick } from "./jobs/jobsRuntime";
 import { JOB_CARD_SELECTOR } from "./jobs/jobCardDetector";
 import { claimRuntime } from "./runtimeTakeover";
-import { createSignalRuntime } from "./signalRuntime";
+import { createSignalRuntime, signalTickInput } from "./signalRuntime";
 import { SignalHighlighter } from "./signalHighlighter";
 import { getSignalModeState, initSignalModeStore, publishSignalAnalysis, subscribeSignalModeStore } from "./panel/signalModeStore";
 import { watchForContextInvalidation } from "./extensionContext";
@@ -355,14 +355,7 @@ const signalRuntime = createSignalRuntime({ highlighter: new SignalHighlighter(d
 registerCleanup(() => signalRuntime.dispose());
 
 function tickSignals(): void {
-  const data = getPanelProfileData();
-  signalRuntime.tick({
-    enabled: getSignalModeState().enabled,
-    href: location.href,
-    profileKey: data.profileKey,
-    profile: data.profile,
-    ready: data.collection?.status === "settled" && data.autoScanProgress?.status !== "scanning",
-  });
+  signalRuntime.tick(signalTickInput(getSignalModeState().enabled, location.href, getPanelProfileData()));
 }
 
 function tick(): void {

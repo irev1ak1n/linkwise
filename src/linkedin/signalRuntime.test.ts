@@ -5,7 +5,7 @@ import { SignalAnalysisController, type SignalAnalysisState } from "../ai/signal
 import type { AnalyzeSignalsRequestBody } from "../ai/signalsClient";
 import type { SignalAnalysisOutcome } from "../ai/signalTypes";
 import { QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
-import { createSignalRuntime, isMainProfilePage, signalTargets } from "./signalRuntime";
+import { createSignalRuntime, isMainProfilePage, signalTargets, signalTickInput } from "./signalRuntime";
 
 const entries = new Map<string, { ranges: Range[] }>();
 const registry: HighlightRegistryLike = { set: (n, h) => entries.set(n, h as unknown as { ranges: Range[] }), delete: (n) => entries.delete(n) };
@@ -64,6 +64,26 @@ describe("signalTargets", () => {
   it("keeps only signals above the inline threshold", () => {
     const base = { evidenceId: "about:0", section: "about" as const, type: "role" as const, strength: "moderate" as const, metrics: [] };
     expect(signalTargets([{ ...base, quote: "a", importance: 0.55 }, { ...base, quote: "b", importance: 0.8 }]).map((t) => t.quote)).toEqual(["b"]);
+  });
+});
+
+describe("signalTickInput", () => {
+  const collection = { status: "settled" } as never;
+
+  it("uses panel data that belongs to the current URL", () => {
+    const input = signalTickInput(true, JORDAN, { profileKey: "jordan", profile: profile("x"), collection });
+    expect(input).toMatchObject({ profileKey: "jordan", ready: true });
+    expect(input.profile).not.toBeNull();
+  });
+
+  it("ignores the previous profile's data right after SPA navigation", () => {
+    const input = signalTickInput(true, "https://www.linkedin.com/in/sam/", { profileKey: "jordan", profile: profile("x"), collection });
+    expect(input).toEqual({ enabled: true, href: "https://www.linkedin.com/in/sam/", profileKey: "sam", profile: null, ready: false });
+  });
+
+  it("is not ready while an auto scan is still crawling", () => {
+    const scanning = { sessionId: "s", status: "scanning" as const, currentIndex: 0, sections: [] };
+    expect(signalTickInput(true, JORDAN, { profileKey: "jordan", profile: profile("x"), collection, autoScanProgress: scanning }).ready).toBe(false);
   });
 });
 
