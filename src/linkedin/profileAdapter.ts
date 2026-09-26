@@ -51,6 +51,19 @@ function textWithoutControls(element: Element): string | undefined {
   return cleanText(clone.textContent);
 }
 
+// In newer layouts only grouped positions are list items, so single entries live beside them.
+function textOutsideItems(section: HTMLElement, name: ProfileSectionName): string | undefined {
+  const clone = section.cloneNode(true) as HTMLElement;
+  const matches = matcherFor(name);
+  clone.querySelectorAll("li, button, svg").forEach((node) => node.remove());
+  clone.querySelectorAll("h2, h3").forEach((h) => {
+    if (matches((h.textContent ?? "").trim().toLowerCase())) h.remove();
+  });
+  clone.querySelectorAll("br").forEach((node) => node.replaceWith(" "));
+  clone.querySelectorAll("p").forEach((node) => node.append(" "));
+  return cleanText(clone.textContent?.replace(/show all \d+ [a-z]+/gi, ""));
+}
+
 // Newer profile layouts render each entry line as a <p>, with aria-hidden reserved for controls
 // like the "… more" button rather than a duplicate visible copy.
 function entryLines(item: HTMLElement): string[] {
@@ -236,7 +249,10 @@ function extractExperience(headings: HTMLElement[]): ProfileExperienceEntry[] {
       };
       if (entry.title || entry.company || entry.description) entries.push(entry);
     }
-    if (entries.length > 0) return entries;
+    if (entries.length > 0) {
+      const rest = textOutsideItems(section, "experience");
+      return rest ? [...entries, { description: rest }] : entries;
+    }
   }
 
   const body = sectionBodyText(section, "experience");
@@ -286,7 +302,10 @@ function extractListEntries(headings: HTMLElement[], name: ProfileSectionName): 
       const entry: ProfileListEntry = { name: cleanText(entryName), description: cleanText(description) };
       if (entry.name || entry.description) entries.push(entry);
     }
-    if (entries.length > 0) return entries;
+    if (entries.length > 0) {
+      const rest = textOutsideItems(section, name);
+      return rest ? [...entries, { description: rest }] : entries;
+    }
   }
 
   const body = sectionBodyText(section, name);

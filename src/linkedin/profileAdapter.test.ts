@@ -456,3 +456,21 @@ describe("extractLinkedInProfile - sidebar headings", () => {
     expect(extractLinkedInProfile(document).languages).toEqual([{ name: "Spanish", description: "Native or bilingual proficiency" }]);
   });
 });
+
+describe("extractLinkedInProfile - single entries beside grouped positions", () => {
+  it("keeps a single position that is not a list item", () => {
+    setBody(`
+      <main role="main">
+        <section><h1>Jordan Rivera</h1><p>Student Developer</p></section>
+        <section><h2>Experience</h2>
+          <div><p>Robotics Club</p><ul><li><p>Web Team Lead</p><p>Feb 2026 - Apr 2026</p><p>• Led a 4-person web team</p></li></ul></div>
+          <div><p>Private Tutor</p><p>Self-Employed</p><p><span>• Completed 60+ hours of tutoring<br>• Supported 15+ students</span><button aria-hidden="true">… more</button></p></div>
+          <a href="#">Show all 5 experiences</a>
+        </section>
+      </main>
+    `);
+    const experience = extractLinkedInProfile(document).experience;
+    expect(experience[0]).toMatchObject({ title: "Web Team Lead" });
+    expect(experience[1]!.description).toBe("Robotics Club Private Tutor Self-Employed • Completed 60+ hours of tutoring • Supported 15+ students");
+  });
+});
