@@ -23,7 +23,7 @@ const SECTION_MATCHERS: { name: ProfileSectionName; matches: (headingText: strin
   { name: "certifications", matches: (t) => t.includes("certification") || t.includes("license") },
   { name: "organizations", matches: (t) => t.includes("organization") },
   { name: "volunteering", matches: (t) => t.includes("volunteer") },
-  { name: "languages", matches: (t) => t.includes("language") },
+  { name: "languages", matches: (t) => t.startsWith("language") },
   { name: "honors", matches: (t) => t.includes("honor") || t.includes("award") },
 ];
 

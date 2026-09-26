@@ -432,3 +432,27 @@ describe("extractLinkedInProfile - newer paragraph-based layout", () => {
     expect(JSON.stringify(profile)).not.toContain("more");
   });
 });
+
+describe("extractLinkedInProfile - sidebar headings", () => {
+  it("never reads the sidebar 'Profile language' card as the Languages section", () => {
+    setBody(`
+      <main role="main">
+        <section><h1>Jordan Rivera</h1><p>Student Developer</p></section>
+        <section><h2>Profile language</h2><p>English</p></section>
+      </main>
+    `);
+    expect(extractLinkedInProfile(document).languages).toEqual([]);
+    expect(detectProfileSections(document)).not.toContain("languages");
+  });
+
+  it("still reads a counted 'Languages (3)' section", () => {
+    setBody(`
+      <main role="main">
+        <section><h1>Jordan Rivera</h1><p>Student Developer</p></section>
+        <section><h2>Languages (3)</h2><ul><li><p>Spanish</p><p>Native or bilingual proficiency</p></li></ul></section>
+        <section><h2>Profile language</h2><p>English</p></section>
+      </main>
+    `);
+    expect(extractLinkedInProfile(document).languages).toEqual([{ name: "Spanish", description: "Native or bilingual proficiency" }]);
+  });
+});
