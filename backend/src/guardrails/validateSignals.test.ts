@@ -174,6 +174,16 @@ describe("validateSignals", () => {
     expect(kept.signals.map((s) => s.quote)).toEqual(["Seattle Robotics Club 5 yrs 1 mo", "Python"]);
   });
 
+  it("never treats a bare year as a metric", () => {
+    const items: EvidenceText[] = [{ id: "education:0", section: "education", text: "In 2025, I graduated with a Higher National Diploma" }];
+    const result = validateSignals(
+      { signals: [signal({ evidenceId: "education:0", quote: "In 2025, I graduated with a Higher National Diploma", type: "credential", facts: [{ text: "Higher National Diploma in 2025", metric: "2025" }] })] },
+      items,
+    );
+    expect(result.signals[0]!.metrics).toEqual([]);
+    expect(result.facts.map((f) => f.text)).toEqual(["Higher National Diploma in 2025"]);
+  });
+
   it("orders by importance and caps the signal count", () => {
     const many = Array.from({ length: MAX_SIGNALS + 5 }, (_, i) =>
       signal({ evidenceId: `skills:${i}`, quote: "Python", importance: 0.5 + i / 100, facts: [] }),

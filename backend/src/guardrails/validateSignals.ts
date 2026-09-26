@@ -84,6 +84,10 @@ export function findGroundedText(haystack: string, needle: string): string | nul
   return haystack.slice(start, end);
 }
 
+function isBareYear(metric: string): boolean {
+  return /^(19|20)\d{2}$/.test(metric.trim());
+}
+
 function numbersIn(text: string): string[] {
   return text.match(/\d+(?:[.,]\d+)*/g) ?? [];
 }
@@ -131,8 +135,8 @@ function toCandidate(raw: ProfileSignal, evidence: Map<string, EvidenceText>): C
     if (fact.metric && !metric) continue;
     const text = fact.text.trim();
     if (text.length === 0 || text.length > MAX_FACT_LENGTH || !factIsGrounded(text, quote)) continue;
-    if (metric && !metrics.includes(metric)) metrics.push(metric);
-    facts.push({ text, quantified: metric !== null });
+    if (metric && !isBareYear(metric) && !metrics.includes(metric)) metrics.push(metric);
+    facts.push({ text, quantified: metric !== null && !isBareYear(metric) });
   }
 
   if (isBareNumber(quote, metrics)) return null;
