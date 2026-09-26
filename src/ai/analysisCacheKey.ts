@@ -11,3 +11,8 @@ export function computeAnalysisCacheKey(goal: Goal, request: AnalyzeProfileReque
   const goalHash = hashString(JSON.stringify({ name: goal.name, criteria: goal.criteria.map((c) => ({ label: c.label, importance: c.importance })) }));
   return buildCacheKey({ profileIdentity: request.profile.identity, evidenceHash, goalHash });
 }
+
+// Same profile and goal, regardless of how much evidence has been collected so far.
+export function analysisSubjectKey(goal: Goal, request: AnalyzeProfileRequestBody): string {
+  return computeAnalysisCacheKey(goal, { ...request, profile: { ...request.profile, evidence: [] } });
+}

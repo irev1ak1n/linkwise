@@ -458,6 +458,17 @@ export function getPanelStyles(widthPx: number): string {
     border-color: #f3c6c1;
   }
 
+  .lw-ai-retry {
+    margin-left: 6px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: #0a66c2;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
   .lw-signals {
     display: flex;
     flex-direction: column;

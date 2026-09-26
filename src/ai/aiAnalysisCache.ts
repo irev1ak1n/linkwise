@@ -52,6 +52,10 @@ export function getOrStartInFlight(key: string, start: () => Promise<AiAnalysisO
   return promise;
 }
 
+export function forgetInFlight(key: string): void {
+  inFlightRequests.delete(key);
+}
+
 /** For tests, resets both maps between cases. */
 export function clearAiAnalysisCache(): void {
   resultCache.clear();

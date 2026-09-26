@@ -16,12 +16,13 @@ interface AnalysisViewProps {
   /** Always already resolved, "ready" or "unavailable" only. PanelApp shows a LoadingView
    * while AI is still pending. */
   aiState: Extract<AiAnalysisState, { status: "ready" } | { status: "unavailable" }>;
+  onRetry?: () => void;
 }
 
 // The final profile analysis, never a preview of an in-progress read. A statement of
 // relevance to the current goal, not a judgment of the person. Shows one result, never
 // local and AI side by side.
-export function AnalysisView({ result, goal, profile, aiState }: AnalysisViewProps) {
+export function AnalysisView({ result, goal, profile, aiState, onRetry }: AnalysisViewProps) {
   const evidence = useMemo(() => buildProfileEvidence(profile), [profile]);
 
   const final = useMemo(() => {
@@ -45,6 +46,11 @@ export function AnalysisView({ result, goal, profile, aiState }: AnalysisViewPro
         {aiState.status === "unavailable" && (
           <p className="lw-ai-status">
             AI analysis unavailable ({describeAiUnavailableReason(aiState.reason)}) — showing local analysis.
+            {onRetry && (
+              <button type="button" className="lw-ai-retry" onClick={onRetry}>
+                Retry
+              </button>
+            )}
           </p>
         )}
         {final.source === "ai" && (

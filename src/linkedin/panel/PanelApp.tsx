@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCollectionData } from "./useCollectionData";
 import { useGoalStore } from "./useGoalStore";
 import { useAiAnalysis } from "./useAiAnalysis";
@@ -43,12 +43,18 @@ export function PanelApp({ onClose }: PanelAppProps) {
   // if the currently-open page has settled, always final once the whole crawl completes.
   const autoScanActive = autoScanProgress?.status === "scanning";
   const autoScanComplete = autoScanProgress?.status === "complete";
-  const isFinal = forced || autoScanComplete || (!autoScanActive && collection?.status === "settled");
+  const reachedFinal = forced || autoScanComplete || (!autoScanActive && collection?.status === "settled");
+  // Once final, later evidence refreshes the analysis instead of hiding it again.
+  const [finalKeys, setFinalKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (reachedFinal && profileKey && !finalKeys.has(profileKey)) setFinalKeys((prev) => new Set(prev).add(profileKey));
+  }, [reachedFinal, profileKey, finalKeys]);
+  const isFinal = reachedFinal || (profileKey !== null && finalKeys.has(profileKey) && !autoScanActive);
 
   // Memoized so this stays reference-stable, an unstable one would re-trigger AI on every render.
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
 
-  const aiState = useAiAnalysis(goal, profile, result, isFinal);
+  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal);
 
   function handleAnalyzeNow(): void {
     if (!profileKey) return;
@@ -83,7 +89,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
     if (aiState.status === "idle") return <LoadingView label="Preparing results…" />;
     if (aiState.status === "loading") return <LoadingView label="Analyzing match…" />;
 
-    return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} />;
+    return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} />;
   }
 
   return (

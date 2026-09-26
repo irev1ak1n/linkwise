@@ -190,3 +190,95 @@ describe("AiAnalysisController - stale result handling", () => {
     expect(firstCall.cancel).toHaveBeenCalled();
   });
 });
+
+describe("AiAnalysisController - evidence growth during a request", () => {
+  const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+
+  function deferred() {
+    let resolve!: (o: AiAnalysisOutcome) => void;
+    const promise = new Promise<AiAnalysisOutcome>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+
+  it("does not resend or cancel when the same evidence arrives as a new object", () => {
+    const { pending, cancel } = makePendingRequest(new Promise(() => {}));
+    const requestAiAnalysis = vi.fn(() => pending);
+    const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 100 });
+    controller.request(goal, profile({ skills: ["Python"] }), scoreProfileAgainstGoal(goal, profile({ skills: ["Python"] })), vi.fn());
+    vi.advanceTimersByTime(100);
+    for (let i = 0; i < 5; i++) {
+      const same = profile({ skills: ["Python"] });
+      controller.request(goal, same, scoreProfileAgainstGoal(goal, same), vi.fn());
+      vi.advanceTimersByTime(1000);
+    }
+    expect(requestAiAnalysis).toHaveBeenCalledTimes(1);
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("keeps the in-flight request, shows its result, then sends one refresh with the newest evidence", async () => {
+    const first = deferred();
+    const second = deferred();
+    const cancels = [vi.fn(), vi.fn()];
+    const requestAiAnalysis = vi
+      .fn()
+      .mockReturnValueOnce({ requestId: "1", promise: first.promise, cancel: cancels[0] })
+      .mockReturnValueOnce({ requestId: "2", promise: second.promise, cancel: cancels[1] });
+    const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 100 });
+    const states: string[] = [];
+    const onState = (s: { status: string }) => states.push(s.status);
+
+    const small = profile({ skills: ["Python"] });
+    controller.request(goal, small, scoreProfileAgainstGoal(goal, small), onState);
+    vi.advanceTimersByTime(100);
+    for (const skills of [["Python", "Java"], ["Python", "Java", "Go"]]) {
+      const bigger = profile({ skills });
+      controller.request(goal, bigger, scoreProfileAgainstGoal(goal, bigger), onState);
+    }
+    expect(cancels[0]).not.toHaveBeenCalled();
+
+    first.resolve(readyOutcome());
+    await vi.advanceTimersByTimeAsync(100);
+    expect(states).toEqual(["loading", "ready"]);
+    expect(requestAiAnalysis).toHaveBeenCalledTimes(2);
+    expect((requestAiAnalysis.mock.calls[1]![0] as { profile: { evidence: { text: string }[] } }).profile.evidence.at(-1)!.text).toContain("Go");
+
+    second.resolve(readyOutcome());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(states).toEqual(["loading", "ready", "ready"]);
+  });
+
+  it("exits loading with a timeout and cancels the request", async () => {
+    const { pending, cancel } = makePendingRequest(new Promise(() => {}));
+    const controller = new AiAnalysisController({ requestAiAnalysis: vi.fn(() => pending), debounceMs: 100, timeoutMs: 5000 });
+    const onState = vi.fn();
+    const p = profile({ skills: ["Python"] });
+    controller.request(goal, p, scoreProfileAgainstGoal(goal, p), onState);
+    await vi.advanceTimersByTimeAsync(5100);
+    expect(onState).toHaveBeenLastCalledWith({ status: "unavailable", reason: "timeout" });
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("retries after a failure", async () => {
+    const requestAiAnalysis = vi
+      .fn()
+      .mockReturnValueOnce(makePendingRequest(Promise.resolve({ status: "unavailable", reason: "timeout" })).pending)
+      .mockReturnValueOnce(makePendingRequest(Promise.resolve(readyOutcome())).pending);
+    const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 100 });
+    const onState = vi.fn();
+    const p = profile({ skills: ["Python"] });
+    controller.request(goal, p, scoreProfileAgainstGoal(goal, p), onState);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(onState).toHaveBeenLastCalledWith({ status: "unavailable", reason: "timeout" });
+    controller.retry(goal, p, scoreProfileAgainstGoal(goal, p), onState);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: "ready" }));
+  });
+
+  it("builds the same cache key for equal evidence in different objects", () => {
+    const a = profile({ skills: ["Python"] });
+    const b = profile({ skills: ["Python"] });
+    const keyA = computeAnalysisCacheKey(goal, buildAnalyzeProfileRequest(goal, a, scoreProfileAgainstGoal(goal, a)));
+    const keyB = computeAnalysisCacheKey(goal, buildAnalyzeProfileRequest(goal, b, scoreProfileAgainstGoal(goal, b)));
+    expect(keyA).toBe(keyB);
+  });
+});
