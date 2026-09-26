@@ -354,7 +354,9 @@ function tickAutoScanCrawl(): void {
 const signalRuntime = createSignalRuntime({ highlighter: new SignalHighlighter(document), publish: publishSignalAnalysis });
 registerCleanup(() => signalRuntime.dispose());
 
+let signalHref = "";
 function tickSignals(): void {
+  signalHref = location.href;
   signalRuntime.tick(signalTickInput(getSignalModeState().enabled, location.href, getPanelProfileData()));
 }
 
@@ -421,6 +423,7 @@ function watchForChanges(): void {
         Array.from(r.removedNodes).some(isJobCardOrHasOne),
     );
     if (touchesJobCard) runJobsTick(location.href, getJobsSettingsState().settings);
+    if (location.href !== signalHref) tickSignals();
     scheduleTick();
   });
   observer.observe(document.body, { childList: true, subtree: true });
