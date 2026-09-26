@@ -145,6 +145,25 @@ describe("createSignalRuntime", () => {
     expect(entries.size).toBe(0);
   });
 
+  it("keeps a title's role fact in the facts list without highlighting the title", async () => {
+    document.body.innerHTML = `<main role="main"><section><h1>Jordan</h1></section><section><h2>Experience</h2><p style="font-weight: 600">Web Lead</p><p>Led a 4-person web team</p></section></main>`;
+    const { runtime, published } = harness((body) => {
+      const item = body.profile.evidence.find((e) => e.section === "experience")!;
+      return {
+        status: "ok",
+        signals: [
+          { evidenceId: item.id, section: "experience", quote: "Web Lead", type: "role", strength: "strong", importance: 0.8, metrics: [] },
+          { evidenceId: item.id, section: "experience", quote: "Led a 4-person web team", type: "leadership", strength: "strong", importance: 0.9, metrics: [] },
+        ],
+        facts: [{ text: "Web Lead role", evidenceId: item.id }],
+      };
+    });
+    runtime.tick({ enabled: true, href: JORDAN, profileKey: "jordan", profile: profile("Led a 4-person web team"), ready: true });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team"]);
+    expect(published.at(-1)).toMatchObject({ status: "ready", facts: [{ text: "Web Lead role" }] });
+  });
+
   it("clears highlights on dispose", async () => {
     setPage("Led a 4-person web team");
     const { runtime } = harness();

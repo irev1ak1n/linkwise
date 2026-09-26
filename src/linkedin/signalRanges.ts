@@ -14,6 +14,17 @@ export interface LocatedSignal {
 }
 
 const SKIPPED_ANCESTORS = "button, svg, script, style, .visually-hidden, [data-lw-ignore]";
+const TITLE_ANCESTORS = "h1, h2, h3, h4, h5, h6, [role='heading'], a, b, strong";
+
+// Titles, organization names, and headings render as headings, header links, or bold text.
+function isTitleLike(element: Element, cache: Map<Element, boolean>): boolean {
+  const cached = cache.get(element);
+  if (cached !== undefined) return cached;
+  const weight = Number.parseInt(element.ownerDocument.defaultView?.getComputedStyle(element).fontWeight ?? "", 10);
+  const title = weight >= 600 || !!element.closest(TITLE_ANCESTORS);
+  cache.set(element, title);
+  return title;
+}
 
 function normalizeChar(ch: string): string {
   if (/[‐-―−]/.test(ch)) return "-";
@@ -30,21 +41,24 @@ export function compactText(text: string): string {
 
 interface TextIndex {
   text: string;
-  positions: { node: Text; offset: number }[];
+  positions: { node: Text; offset: number; title: boolean }[];
 }
 
 function buildIndex(root: Element): TextIndex {
   const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let text = "";
   const positions: TextIndex["positions"] = [];
+  const titleCache = new Map<Element, boolean>();
   for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
-    if (node.parentElement?.closest(SKIPPED_ANCESTORS)) continue;
+    const parent = node.parentElement;
+    if (!parent || parent.closest(SKIPPED_ANCESTORS)) continue;
+    const title = isTitleLike(parent, titleCache);
     const data = node.data;
     for (let i = 0; i < data.length; i++) {
       const ch = data[i]!;
       if (/\s/.test(ch)) continue;
       text += normalizeChar(ch);
-      positions.push({ node, offset: i });
+      positions.push({ node, offset: i, title });
     }
   }
   return { text, positions };
@@ -62,7 +76,10 @@ function rangeFor(index: TextIndex, start: number, length: number): Range {
 function locateInIndex(index: TextIndex, target: SignalTarget): LocatedSignal | null {
   const quote = compactText(target.quote);
   if (quote.length === 0) return null;
-  const start = index.text.indexOf(quote);
+  let start = index.text.indexOf(quote);
+  while (start !== -1 && index.positions.slice(start, start + quote.length).some((p) => p.title)) {
+    start = index.text.indexOf(quote, start + 1);
+  }
   if (start === -1) return null;
 
   const scope = index.text.slice(start, start + quote.length);
