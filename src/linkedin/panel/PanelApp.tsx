@@ -31,7 +31,7 @@ interface PanelAppProps {
 // user does anything. Analysis is AI-first: nothing shows while OpenAI's reasoning is still in
 // flight, only a loading state, so there's never a stale or partial result on screen.
 export function PanelApp({ onClose }: PanelAppProps) {
-  const { profileKey, profile, collection, autoScanProgress } = useCollectionData();
+  const { profileKey, profile, collection, autoScanProgress, updatingSection } = useCollectionData();
   const { selectedGoal: goal, loaded: goalsLoaded, setActiveGoalCriteria } = useGoalStore();
   const { mode: scanMode, setScanMode } = useScanMode();
   const { enabled: expandDetailsEnabled, setExpandDetailsPreference } = useExpandDetailsPreference();
@@ -92,7 +92,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
     if (aiState.status === "idle") return <LoadingView label="Preparing results…" />;
     if (aiState.status === "loading") return <LoadingView label="Analyzing match…" />;
 
-    return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} />;
+    return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} />;
   }
 
   return (

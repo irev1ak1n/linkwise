@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AiAnalysisController } from "./aiAnalysisController";
+import { AiAnalysisController, type AiAnalysisState } from "./aiAnalysisController";
 import { clearAiAnalysisCache, setCachedAnalysis } from "./aiAnalysisCache";
 import { computeAnalysisCacheKey } from "./analysisCacheKey";
 import { buildAnalyzeProfileRequest } from "./buildAnalyzeRequest";
@@ -280,5 +280,55 @@ describe("AiAnalysisController - evidence growth during a request", () => {
     const keyA = computeAnalysisCacheKey(goal, buildAnalyzeProfileRequest(goal, a, scoreProfileAgainstGoal(goal, a)));
     const keyB = computeAnalysisCacheKey(goal, buildAnalyzeProfileRequest(goal, b, scoreProfileAgainstGoal(goal, b)));
     expect(keyA).toBe(keyB);
+  });
+});
+
+describe("AiAnalysisController - incremental updates", () => {
+  const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+
+  function scored(scorePercent: number): Extract<AiAnalysisOutcome, { status: "ok" }> {
+    const o = readyOutcome();
+    return { ...o, result: { ...o.result, scorePercent } };
+  }
+
+  async function withResult(second: Promise<AiAnalysisOutcome>) {
+    const requestAiAnalysis = vi
+      .fn()
+      .mockReturnValueOnce(makePendingRequest(Promise.resolve(scored(60))).pending)
+      .mockReturnValueOnce(makePendingRequest(second).pending);
+    const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 100 });
+    const states: AiAnalysisState[] = [];
+    const main = profile({ skills: ["Python"] });
+    controller.request(goal, main, scoreProfileAgainstGoal(goal, main), (s) => states.push(s));
+    await vi.advanceTimersByTimeAsync(100);
+    const withEducation = profile({ skills: ["Python"], education: [{ school: "State University" }] });
+    controller.request(goal, withEducation, scoreProfileAgainstGoal(goal, withEducation), (s) => states.push(s));
+    return { states, requestAiAnalysis };
+  }
+
+  it("keeps the current result visible and marks it updating while new evidence is analyzed", async () => {
+    const { states, requestAiAnalysis } = await withResult(new Promise(() => {}));
+    expect(states.at(-1)).toMatchObject({ status: "ready", updating: true });
+    expect((states.at(-1) as Extract<AiAnalysisState, { status: "ready" }>).outcome.result.scorePercent).toBe(60);
+    expect(states.some((s) => s.status === "loading" && states.indexOf(s) > 0)).toBe(false);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(requestAiAnalysis).toHaveBeenCalledTimes(2);
+  });
+
+  it("replaces the result once the update succeeds", async () => {
+    const { states } = await withResult(Promise.resolve(scored(85)));
+    await vi.advanceTimersByTimeAsync(100);
+    const last = states.at(-1) as Extract<AiAnalysisState, { status: "ready" }>;
+    expect(last.outcome.result.scorePercent).toBe(85);
+    expect(last.updating).toBe(false);
+  });
+
+  it("keeps the previous result when the update fails", async () => {
+    const { states } = await withResult(Promise.resolve({ status: "unavailable", reason: "openai_error" }));
+    await vi.advanceTimersByTimeAsync(100);
+    const last = states.at(-1) as Extract<AiAnalysisState, { status: "ready" }>;
+    expect(last.status).toBe("ready");
+    expect(last.outcome.result.scorePercent).toBe(60);
+    expect(last.updateError).toBe("openai_error");
   });
 });

@@ -17,12 +17,26 @@ interface AnalysisViewProps {
    * while AI is still pending. */
   aiState: Extract<AiAnalysisState, { status: "ready" } | { status: "unavailable" }>;
   onRetry?: () => void;
+  updatingSection?: string | null;
 }
+
+const SECTION_LABELS: Record<string, string> = {
+  about: "About",
+  experience: "Experience",
+  education: "Education",
+  skills: "Skills",
+  projects: "Projects",
+  certifications: "Licenses & certifications",
+  organizations: "Organizations",
+  volunteering: "Volunteering",
+  languages: "Languages",
+  honors: "Honors & awards",
+};
 
 // The final profile analysis, never a preview of an in-progress read. A statement of
 // relevance to the current goal, not a judgment of the person. Shows one result, never
 // local and AI side by side.
-export function AnalysisView({ result, goal, profile, aiState, onRetry }: AnalysisViewProps) {
+export function AnalysisView({ result, goal, profile, aiState, onRetry, updatingSection }: AnalysisViewProps) {
   const evidence = useMemo(() => buildProfileEvidence(profile), [profile]);
 
   const final = useMemo(() => {
@@ -43,6 +57,19 @@ export function AnalysisView({ result, goal, profile, aiState, onRetry }: Analys
         {scoreLabel && <div className="lw-summary-card__score">{scoreLabel}</div>}
         <div className="lw-summary-card__target">For: {goal.name}</div>
 
+        {aiState.status === "ready" && aiState.updating && (
+          <p className="lw-ai-status">Updating{updatingSection && SECTION_LABELS[updatingSection] ? ` with ${SECTION_LABELS[updatingSection]}` : ""}…</p>
+        )}
+        {aiState.status === "ready" && !aiState.updating && aiState.updateError && (
+          <p className="lw-ai-status">
+            Couldn't update with the latest information — showing the previous analysis.
+            {onRetry && (
+              <button type="button" className="lw-ai-retry" onClick={onRetry}>
+                Retry
+              </button>
+            )}
+          </p>
+        )}
         {aiState.status === "unavailable" && (
           <p className="lw-ai-status">
             AI analysis unavailable ({describeAiUnavailableReason(aiState.reason)}) — showing local analysis.

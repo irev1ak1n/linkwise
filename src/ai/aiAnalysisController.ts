@@ -16,7 +16,7 @@ export const AI_ANALYSIS_TIMEOUT_MS = 60000;
 export type AiAnalysisState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; outcome: Extract<AiAnalysisOutcome, { status: "ok" }> }
+  | { status: "ready"; outcome: Extract<AiAnalysisOutcome, { status: "ok" }>; updating?: boolean; updateError?: string }
   | { status: "unavailable"; reason: string };
 
 export interface AiAnalysisControllerOptions {
@@ -38,6 +38,7 @@ export class AiAnalysisController {
   private latestKey: string | null = null;
   private subject: string | null = null;
   private showingResult = false;
+  private current: Extract<AiAnalysisOutcome, { status: "ok" }> | null = null;
   private onStateChange: (state: AiAnalysisState) => void = () => {};
   private readonly requestAiAnalysisImpl: typeof defaultRequestAiAnalysis;
   private readonly debounceMs: number;
@@ -66,6 +67,7 @@ export class AiAnalysisController {
     this.latestKey = null;
     this.subject = null;
     this.showingResult = false;
+    this.current = null;
   }
 
   /** Requests (or reuses a cached) AI analysis. New evidence for the same profile and goal never
@@ -93,9 +95,11 @@ export class AiAnalysisController {
 
     if (this.pending) {
       this.queued = { key, body };
+      this.markUpdating();
       return;
     }
-    if (!this.showingResult) this.show({ status: "loading" });
+    if (this.showingResult) this.markUpdating();
+    else this.show({ status: "loading" });
     this.schedule({ key, body });
   }
 
@@ -133,10 +137,13 @@ export class AiAnalysisController {
         clearTimeout(timeoutHandle);
         if (this.subject !== subject || this.pending?.key !== job.key) return;
         this.pending = null;
+        const refreshing = this.queued !== null && this.queued.key === this.latestKey;
         if (outcome.status === "ok") {
           setCachedAnalysis(job.key, outcome);
-          if (job.key === this.latestKey || !this.showingResult) this.show({ status: "ready", outcome });
-        } else if (job.key === this.latestKey || !this.showingResult) {
+          if (job.key === this.latestKey || !this.showingResult) this.show({ status: "ready", outcome, updating: refreshing });
+        } else if (this.showingResult && this.current) {
+          this.show({ status: "ready", outcome: this.current, updating: refreshing, updateError: refreshing ? undefined : outcome.reason });
+        } else if (job.key === this.latestKey) {
           this.show({ status: "unavailable", reason: outcome.reason });
         }
         const next = this.queued;
@@ -145,8 +152,13 @@ export class AiAnalysisController {
       });
   }
 
+  private markUpdating(): void {
+    if (this.showingResult && this.current) this.show({ status: "ready", outcome: this.current, updating: true });
+  }
+
   private show(state: AiAnalysisState): void {
     this.showingResult = state.status === "ready";
+    this.current = state.status === "ready" ? state.outcome : null;
     this.onStateChange(state);
   }
 }
