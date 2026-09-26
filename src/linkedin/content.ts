@@ -218,6 +218,11 @@ function goToNextSectionOrFinish(session: AutoScanSession): void {
   if (next) location.assign(next.url);
 }
 
+function isCrawlerPage(currentUrl: string): boolean {
+  if (!autoScanSession || isSessionComplete(autoScanSession)) return false;
+  return nextPendingSection(autoScanSession)?.normalizedUrl === currentUrl;
+}
+
 // One tick of the multi-page crawl. Only ever called for "auto" mode. Local code alone decides
 // what happens next; OpenAI is never asked which page to visit.
 function tickAutoScanCrawl(): void {
@@ -243,17 +248,14 @@ function tickAutoScanCrawl(): void {
 
   const currentUrl = normalizeProfileUrl(location.href);
   if (!currentUrl) return;
+  const mainProfileUrl = `https://www.linkedin.com/in/${profileKey}/`;
+
+  // Only a page the crawler itself opened (the active session's pending section) is crawler-owned.
+  // Anything else the user opened is left alone: no redirect, no new session.
+  if (currentUrl !== mainProfileUrl && !isCrawlerPage(currentUrl)) return;
 
   if (autoScanSession === null) {
-    // Nothing started yet for this profile. Only ever begins from the main profile page, once
-    // the single-page engine says the main page itself is fully covered. Discovery needs the
-    // main page's own "Show all" links, so a stray direct visit to a details page (no session
-    // recovered) redirects to the main profile instead of guessing at a queue.
-    const mainProfileUrl = `https://www.linkedin.com/in/${profileKey}/`;
-    if (currentUrl !== mainProfileUrl) {
-      location.assign(mainProfileUrl);
-      return;
-    }
+    // Discovery needs the main page's own "Show all" links, so a crawl only ever starts there.
     if (!getEnhancedAnalysisState().enabled) return; // main-page-only scan, never starts the crawler
     const coverage = deriveScanCoverage(engine.getCollectionState());
     if (coverage !== "complete") return;

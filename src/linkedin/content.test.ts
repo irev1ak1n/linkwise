@@ -809,19 +809,57 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     expect(progress?.currentIndex).toBe(1); // resumed at Education, not restarted
   });
 
-  it("redirects to the main profile when a details page loads directly with no session yet", async () => {
+  it.each([
+    ["Enhanced analysis off", {}],
+    ["Enhanced analysis on", { "finder.enhancedAnalysis.v1": true }],
+  ])("never redirects or starts a crawl from a manually opened details page (%s)", async (_label, prefs) => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/experience/");
-    vi.stubGlobal("chrome", {
-      runtime: { id: "test", reload: vi.fn() },
-      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
-    });
+    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "auto", ...prefs });
+    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn() }, storage });
     setDetailsPage("Experience", "Software Engineer at Acme");
 
     await import("./content");
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(20000);
 
-    expect(assign).toHaveBeenCalledWith("https://www.linkedin.com/in/irev1ak1n/");
+    expect(assign).not.toHaveBeenCalled();
+    expect((await storage.local.get("finder.autoScanSession.v1"))["finder.autoScanSession.v1"]).toBeUndefined();
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    expect(getPanelProfileData().autoScanProgress ?? null).toBeNull();
+  });
+
+  it("leaves a manually opened section alone during an active crawl instead of pulling the user back", async () => {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/projects/");
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test", reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.enhancedAnalysis.v1": true,
+        "finder.autoScanSession.v1": {
+          sessionId: "active-1",
+          profileKey: "irev1ak1n",
+          originalProfileUrl: "https://www.linkedin.com/in/irev1ak1n/",
+          currentIndex: 0,
+          status: "scanning",
+          startedAt: Date.now(),
+          sections: [
+            {
+              type: "education",
+              heading: "Education",
+              url: "/in/irev1ak1n/details/education/",
+              normalizedUrl: "https://www.linkedin.com/in/irev1ak1n/details/education/",
+              status: "pending",
+              attempts: 0,
+            },
+          ],
+        },
+      }),
+    });
+    setDetailsPage("Projects", "Robot arm");
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(20000);
+
+    expect(assign).not.toHaveBeenCalled();
   });
 
   it("once complete, returns to the original profile and never restarts the crawl", async () => {
