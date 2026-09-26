@@ -458,6 +458,65 @@ export function getPanelStyles(widthPx: number): string {
     border-color: #f3c6c1;
   }
 
+  .lw-signals {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid #e0e0e0;
+  }
+  .lw-signals__toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .lw-signals__toggle input {
+    margin: 0;
+  }
+  .lw-signals__hint {
+    font-weight: 400;
+    font-size: 11.5px;
+    color: #8a949c;
+    margin-left: 4px;
+  }
+  .lw-signals__status {
+    margin: 0;
+    font-size: 11.5px;
+    color: #56687a;
+  }
+  .lw-signals__status--error {
+    color: #b24020;
+  }
+  .lw-signals__facts summary {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #56687a;
+    cursor: pointer;
+  }
+  .lw-signals__count {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #8a949c;
+    margin-left: 4px;
+  }
+  .lw-signals__facts ul {
+    margin: 6px 0 0;
+    padding-left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .lw-signals__facts li {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
   .lw-jobs-settings {
     display: flex;
     flex-direction: column;
