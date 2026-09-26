@@ -5,6 +5,7 @@
 // Reads only what's already rendered. Never fetches another page or expands a section itself.
 import {
   EMPTY_PROFILE,
+  foundSections,
   type LinkedInProfile,
   type ProfileEducationEntry,
   type ProfileExperienceEntry,
@@ -359,6 +360,46 @@ function extractSkills(main: HTMLElement, headings: HTMLElement[]): string[] {
 
 export function findProfileSectionRoot(doc: Document, name: ProfileSectionName): HTMLElement | null {
   return findHeadingSection(Array.from(findMain(doc).querySelectorAll<HTMLElement>("h2, h3")), name);
+}
+
+function entryFromLines(section: ProfileSectionName, lines: string[]): Partial<LinkedInProfile> {
+  const [first, second, ...rest] = lines;
+  const details = rest.join(" · ") || undefined;
+  switch (section) {
+    case "experience":
+      return { experience: [{ title: first, company: second, description: details }] };
+    case "education":
+      return { education: [{ school: first, degree: second, field: details }] };
+    case "skills":
+      return { skills: first ? [first] : [] };
+    case "about":
+      return { about: lines.join(" ") };
+    default:
+      return { [section]: [{ name: first, description: [second, ...rest].filter(Boolean).join(" · ") || undefined }] };
+  }
+}
+
+// Newer "/details/{section}/" pages have no section heading, just a DetailsSection container
+// of entries separated by <hr>. Reads only those entries, never the top card or sidebar.
+export function extractDetailsPageProfile(doc: Document = document): LinkedInProfile {
+  const section = detailsPageSection(doc.URL);
+  const container = doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"]');
+  if (!section || !container) return extractLinkedInProfile(doc);
+
+  const list = container.querySelector("hr")?.parentElement;
+  const entries = list ? Array.from(list.children).filter((el): el is HTMLElement => el.tagName !== "HR") : [container];
+  const profile: LinkedInProfile = { ...EMPTY_PROFILE, experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] };
+  for (const entry of entries) {
+    const lines = entryLines(entry);
+    if (lines.length === 0) continue;
+    const part = entryFromLines(section, lines);
+    for (const [key, value] of Object.entries(part)) {
+      const existing = profile[key as keyof LinkedInProfile];
+      (profile as unknown as Record<string, unknown>)[key] = Array.isArray(existing) && Array.isArray(value) ? [...existing, ...value] : value;
+    }
+  }
+  profile.extracted = foundSections(profile).length > 0;
+  return profile;
 }
 
 // Reads the currently-rendered profile page. Never throws, an unfinished page just yields

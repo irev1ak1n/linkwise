@@ -54,6 +54,13 @@ describe("mergeProfileEvidence - accumulates across sections, never replaces", (
     expect(mergeProfileEvidence(main, main).experience).toHaveLength(1);
   });
 
+  it("keeps the richer copy when the same entry appears on the main page and its detail page", () => {
+    const main = profile({ honors: [{ name: "2nd Place - Webmaster", description: "Issued by TSA" }] });
+    const details = profile({ honors: [{ name: "2nd Place - Webmaster", description: "Issued by TSA · Earned 2nd place at regionals" }] });
+    expect(mergeProfileEvidence(main, details).honors).toEqual(details.honors);
+    expect(mergeProfileEvidence(details, main).honors).toEqual(details.honors);
+  });
+
   it("deduplicates list entries (projects, certifications, etc.) by name", () => {
     const main = profile({ projects: [{ name: "Cool App" }] });
     const detailsPage = profile({ projects: [{ name: "Cool App" }, { name: "Second Project" }] });

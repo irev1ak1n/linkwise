@@ -32,7 +32,7 @@
 import { EMPTY_PROFILE, foundSections, type LinkedInProfile } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
 import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
-import { detailsPageSection, detectProfileSections, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
+import { detailsPageSection, detectProfileSections, extractDetailsPageProfile, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
 import { discoverProfileSections, excludeFromAutoScanQueue } from "./sectionDiscovery";
 import { mergeProfileEvidence } from "./profileEvidenceAccumulator";
 import {
@@ -238,7 +238,7 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
   }
   if (Date.now() - manualSectionArrivedAt < SECTION_SETTLE_MS) return;
 
-  const sectionProfile = extractLinkedInProfile(document);
+  const sectionProfile = extractDetailsPageProfile(document);
   if (!sectionProfile.extracted) return;
   const current = getPanelProfileData();
   const base = autoScanEvidence.extracted
@@ -359,7 +359,7 @@ function tickAutoScanCrawl(): void {
 
   if (sectionArrivedAt === null) sectionArrivedAt = Date.now();
   const elapsed = Date.now() - sectionArrivedAt;
-  const sectionProfile = extractLinkedInProfile(document);
+  const sectionProfile = extractDetailsPageProfile(document);
   const settled = sectionProfile.extracted;
 
   if (!settled) {
@@ -382,7 +382,7 @@ function tickAutoScanCrawl(): void {
   if (elapsed < SECTION_SETTLE_MS) return;
 
   expandSeeMoreToggles(document, { restrictToViewport: false });
-  const finalSectionProfile = extractLinkedInProfile(document);
+  const finalSectionProfile = extractDetailsPageProfile(document);
   autoScanEvidence = mergeProfileEvidence(autoScanEvidence, finalSectionProfile);
   sectionHandledUrl = pending.normalizedUrl;
 

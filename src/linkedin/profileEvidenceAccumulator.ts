@@ -12,14 +12,20 @@ function normalize(text: string | undefined): string {
   return (text ?? "").trim().toLowerCase();
 }
 
+// A duplicate keeps whichever copy carries more text, e.g. a detail page's full description
+// over the main page's clamped one.
 function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
-  const seen = new Set<string>();
+  const index = new Map<string, number>();
   const result: T[] = [];
   for (const item of items) {
     const k = key(item);
-    if (k && seen.has(k)) continue;
-    if (k) seen.add(k);
-    result.push(item);
+    const at = k ? index.get(k) : undefined;
+    if (at === undefined) {
+      if (k) index.set(k, result.length);
+      result.push(item);
+    } else if (JSON.stringify(item).length > JSON.stringify(result[at]).length) {
+      result[at] = item;
+    }
   }
   return result;
 }

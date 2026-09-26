@@ -7,6 +7,7 @@ import {
   isProfileManagementUrl,
   normalizeProfileUrl,
   profileIdentityKey,
+  extractDetailsPageProfile,
 } from "./profileAdapter";
 
 function setBody(html: string): void {
@@ -472,5 +473,47 @@ describe("extractLinkedInProfile - single entries beside grouped positions", () 
     const experience = extractLinkedInProfile(document).experience;
     expect(experience[0]).toMatchObject({ title: "Web Team Lead" });
     expect(experience[1]!.description).toBe("Robotics Club Private Tutor Self-Employed • Completed 60+ hours of tutoring • Supported 15+ students");
+  });
+});
+
+describe("extractDetailsPageProfile", () => {
+  function setDetailsPage(url: string, testid: string, entries: string[][]): void {
+    Object.defineProperty(document, "URL", { value: url, configurable: true });
+    const items = entries.map((lines) => `<div componentkey="x"><a href="#"><div>${lines.map((l) => `<p>${l}</p>`).join("")}</div></a></div>`).join('<hr role="presentation">');
+    setBody(`
+      <main role="main">
+        <div><p>Jordan Rivera</p><p>Verify in 2 minutes</p></div>
+        <div data-testid="${testid}"><div><div>${items}</div></div></div>
+        <section><h2>Profile language</h2><p>English</p></section>
+        <section><h2>People you may know</h2><p>Sam Lee · Robotics Club</p></section>
+      </main>
+    `);
+  }
+
+  it("reads only the section's own entries on a new-layout details page", () => {
+    setDetailsPage("https://www.linkedin.com/in/jordan/details/education/", "profile_EducationDetailsSection_jordan", [
+      ["State University", "BS Computer Science", "2021 – 2025", "Led the robotics club"],
+      ["City High School", "Diploma"],
+    ]);
+    const profile = extractDetailsPageProfile(document);
+    expect(profile.education).toEqual([
+      { school: "State University", degree: "BS Computer Science", field: "2021 – 2025 · Led the robotics club" },
+      { school: "City High School", degree: "Diploma", field: undefined },
+    ]);
+    expect(profile.headline).toBeUndefined();
+    expect(profile.location).toBeUndefined();
+    expect(profile.languages).toEqual([]);
+    expect(profile.extracted).toBe(true);
+  });
+
+  it("maps list sections to name and description", () => {
+    setDetailsPage("https://www.linkedin.com/in/jordan/details/honors/", "profile_HonorsDetailsSection_jordan", [["2nd Place - Webmaster", "Issued by TSA", "Earned 2nd place at regionals"]]);
+    expect(extractDetailsPageProfile(document).honors).toEqual([{ name: "2nd Place - Webmaster", description: "Issued by TSA · Earned 2nd place at regionals" }]);
+  });
+
+  it("falls back to the regular extractor without a DetailsSection container", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/education/", configurable: true });
+    setBody(`<main role="main"><h1>Jordan Rivera</h1><section><h2>Education</h2><ul><li><p>State University</p><p>BS</p></li></ul></section></main>`);
+    expect(extractDetailsPageProfile(document).education[0]).toMatchObject({ school: "State University" });
   });
 });
