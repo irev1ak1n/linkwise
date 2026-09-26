@@ -73,7 +73,7 @@ const goalSchema = z
     path: ["description"],
   });
 
-const evidenceItemSchema = z.object({
+export const evidenceItemSchema = z.object({
   id: z.string().min(1).max(100),
   section: evidenceSectionSchema,
   // Just a ceiling to catch abusive payloads. Real trimming happens in trimOversizedText.
