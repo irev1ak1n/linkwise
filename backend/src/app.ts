@@ -5,8 +5,10 @@ import cors from "cors";
 import { loadConfig, redactedConfigSummary, type BackendConfig } from "./config";
 import { handleAnalyzeProfile } from "./routes/analyzeProfile";
 import { handleGenerateCriteria } from "./routes/generateCriteria";
+import { handleAnalyzeSignals } from "./routes/analyzeSignals";
 import type { AnalysisClient } from "./openai/client";
 import type { CriteriaGenerationClient } from "./openai/criteriaClient";
+import type { SignalAnalysisClient } from "./openai/signalsClient";
 
 export interface CreateAppOptions {
   config?: BackendConfig;
@@ -14,6 +16,7 @@ export interface CreateAppOptions {
   client?: AnalysisClient;
   /** Injected only in tests. */
   criteriaClient?: CriteriaGenerationClient;
+  signalClient?: SignalAnalysisClient;
   timeoutMs?: number;
 }
 
@@ -39,6 +42,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.post("/api/generate-criteria", (req: Request, res: Response) => {
     void handleGenerateCriteria(req, res, { config, client: options.criteriaClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/analyze-signals", (req: Request, res: Response) => {
+    void handleAnalyzeSignals(req, res, { config, client: options.signalClient, timeoutMs: options.timeoutMs });
   });
 
   // Catches malformed JSON. Never leak the raw parser error to the client.
