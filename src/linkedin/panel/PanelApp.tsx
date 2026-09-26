@@ -5,12 +5,14 @@ import { useAiAnalysis } from "./useAiAnalysis";
 import { useScanMode } from "./useScanMode";
 import { useExpandDetailsPreference } from "./useExpandDetailsPreference";
 import { useEnhancedAnalysisPreference } from "./useEnhancedAnalysisPreference";
+import { useManualSectionsPreference } from "./useManualSectionsPreference";
 import { useJobsSettings } from "./useJobsSettings";
 import { useSignalMode } from "./useSignalMode";
 import { GoalSetupSection } from "./GoalSetupSection";
 import { ScanModeToggle } from "./ScanModeToggle";
 import { ExpandDetailsCheckbox } from "./ExpandDetailsCheckbox";
 import { EnhancedAnalysisCheckbox } from "./EnhancedAnalysisCheckbox";
+import { ManualSectionsCheckbox } from "./ManualSectionsCheckbox";
 import { JobsSettingsSection } from "./JobsSettingsSection";
 import { SignalModeSection } from "./SignalModeSection";
 import { ScanningView } from "./ScanningView";
@@ -34,6 +36,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { mode: scanMode, setScanMode } = useScanMode();
   const { enabled: expandDetailsEnabled, setExpandDetailsPreference } = useExpandDetailsPreference();
   const { enabled: enhancedAnalysisEnabled, setEnhancedAnalysisPreference } = useEnhancedAnalysisPreference();
+  const { enabled: manualSectionsEnabled, setManualSectionsPreference } = useManualSectionsPreference();
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
@@ -112,6 +115,9 @@ export function PanelApp({ onClose }: PanelAppProps) {
             )}
             {profileKey !== null && scanMode === "auto" && (
               <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />
+            )}
+            {profileKey !== null && scanMode === "auto" && (
+              <ManualSectionsCheckbox enabled={manualSectionsEnabled} onChange={setManualSectionsPreference} />
             )}
             {renderProfileSection()}
             {profileKey !== null && (
