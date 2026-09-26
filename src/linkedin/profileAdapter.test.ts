@@ -396,3 +396,39 @@ describe("normalizeProfileUrl", () => {
     expect(normalizeProfileUrl("https://www.linkedin.com/jobs/search/")).toBeNull();
   });
 });
+
+describe("extractLinkedInProfile - newer paragraph-based layout", () => {
+  function newLayoutEntry(title: string, dates: string, bullets: string[], org: string): string {
+    return `
+      <li>
+        <div><a href="#"><div><p>${title}</p><p>${dates}</p></div></a>
+          <div>
+            <p><span data-testid="expandable-text-box">${bullets.join("<br><br>")}<br><br>
+              <button data-testid="expandable-text-button" aria-hidden="true"><span><span>…</span><span>more</span></span></button>
+            </span></p>
+            <div><a href="#"><div><svg aria-hidden="true"></svg></div><div><p>${org}</p></div></a></div>
+          </div>
+        </div>
+      </li>`;
+  }
+
+  it("reads title, dates, and full description without the '… more' control", () => {
+    setBody(`
+      <main role="main">
+        <section><h1>Jordan Rivera</h1><p>Student Developer</p></section>
+        <section><h2>Experience</h2><ul>
+          ${newLayoutEntry("Web Team Lead", "Feb 2026 - Apr 2026 · 3 mos", ["• Led a 4-person web team", "• Reached 300+ visitors"], "Robotics Club")}
+        </ul></section>
+        <section><h2>Volunteering</h2><ul>
+          ${newLayoutEntry("Tutor", "Sep 2025 - May 2026", ["Completed 60+ hours of tutoring in Java"], "Library")}
+        </ul></section>
+      </main>
+    `);
+    const profile = extractLinkedInProfile(document);
+    expect(profile.experience).toEqual([
+      { title: "Web Team Lead", company: "Feb 2026 - Apr 2026 · 3 mos", description: "• Led a 4-person web team • Reached 300+ visitors" },
+    ]);
+    expect(profile.volunteering[0]).toEqual({ name: "Tutor", description: "Completed 60+ hours of tutoring in Java" });
+    expect(JSON.stringify(profile)).not.toContain("more");
+  });
+});

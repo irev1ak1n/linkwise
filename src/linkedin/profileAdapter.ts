@@ -44,6 +44,24 @@ function visibleText(element: Element): string | undefined {
   return cleanText(element.textContent);
 }
 
+function textWithoutControls(element: Element): string | undefined {
+  const clone = element.cloneNode(true) as Element;
+  clone.querySelectorAll("button, svg").forEach((node) => node.remove());
+  clone.querySelectorAll("br").forEach((node) => node.replaceWith(" "));
+  return cleanText(clone.textContent);
+}
+
+// Newer profile layouts render each entry line as a <p>, with aria-hidden reserved for controls
+// like the "… more" button rather than a duplicate visible copy.
+function entryLines(item: HTMLElement): string[] {
+  const paragraphs = Array.from(item.querySelectorAll<HTMLElement>("p")).filter((p) => !p.querySelector("p"));
+  const lines =
+    paragraphs.length > 0
+      ? paragraphs.map(textWithoutControls)
+      : Array.from(item.querySelectorAll<HTMLElement>("span[aria-hidden='true'], div, span")).map((el) => visibleText(el));
+  return [...new Set(lines.filter((text): text is string => Boolean(text)))];
+}
+
 function findMain(doc: Document): HTMLElement {
   return doc.querySelector<HTMLElement>('main[role="main"], main') ?? doc.body;
 }
@@ -206,10 +224,7 @@ function extractExperience(headings: HTMLElement[]): ProfileExperienceEntry[] {
   if (items.length > 0) {
     const entries: ProfileExperienceEntry[] = [];
     for (const item of items) {
-      const textLines = Array.from(item.querySelectorAll<HTMLElement>("span[aria-hidden='true'], div, span"))
-        .map((el) => visibleText(el))
-        .filter((text): text is string => Boolean(text));
-      const unique = [...new Set(textLines)];
+      const unique = entryLines(item);
       if (unique.length === 0) continue;
 
       const [title, company, ...rest] = unique;
@@ -236,10 +251,7 @@ function extractEducation(headings: HTMLElement[]): ProfileEducationEntry[] {
   if (items.length > 0) {
     const entries: ProfileEducationEntry[] = [];
     for (const item of items) {
-      const textLines = Array.from(item.querySelectorAll<HTMLElement>("span[aria-hidden='true'], div, span"))
-        .map((el) => visibleText(el))
-        .filter((text): text is string => Boolean(text));
-      const unique = [...new Set(textLines)];
+      const unique = entryLines(item);
       if (unique.length === 0) continue;
 
       const [school, degreeAndField] = unique;
@@ -266,10 +278,7 @@ function extractListEntries(headings: HTMLElement[], name: ProfileSectionName): 
   if (items.length > 0) {
     const entries: ProfileListEntry[] = [];
     for (const item of items) {
-      const textLines = Array.from(item.querySelectorAll<HTMLElement>("span[aria-hidden='true'], div, span"))
-        .map((el) => visibleText(el))
-        .filter((text): text is string => Boolean(text));
-      const unique = [...new Set(textLines)];
+      const unique = entryLines(item);
       if (unique.length === 0) continue;
 
       const [entryName, ...rest] = unique;
