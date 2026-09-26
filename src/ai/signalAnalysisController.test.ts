@@ -141,3 +141,72 @@ describe("SignalAnalysisController", () => {
     expect(states.at(-1)).toEqual({ status: "idle" });
   });
 });
+
+describe("SignalAnalysisController - evidence growth during a request", () => {
+  it("never cancels the in-flight request for the same profile and sends one refresh after it", async () => {
+    let resolveFirst!: (o: SignalAnalysisOutcome) => void;
+    const first = new Promise<SignalAnalysisOutcome>((r) => (resolveFirst = r));
+    const cancel = vi.fn();
+    const request = vi
+      .fn()
+      .mockReturnValueOnce({ requestId: "1", promise: first, cancel })
+      .mockReturnValue({ requestId: "2", promise: Promise.resolve(ok), cancel: vi.fn() });
+    const states: SignalAnalysisState[] = [];
+    const controller = new SignalAnalysisController({ onChange: (s) => states.push(s), request, debounceMs: 100 });
+
+    controller.update({ profileKey: "jordan", profile: profile("Led a team") });
+    await vi.advanceTimersByTimeAsync(100);
+    controller.update({ profileKey: "jordan", profile: profile("Led a team of 5") });
+    controller.update({ profileKey: "jordan", profile: profile("Led a team of 5 and won") });
+    expect(cancel).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledTimes(1);
+
+    resolveFirst(ok);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(states.filter((s) => s.status === "ready")).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(states.filter((s) => s.status === "ready")).toHaveLength(2);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect((request.mock.calls[1]![0] as AnalyzeSignalsRequestBody).profile.evidence.find((e) => e.section === "about")!.text).toContain("won");
+  });
+
+  it("exits loading with a timeout", async () => {
+    const cancel = vi.fn();
+    const request = vi.fn(() => ({ requestId: "r", promise: new Promise<SignalAnalysisOutcome>(() => {}), cancel }));
+    const states: SignalAnalysisState[] = [];
+    const controller = new SignalAnalysisController({ onChange: (s) => states.push(s), request, debounceMs: 100, timeoutMs: 1000 });
+    controller.update({ profileKey: "jordan", profile: profile("Led a team") });
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(states.at(-1)).toEqual({ status: "unavailable", reason: "timeout" });
+    expect(cancel).toHaveBeenCalled();
+  });
+});
+
+describe("signal analysis and match analysis", () => {
+  it("run independently, so a slow signal request never delays the match result", async () => {
+    const { AiAnalysisController } = await import("./aiAnalysisController");
+    const { createGoal, createCriterion } = await import("../models/goal");
+    const { scoreProfileAgainstGoal } = await import("../matching/scoreProfile");
+    const signals = new SignalAnalysisController({
+      onChange: () => {},
+      request: () => ({ requestId: "s", promise: new Promise<SignalAnalysisOutcome>(() => {}), cancel: vi.fn() }),
+      debounceMs: 10,
+    });
+    const matchResult = {
+      status: "ok" as const,
+      model: "m",
+      result: { scorePercent: 80, disqualified: false, reasons: [], missing: [], complete: true, profileExtracted: true, confidence: 1 },
+      narrative: { strengths: [], gaps: [], experienceAssessment: "relevant" as const, experienceAssessmentReason: "", recommendationReason: "", contactRecommendationReason: "", saveRecommendationReason: "", confidenceLevel: "medium" as const },
+    };
+    const match = new AiAnalysisController({ requestAiAnalysis: () => ({ requestId: "m", promise: Promise.resolve(matchResult), cancel: vi.fn() }), debounceMs: 10 });
+    const goal = { ...createGoal("Mentors"), criteria: [createCriterion("robotics", "MUST_HAVE")] };
+    const p = profile("Led a team");
+    const matchStates: string[] = [];
+
+    signals.update({ profileKey: "jordan", profile: p });
+    match.request(goal, p, scoreProfileAgainstGoal(goal, p), (s) => matchStates.push(s.status));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(matchStates.at(-1)).toBe("ready");
+    expect(signals.getState()).toEqual({ status: "loading" });
+  });
+});
