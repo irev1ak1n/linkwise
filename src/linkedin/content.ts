@@ -222,7 +222,7 @@ function goToNextSectionOrFinish(session: AutoScanSession): void {
 }
 
 function withAccumulatedEvidence(profileKey: string, profile: LinkedInProfile): LinkedInProfile {
-  return autoScanLoadedForKey === profileKey && autoScanEvidence.extracted ? mergeProfileEvidence(autoScanEvidence, profile) : profile;
+  return autoScanLoadedForKey === profileKey && autoScanEvidence.extracted ? mergeProfileEvidence(profile, autoScanEvidence) : profile;
 }
 
 let manualSectionUrl: string | null = null;
