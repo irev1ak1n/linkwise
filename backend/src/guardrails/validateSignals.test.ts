@@ -148,6 +148,32 @@ describe("validateSignals", () => {
     expect(facts.filter((f) => f.startsWith("Owned delivery"))).toEqual([]);
   });
 
+  it("rejects a quote that is only a duration or number", () => {
+    const items: EvidenceText[] = [{ id: "experience:5", section: "experience", text: "Robotics Team — 1 yr 5 mos — 4 mos" }];
+    const bare = [
+      signal({ evidenceId: "experience:5", quote: "1 yr 5 mos", type: "duration", facts: [{ text: "1 yr 5 mos in role", metric: "1 yr 5 mos" }] }),
+      signal({ evidenceId: "experience:5", quote: "4 mos", type: "duration", facts: [] }),
+    ];
+    expect(validateSignals({ signals: bare }, items).signals).toHaveLength(0);
+  });
+
+  it("keeps a duration quoted with what it measures, and a one-word skill", () => {
+    const items: EvidenceText[] = [
+      { id: "experience:6", section: "experience", text: "Seattle Robotics Club 5 yrs 1 mo" },
+      { id: "skills:0", section: "skills", text: "Python, Java" },
+    ];
+    const kept = validateSignals(
+      {
+        signals: [
+          signal({ evidenceId: "experience:6", quote: "Seattle Robotics Club 5 yrs 1 mo", type: "duration", facts: [{ text: "5 yrs 1 mo with Seattle Robotics Club", metric: "5 yrs 1 mo" }] }),
+          signal({ evidenceId: "skills:0", quote: "Python", type: "technical_skill", importance: 0.6, facts: [] }),
+        ],
+      },
+      items,
+    );
+    expect(kept.signals.map((s) => s.quote)).toEqual(["Seattle Robotics Club 5 yrs 1 mo", "Python"]);
+  });
+
   it("orders by importance and caps the signal count", () => {
     const many = Array.from({ length: MAX_SIGNALS + 5 }, (_, i) =>
       signal({ evidenceId: `skills:${i}`, quote: "Python", importance: 0.5 + i / 100, facts: [] }),

@@ -93,6 +93,15 @@ function factIsGrounded(factText: string, quote: string): boolean {
   return numbersIn(factText).every((n) => quoteNumbers.has(n));
 }
 
+// A number is only evidence alongside what it measures, so "4 mos" alone is rejected.
+function isBareNumber(quote: string, metrics: string[]): boolean {
+  if (!/\d/.test(quote)) return false;
+  let rest = quote;
+  for (const metric of metrics) rest = rest.replace(metric, " ");
+  rest = rest.replace(/\d[\d.,+]*\s*(?:yrs?|years?|mos?|months?|hours?|hrs?)?/gi, " ");
+  return (rest.match(/\p{L}{2,}/gu) ?? []).length < 2;
+}
+
 function rank(signal: { importance: number; strength: SignalStrength }): number {
   return signal.importance * STRENGTH_WEIGHT[signal.strength];
 }
@@ -125,6 +134,8 @@ function toCandidate(raw: ProfileSignal, evidence: Map<string, EvidenceText>): C
     if (metric && !metrics.includes(metric)) metrics.push(metric);
     facts.push({ text, quantified: metric !== null });
   }
+
+  if (isBareNumber(quote, metrics)) return null;
 
   return {
     evidenceId: source.id,

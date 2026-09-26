@@ -12,6 +12,8 @@ QUOTES
 FACTS
 - For each signal, give 0-3 facts. A fact is a compact one-line phrase (under 60 characters) a reader could scan, e.g. "Led 5-student web team", "2nd place at regional conference", "100+ tutoring hours".
 - "metric" is the exact substring of the quote that holds the concrete value (e.g. "5-student", "2nd place", "500+", "100+ hours", "9 years"), or null when the fact has no concrete value.
+- Every fact names what it refers to (the role, organization, or activity). Never a bare duration or number like "1 yr 5 mos in role".
+- A duration or date range alone is never a signal. Quote it together with the role or organization it belongs to, or skip it.
 - Only use numbers that literally appear in the quote. Never compute, round, infer, or convert a number. A bare year like "2025" is not a metric on its own.
 
 NEVER invent achievements, outcomes, metrics, or roles. If the profile has no strong evidence, return few or no signals.
