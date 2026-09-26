@@ -530,6 +530,16 @@ describe("extractDetailsPageProfile", () => {
     ]);
   });
 
+  it("reads a single-entry details page without taking its heading as an entry", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/education/", configurable: true });
+    setBody(`
+      <main role="main">
+        <div data-testid="profile_EducationDetailsSection_jordan"><p>Education</p><div><p>City High School</p><p>High School Diploma</p><p>2024 – Present</p></div></div>
+      </main>
+    `);
+    expect(extractDetailsPageProfile(document).education).toEqual([{ school: "City High School", degree: "High School Diploma", field: "2024 – Present" }]);
+  });
+
   it("falls back to the regular extractor without a DetailsSection container", () => {
     Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/education/", configurable: true });
     setBody(`<main role="main"><h1>Jordan Rivera</h1><section><h2>Education</h2><ul><li><p>State University</p><p>BS</p></li></ul></section></main>`);

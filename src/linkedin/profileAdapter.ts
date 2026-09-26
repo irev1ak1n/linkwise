@@ -391,6 +391,7 @@ export function extractDetailsPageProfile(doc: Document = document): LinkedInPro
   const profile: LinkedInProfile = { ...EMPTY_PROFILE, experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] };
   for (const entry of entries) {
     const lines = entryLines(entry);
+    if (lines.length > 0 && matcherFor(section)(lines[0]!.toLowerCase())) lines.shift();
     if (lines.length === 0) continue;
     const part = entryFromLines(section, lines);
     for (const [key, value] of Object.entries(part)) {
