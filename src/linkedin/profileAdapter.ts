@@ -338,6 +338,10 @@ function extractSkills(main: HTMLElement, headings: HTMLElement[]): string[] {
   return [...new Set(skills)];
 }
 
+export function findProfileSectionRoot(doc: Document, name: ProfileSectionName): HTMLElement | null {
+  return findHeadingSection(Array.from(findMain(doc).querySelectorAll<HTMLElement>("h2, h3")), name);
+}
+
 // Reads the currently-rendered profile page. Never throws, an unfinished page just yields
 // undefined fields with extracted: false.
 export function extractLinkedInProfile(doc: Document = document): LinkedInProfile {
