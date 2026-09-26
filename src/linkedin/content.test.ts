@@ -901,6 +901,91 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
   });
 });
 
+describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+    Object.defineProperty(document, "URL", { value: "http://localhost/", configurable: true });
+  });
+
+  const mainEvidence = {
+    ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] },
+    name: "Illia Reviakin",
+    headline: "Student Developer",
+    about: "Builds websites.",
+    experience: [{ title: "Web Lead", company: "Robotics Club", description: "Led a 4-person web team" }],
+    extracted: true,
+  };
+
+  function setEducationPage(school = "State University"): void {
+    document.body.innerHTML = `
+      <div id="app-root"><main role="main">
+        <h1><span aria-hidden="true">Illia Reviakin</span></h1>
+        <section><h2>Education</h2><ul><li><p>${school}</p><p>BS Computer Science</p></li></ul></section>
+      </main></div>
+    `;
+  }
+
+  async function openEducation(prefs: Record<string, unknown>, stored: unknown = { profileKey: "irev1ak1n", profile: mainEvidence }) {
+    const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
+    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.profileEvidence.v1": stored, ...prefs });
+    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn() }, storage });
+    setEducationPage();
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(8000);
+    const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
+    return { assign, storage, getPanelProfileData, subscribePanelProfileData };
+  }
+
+  it("merges the opened section into the evidence already collected, keeping older sections", async () => {
+    const { assign, getPanelProfileData } = await openEducation({});
+    const data = getPanelProfileData();
+    expect(assign).not.toHaveBeenCalled();
+    expect(data.profile?.experience).toEqual(mainEvidence.experience);
+    expect(data.profile?.about).toBe("Builds websites.");
+    expect(data.profile?.education.map((e) => e.school)).toContain("State University");
+    expect(data.updatingSection).toBe("education");
+    expect(data.collection?.status).toBe("settled");
+  });
+
+  it("persists the merged evidence for the same profile", async () => {
+    const { storage } = await openEducation({});
+    const saved = (await storage.local.get("finder.profileEvidence.v1"))["finder.profileEvidence.v1"] as { profileKey: string; profile: typeof mainEvidence };
+    expect(saved.profileKey).toBe("irev1ak1n");
+    expect(saved.profile.experience).toEqual(mainEvidence.experience);
+  });
+
+  it("publishes nothing more while the same section stays unchanged", async () => {
+    const { subscribePanelProfileData } = await openEducation({});
+    const listener = vi.fn();
+    subscribePanelProfileData(listener);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("ignores opened sections when the preference is off", async () => {
+    const { assign, storage, getPanelProfileData } = await openEducation({ "finder.analyzeOpenedSections.v1": false });
+    expect(assign).not.toHaveBeenCalled();
+    expect(getPanelProfileData().profile?.education ?? []).toEqual([]);
+    const saved = (await storage.local.get("finder.profileEvidence.v1"))["finder.profileEvidence.v1"] as { profile: typeof mainEvidence };
+    expect(saved.profile.education).toEqual([]);
+  });
+
+  it("never merges another person's saved evidence into this profile", async () => {
+    const { getPanelProfileData } = await openEducation({}, { profileKey: "someone-else", profile: mainEvidence });
+    const profile = getPanelProfileData().profile;
+    expect(profile?.education.map((e) => e.school)).toContain("State University");
+    expect(profile?.experience).toEqual([]);
+    expect(profile?.about).toBeUndefined();
+  });
+});
+
 describe("content.ts bootstrap - Enhanced analysis toggle", () => {
   beforeEach(() => {
     vi.resetModules();

@@ -25,11 +25,11 @@ function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
 }
 
 function mergeExperience(a: ProfileExperienceEntry[], b: ProfileExperienceEntry[]): ProfileExperienceEntry[] {
-  return dedupeBy([...a, ...b], (e) => `${normalize(e.title)}|${normalize(e.company)}`);
+  return dedupeBy([...a, ...b], (e) => (e.title || e.company ? `${normalize(e.title)}|${normalize(e.company)}` : normalize(e.description)));
 }
 
 function mergeEducation(a: ProfileEducationEntry[], b: ProfileEducationEntry[]): ProfileEducationEntry[] {
-  return dedupeBy([...a, ...b], (e) => `${normalize(e.school)}|${normalize(e.degree)}`);
+  return dedupeBy([...a, ...b], (e) => (e.school || e.degree ? `${normalize(e.school)}|${normalize(e.degree)}` : normalize(e.field)));
 }
 
 function mergeListEntries(a: ProfileListEntry[], b: ProfileListEntry[]): ProfileListEntry[] {

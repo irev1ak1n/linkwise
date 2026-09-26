@@ -47,6 +47,13 @@ describe("mergeProfileEvidence - accumulates across sections, never replaces", (
     expect(merged.experience).toHaveLength(1);
   });
 
+  it("keeps untitled entries from different pages instead of treating them as duplicates", () => {
+    const main = profile({ experience: [{ description: "Private Tutor — Completed 60+ hours of tutoring" }] });
+    const details = profile({ experience: [{ description: "Video Editor — Created videos featuring 80+ children" }] });
+    expect(mergeProfileEvidence(main, details).experience).toHaveLength(2);
+    expect(mergeProfileEvidence(main, main).experience).toHaveLength(1);
+  });
+
   it("deduplicates list entries (projects, certifications, etc.) by name", () => {
     const main = profile({ projects: [{ name: "Cool App" }] });
     const detailsPage = profile({ projects: [{ name: "Cool App" }, { name: "Second Project" }] });

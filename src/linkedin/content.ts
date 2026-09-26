@@ -32,7 +32,7 @@
 import { EMPTY_PROFILE, foundSections, type LinkedInProfile } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
 import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
-import { detectProfileSections, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
+import { detailsPageSection, detectProfileSections, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
 import { discoverProfileSections, excludeFromAutoScanQueue } from "./sectionDiscovery";
 import { mergeProfileEvidence } from "./profileEvidenceAccumulator";
 import {
@@ -57,6 +57,7 @@ import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore 
 import { getScanModeState, initScanModeStore, subscribeScanModeStore, type ScanMode } from "./panel/scanModeStore";
 import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsStore } from "./panel/expandDetailsStore";
 import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedAnalysisStore } from "./panel/enhancedAnalysisStore";
+import { getManualSectionsState, initManualSectionsStore } from "./panel/manualSectionsStore";
 import { expandSeeMoreToggles } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
@@ -153,10 +154,12 @@ const engine = createCollectionEngine({
   isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? isNearDocumentEndOrTimedOut() : isNearDocumentEnd()),
   hasEnoughEvidence: hasEnoughEvidenceToSettle,
   onUpdate: (profileKey, profile, collection) => {
-    setPanelProfileData({ profileKey, profile, collection, autoScanProgress: getPanelProfileData().autoScanProgress });
+    setPanelProfileData({ profileKey, profile: withAccumulatedEvidence(profileKey, profile), collection, autoScanProgress: getPanelProfileData().autoScanProgress });
   },
   onReset: (profileKey) => {
     savedScrollPositions.set(profileKey, findScrollContainer().scrollTop);
+    const current = getPanelProfileData();
+    if (current.profileKey === profileKey) return; // same person arriving from one of their detail pages
     setPanelProfileData({ profileKey, profile: null, collection: null, autoScanProgress: null });
   },
   onLeaveProfile: () => {
@@ -218,6 +221,45 @@ function goToNextSectionOrFinish(session: AutoScanSession): void {
   if (next) location.assign(next.url);
 }
 
+function withAccumulatedEvidence(profileKey: string, profile: LinkedInProfile): LinkedInProfile {
+  return autoScanLoadedForKey === profileKey && autoScanEvidence.extracted ? mergeProfileEvidence(autoScanEvidence, profile) : profile;
+}
+
+let manualSectionUrl: string | null = null;
+let manualSectionArrivedAt = 0;
+
+function tickManualSection(profileKey: string, currentUrl: string): void {
+  const preference = getManualSectionsState();
+  if (!preference.loaded || !preference.enabled || !/\/details\//.test(currentUrl)) return;
+  if (manualSectionUrl !== currentUrl) {
+    manualSectionUrl = currentUrl;
+    manualSectionArrivedAt = Date.now();
+    return;
+  }
+  if (Date.now() - manualSectionArrivedAt < SECTION_SETTLE_MS) return;
+
+  const sectionProfile = extractLinkedInProfile(document);
+  if (!sectionProfile.extracted) return;
+  const current = getPanelProfileData();
+  const base = autoScanEvidence.extracted
+    ? autoScanEvidence
+    : current.profileKey === profileKey && current.profile
+      ? current.profile
+      : { ...EMPTY_PROFILE };
+  const merged = mergeProfileEvidence(base, sectionProfile);
+  if (JSON.stringify(merged) === JSON.stringify(base)) return;
+
+  autoScanEvidence = merged;
+  void saveProfileEvidence(profileKey, merged);
+  setPanelProfileData({
+    profileKey,
+    profile: merged,
+    collection: { ...engine.getCollectionState(), status: "settled" },
+    autoScanProgress: current.profileKey === profileKey ? (current.autoScanProgress ?? null) : null,
+    updatingSection: detailsPageSection(currentUrl),
+  });
+}
+
 function isCrawlerPage(currentUrl: string): boolean {
   if (!autoScanSession || isSessionComplete(autoScanSession)) return false;
   return nextPendingSection(autoScanSession)?.normalizedUrl === currentUrl;
@@ -252,7 +294,10 @@ function tickAutoScanCrawl(): void {
 
   // Only a page the crawler itself opened (the active session's pending section) is crawler-owned.
   // Anything else the user opened is left alone: no redirect, no new session.
-  if (currentUrl !== mainProfileUrl && !isCrawlerPage(currentUrl)) return;
+  if (currentUrl !== mainProfileUrl && !isCrawlerPage(currentUrl)) {
+    tickManualSection(profileKey, currentUrl);
+    return;
+  }
 
   if (autoScanSession === null) {
     // Discovery needs the main page's own "Show all" links, so a crawl only ever starts there.
@@ -367,6 +412,7 @@ function tick(): void {
   ensureLinkWiseOpener(togglePanel);
   runJobsTick(location.href, getJobsSettingsState().settings);
   tickSignals();
+  if (!getScanModeState().loaded) return;
   const mode = getScanModeState().mode;
   const isDetailsPage = /\/details\//.test(location.href);
 
@@ -458,6 +504,7 @@ registerCleanup(subscribeScanModeStore(tick));
 initExpandDetailsStore();
 registerCleanup(subscribeExpandDetailsStore(tick));
 
+initManualSectionsStore();
 initEnhancedAnalysisStore();
 registerCleanup(subscribeEnhancedAnalysisStore(tick));
 

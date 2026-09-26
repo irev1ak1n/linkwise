@@ -16,6 +16,7 @@ export interface PanelProfileData {
   profile: LinkedInProfile | null;
   collection: CollectionState | null;
   autoScanProgress?: AutoScanProgress | null;
+  updatingSection?: string | null;
 }
 
 type Listener = () => void;
