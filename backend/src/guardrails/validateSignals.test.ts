@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findGroundedText, validateSignals, MAX_SIGNALS, type EvidenceText } from "./validateSignals";
+import { findGroundedText, validateSignals, MAX_FACTS, MAX_SIGNALS, type EvidenceText } from "./validateSignals";
 import type { ProfileSignal } from "../openai/signalsSchema";
 
 const evidence: EvidenceText[] = [
@@ -123,6 +123,29 @@ describe("validateSignals", () => {
     const long: EvidenceText = { id: "about:1", section: "about", text: "word ".repeat(100).trim() };
     const result = validateSignals({ signals: [signal({ evidenceId: "about:1", quote: long.text, facts: [] })] }, [long]);
     expect(result.signals).toHaveLength(0);
+  });
+
+  it("lists quantified facts before unquantified ones and keeps one unquantified fact per signal", () => {
+    const items: EvidenceText[] = Array.from({ length: MAX_FACTS + 2 }, (_, i) => ({
+      id: `experience:${i}`,
+      section: "experience",
+      text: `Role ${i} — Led the ${i}-member team and shipped the product`,
+    }));
+    const signals = items.map((item, i) =>
+      signal({
+        evidenceId: item.id,
+        quote: i === items.length - 1 ? `Led the ${i}-member team` : "shipped the product",
+        importance: 0.99 - i / 100,
+        facts:
+          i === items.length - 1
+            ? [{ text: `Led ${i}-member team`, metric: `${i}-member` }]
+            : [{ text: `Shipped product ${"x".repeat(i)}`, metric: null }, { text: `Owned delivery ${"y".repeat(i)}`, metric: null }],
+      }),
+    );
+    const facts = validateSignals({ signals }, items).facts.map((f) => f.text);
+    expect(facts[0]).toBe(`Led ${items.length - 1}-member team`);
+    expect(facts).toHaveLength(MAX_FACTS);
+    expect(facts.filter((f) => f.startsWith("Owned delivery"))).toEqual([]);
   });
 
   it("orders by importance and caps the signal count", () => {

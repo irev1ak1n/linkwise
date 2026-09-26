@@ -97,8 +97,13 @@ function rank(signal: { importance: number; strength: SignalStrength }): number 
   return signal.importance * STRENGTH_WEIGHT[signal.strength];
 }
 
+interface CandidateFact {
+  text: string;
+  quantified: boolean;
+}
+
 interface Candidate extends ValidatedSignal {
-  facts: string[];
+  facts: CandidateFact[];
 }
 
 function toCandidate(raw: ProfileSignal, evidence: Map<string, EvidenceText>): Candidate | null {
@@ -111,14 +116,14 @@ function toCandidate(raw: ProfileSignal, evidence: Map<string, EvidenceText>): C
   if (!quote || quote.length < MIN_QUOTE_LENGTH || quote.length > MAX_QUOTE_LENGTH) return null;
 
   const metrics: string[] = [];
-  const facts: string[] = [];
+  const facts: CandidateFact[] = [];
   for (const fact of raw.facts) {
     const metric = fact.metric ? findGroundedText(quote, fact.metric) : null;
     if (fact.metric && !metric) continue;
     const text = fact.text.trim();
     if (text.length === 0 || text.length > MAX_FACT_LENGTH || !factIsGrounded(text, quote)) continue;
     if (metric && !metrics.includes(metric)) metrics.push(metric);
-    facts.push(text);
+    facts.push({ text, quantified: metric !== null });
   }
 
   return {
@@ -160,13 +165,19 @@ export function validateSignals(response: SignalAnalysisResponse, evidenceItems:
 
   const facts: ValidatedFact[] = [];
   const seenFacts = new Set<string>();
+  const addFact = (text: string, evidenceId: string): boolean => {
+    const key = normalizeText(text);
+    if (seenFacts.has(key) || facts.length >= MAX_FACTS) return false;
+    seenFacts.add(key);
+    facts.push({ text, evidenceId });
+    return true;
+  };
   for (const signal of kept) {
-    for (const text of signal.facts) {
-      const key = normalizeText(text);
-      if (seenFacts.has(key) || facts.length >= MAX_FACTS) continue;
-      seenFacts.add(key);
-      facts.push({ text, evidenceId: signal.evidenceId });
-    }
+    for (const fact of signal.facts) if (fact.quantified) addFact(fact.text, signal.evidenceId);
+  }
+  for (const signal of kept) {
+    if (signal.facts.some((f) => f.quantified)) continue;
+    signal.facts.find((f) => addFact(f.text, signal.evidenceId));
   }
 
   return { signals: kept.map(({ facts: _facts, ...signal }) => signal), facts };
