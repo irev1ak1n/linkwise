@@ -62,6 +62,9 @@ import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore
 import { runJobsTick } from "./jobs/jobsRuntime";
 import { JOB_CARD_SELECTOR } from "./jobs/jobCardDetector";
 import { claimRuntime } from "./runtimeTakeover";
+import { createSignalRuntime } from "./signalRuntime";
+import { SignalHighlighter } from "./signalHighlighter";
+import { getSignalModeState, initSignalModeStore, publishSignalAnalysis, subscribeSignalModeStore } from "./panel/signalModeStore";
 import { watchForContextInvalidation } from "./extensionContext";
 
 const DOCUMENT_END_MARGIN_PX = 600;
@@ -348,10 +351,25 @@ function tickAutoScanCrawl(): void {
   })();
 }
 
+const signalRuntime = createSignalRuntime({ highlighter: new SignalHighlighter(document), publish: publishSignalAnalysis });
+registerCleanup(() => signalRuntime.dispose());
+
+function tickSignals(): void {
+  const data = getPanelProfileData();
+  signalRuntime.tick({
+    enabled: getSignalModeState().enabled,
+    href: location.href,
+    profileKey: data.profileKey,
+    profile: data.profile,
+    ready: data.collection?.status === "settled" && data.autoScanProgress?.status !== "scanning",
+  });
+}
+
 function tick(): void {
   if (torndown) return;
   ensureLinkWiseOpener(togglePanel);
   runJobsTick(location.href, getJobsSettingsState().settings);
+  tickSignals();
   const mode = getScanModeState().mode;
   const isDetailsPage = /\/details\//.test(location.href);
 
@@ -447,6 +465,16 @@ registerCleanup(subscribeEnhancedAnalysisStore(tick));
 
 initJobsSettingsStore();
 registerCleanup(subscribeJobsSettingsStore(tick));
+
+initSignalModeStore();
+let signalModeEnabled = getSignalModeState().enabled;
+registerCleanup(
+  subscribeSignalModeStore(() => {
+    if (getSignalModeState().enabled === signalModeEnabled) return;
+    signalModeEnabled = getSignalModeState().enabled;
+    if (!torndown) tickSignals();
+  }),
+);
 
 tick();
 watchForChanges();
