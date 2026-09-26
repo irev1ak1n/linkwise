@@ -1,21 +1,31 @@
 // The background worker's half of the content-script/backend bridge. Relays the actual HTTP
 // request and supports cancelling it by ID, since messaging can't carry a real AbortSignal.
 // Handles both the analysis and criteria-generation endpoints.
-import { analyzeProfileEndpoint, generateCriteriaEndpoint } from "../ai/config";
+import { analyzeProfileEndpoint, analyzeSignalsEndpoint, generateCriteriaEndpoint } from "../ai/config";
 
 export const LINKWISE_ANALYZE_PROFILE = "LINKWISE_ANALYZE_PROFILE";
 export const LINKWISE_CANCEL_ANALYSIS = "LINKWISE_CANCEL_ANALYSIS";
 export const LINKWISE_GENERATE_CRITERIA = "LINKWISE_GENERATE_CRITERIA";
 export const LINKWISE_CANCEL_GENERATE_CRITERIA = "LINKWISE_CANCEL_GENERATE_CRITERIA";
+export const LINKWISE_ANALYZE_SIGNALS = "LINKWISE_ANALYZE_SIGNALS";
+export const LINKWISE_CANCEL_SIGNALS = "LINKWISE_CANCEL_SIGNALS";
+
+const ENDPOINTS: Record<string, () => string> = {
+  [LINKWISE_ANALYZE_PROFILE]: analyzeProfileEndpoint,
+  [LINKWISE_GENERATE_CRITERIA]: generateCriteriaEndpoint,
+  [LINKWISE_ANALYZE_SIGNALS]: analyzeSignalsEndpoint,
+};
+
+const CANCEL_TYPES = new Set([LINKWISE_CANCEL_ANALYSIS, LINKWISE_CANCEL_GENERATE_CRITERIA, LINKWISE_CANCEL_SIGNALS]);
 
 interface RelayMessage {
-  type: typeof LINKWISE_ANALYZE_PROFILE | typeof LINKWISE_GENERATE_CRITERIA;
+  type: string;
   requestId: string;
   payload: unknown;
 }
 
 interface CancelMessage {
-  type: typeof LINKWISE_CANCEL_ANALYSIS | typeof LINKWISE_CANCEL_GENERATE_CRITERIA;
+  type: string;
   requestId: string;
 }
 
@@ -25,16 +35,16 @@ function messageType(message: unknown): unknown {
 
 function isRelayMessage(message: unknown): message is RelayMessage {
   const type = messageType(message);
-  return type === LINKWISE_ANALYZE_PROFILE || type === LINKWISE_GENERATE_CRITERIA;
+  return typeof type === "string" && Object.hasOwn(ENDPOINTS, type);
 }
 
 function isCancelMessage(message: unknown): message is CancelMessage {
   const type = messageType(message);
-  return type === LINKWISE_CANCEL_ANALYSIS || type === LINKWISE_CANCEL_GENERATE_CRITERIA;
+  return typeof type === "string" && CANCEL_TYPES.has(type);
 }
 
-function endpointFor(type: RelayMessage["type"]): string {
-  return type === LINKWISE_ANALYZE_PROFILE ? analyzeProfileEndpoint() : generateCriteriaEndpoint();
+function endpointFor(type: string): string {
+  return ENDPOINTS[type]!();
 }
 
 const inFlight = new Map<string, AbortController>();

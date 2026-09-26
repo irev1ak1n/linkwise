@@ -9,3 +9,7 @@ export function analyzeProfileEndpoint(): string {
 export function generateCriteriaEndpoint(): string {
   return `${LINKWISE_API_BASE_URL}/api/generate-criteria`;
 }
+
+export function analyzeSignalsEndpoint(): string {
+  return `${LINKWISE_API_BASE_URL}/api/analyze-signals`;
+}

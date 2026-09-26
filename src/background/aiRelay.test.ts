@@ -5,6 +5,8 @@ import {
   LINKWISE_CANCEL_ANALYSIS,
   LINKWISE_GENERATE_CRITERIA,
   LINKWISE_CANCEL_GENERATE_CRITERIA,
+  LINKWISE_ANALYZE_SIGNALS,
+  LINKWISE_CANCEL_SIGNALS,
 } from "./aiRelay";
 
 type Listener = (message: unknown, sender: unknown, sendResponse: (response?: unknown) => void) => boolean | void;
@@ -153,5 +155,41 @@ describe("installAiRelay - unrelated messages", () => {
     installAiRelay(vi.fn() as unknown as typeof fetch);
     const result = fake.listener({ type: "SOME_OTHER_MESSAGE" }, {}, vi.fn());
     expect(result).toBe(false);
+  });
+});
+
+describe("installAiRelay - analyze-signals proxy", () => {
+  it("fetches the signals endpoint and forwards its JSON response back", async () => {
+    const fake = installFakeChromeRuntime();
+    const body = { status: "signals", model: "m", signals: [], facts: [] };
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(body) });
+    installAiRelay(fetchImpl as unknown as typeof fetch);
+
+    const sendResponse = vi.fn();
+    expect(fake.listener({ type: LINKWISE_ANALYZE_SIGNALS, requestId: "s1", payload: { profile: {} } }, {}, sendResponse)).toBe(true);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith(body));
+    expect(fetchImpl).toHaveBeenCalledWith(expect.stringContaining("/api/analyze-signals"), expect.objectContaining({ method: "POST" }));
+  });
+
+  it("aborts the fetch when a matching cancel-signals message arrives", () => {
+    const fake = installFakeChromeRuntime();
+    let signal: AbortSignal | undefined;
+    const fetchImpl = vi.fn((_url: string, init: RequestInit) => {
+      signal = init.signal ?? undefined;
+      return new Promise(() => {});
+    });
+    installAiRelay(fetchImpl as unknown as typeof fetch);
+
+    fake.listener({ type: LINKWISE_ANALYZE_SIGNALS, requestId: "s1", payload: {} }, {}, vi.fn());
+    fake.listener({ type: LINKWISE_CANCEL_SIGNALS, requestId: "s1" }, {}, vi.fn());
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("ignores a message type that only exists on Object.prototype", () => {
+    const fake = installFakeChromeRuntime();
+    const fetchImpl = vi.fn();
+    installAiRelay(fetchImpl as unknown as typeof fetch);
+    expect(fake.listener({ type: "toString", requestId: "x", payload: {} }, {}, vi.fn())).toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
