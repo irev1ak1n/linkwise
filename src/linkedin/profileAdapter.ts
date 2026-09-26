@@ -379,15 +379,15 @@ function entryFromLines(section: ProfileSectionName, lines: string[]): Partial<L
   }
 }
 
-// Newer "/details/{section}/" pages have no section heading, just a DetailsSection container
-// of entries separated by <hr>. Reads only those entries, never the top card or sidebar.
+// Newer "/details/{section}/" pages have no section heading, just a profile card listing
+// entries separated by <hr>. Reads only those entries, never the top card or sidebar.
 export function extractDetailsPageProfile(doc: Document = document): LinkedInProfile {
   const section = detailsPageSection(doc.URL);
   const container = doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"]');
-  if (!section || !container) return extractLinkedInProfile(doc);
+  const list = doc.querySelector('[data-testid*="DetailsSection"] hr, main [componentkey*="profile.card"] hr')?.parentElement;
+  if (!section || (!list && !container)) return extractLinkedInProfile(doc);
 
-  const list = container.querySelector("hr")?.parentElement;
-  const entries = list ? Array.from(list.children).filter((el): el is HTMLElement => el.tagName !== "HR") : [container];
+  const entries = list ? Array.from(list.children).filter((el): el is HTMLElement => el.tagName !== "HR") : [container!];
   const profile: LinkedInProfile = { ...EMPTY_PROFILE, experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] };
   for (const entry of entries) {
     const lines = entryLines(entry);

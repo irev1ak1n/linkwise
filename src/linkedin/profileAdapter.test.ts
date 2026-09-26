@@ -511,6 +511,25 @@ describe("extractDetailsPageProfile", () => {
     expect(extractDetailsPageProfile(document).honors).toEqual([{ name: "2nd Place - Webmaster", description: "Issued by TSA · Earned 2nd place at regionals" }]);
   });
 
+  it("reads a profile-card entry list that has no DetailsSection test id", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/certifications/", configurable: true });
+    setBody(`
+      <main role="main">
+        <div><p>Jordan Rivera</p><p>Verify in 2 minutes</p></div>
+        <section><div componentkey="com.linkedin.sdui.profile.card.refABC"><div>
+          <div><p>AWS Cloud Practitioner</p><p>Amazon Web Services</p></div>
+          <hr role="presentation">
+          <div><p>Google IT Support</p><p>Google</p></div>
+        </div></div></section>
+        <section><h2>People you may know</h2><p>Sam Lee</p></section>
+      </main>
+    `);
+    expect(extractDetailsPageProfile(document).certifications).toEqual([
+      { name: "AWS Cloud Practitioner", description: "Amazon Web Services" },
+      { name: "Google IT Support", description: "Google" },
+    ]);
+  });
+
   it("falls back to the regular extractor without a DetailsSection container", () => {
     Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/education/", configurable: true });
     setBody(`<main role="main"><h1>Jordan Rivera</h1><section><h2>Education</h2><ul><li><p>State University</p><p>BS</p></li></ul></section></main>`);
