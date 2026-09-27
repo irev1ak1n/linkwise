@@ -1,6 +1,6 @@
 // Turns an entry's text lines into structured fields. A line's role comes from its position
 // relative to the date line, and a candidate is rejected when it is clearly metadata.
-import type { ProfileEducationEntry, ProfileExperienceEntry } from "../models/profile";
+import type { ProfileEducationEntry, ProfileExperienceEntry, ProfileListEntry } from "../models/profile";
 
 export interface EntryLine {
   text: string;
@@ -89,4 +89,10 @@ export function parseEducationLines(lines: EntryLine[]): ProfileEducationEntry {
   }
   entry.description = joined(details);
   return Object.fromEntries(Object.entries(entry).filter(([, value]) => value !== undefined)) as ProfileEducationEntry;
+}
+
+export function parseListLines(lines: EntryLine[]): ProfileListEntry {
+  const name = lines.find((line) => !line.description);
+  const entry: ProfileListEntry = { name: name?.text, description: joined(lines.filter((line) => line !== name).map((line) => line.text)) };
+  return Object.fromEntries(Object.entries(entry).filter(([, value]) => value !== undefined)) as ProfileListEntry;
 }

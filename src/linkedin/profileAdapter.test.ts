@@ -467,6 +467,23 @@ describe("extractLinkedInProfile - entries separated by <hr>", () => {
     `);
   }
 
+  it("reads each honor on the main page as its own named entry", () => {
+    setBody(`
+      <main role="main">
+        <section><h1>Jordan Rivera</h1><p>Student Developer</p></section>
+        <section><h2>Honors &amp; awards (2)</h2>
+          <div><p>AP Scholar Award</p><p>Issued by College Board</p></div>
+          <hr>
+          <div><p>2nd Place - Webmaster</p><p>Issued by TSA</p></div>
+        </section>
+      </main>
+    `);
+    expect(extractLinkedInProfile(document).honors).toEqual([
+      { name: "AP Scholar Award", description: "Issued by College Board" },
+      { name: "2nd Place - Webmaster", description: "Issued by TSA" },
+    ]);
+  });
+
   it("takes a grouped role's company from its employer header, never from its date line", () => {
     setSeparatedLayout();
     const experience = extractLinkedInProfile(document).experience;
@@ -642,6 +659,23 @@ describe("extractDetailsPageProfile", () => {
     expect(extractDetailsPageProfile(document).experience).toEqual([
       { title: "Yearbook Website Developer", company: "Lincoln High School", dates: "Mar 2026 - Present · 7 mos" },
       { title: "Tutor", employmentType: "Self-Employed", dates: "Jul 2020 - Nov 2024", description: "Skills: C++, Java" },
+    ]);
+  });
+
+  it("keeps an award whose title looks like the section heading, dropping only the heading itself", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/honors/", configurable: true });
+    setBody(`
+      <main role="main">
+        <div componentkey="com.linkedin.sdui.profile.card.refABC"><p>Honors &amp; awards</p><div>
+          <div><p>AP Scholar Award</p><p>Issued by College Board · Jun 2026</p></div>
+          <hr role="presentation">
+          <div><p>2nd Place - Webmaster</p><p>Issued by TSA</p><span data-testid="expandable-text-box">Earned 2nd place at regionals</span></div>
+        </div></div>
+      </main>
+    `);
+    expect(extractDetailsPageProfile(document).honors).toEqual([
+      { name: "AP Scholar Award", description: "Issued by College Board · Jun 2026" },
+      { name: "2nd Place - Webmaster", description: "Issued by TSA · Earned 2nd place at regionals" },
     ]);
   });
 

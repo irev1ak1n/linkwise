@@ -12,7 +12,7 @@ import {
   type ProfileListEntry,
   type ProfileSectionName,
 } from "../models/profile";
-import { groupCompany, parseEducationLines, parseExperienceLines, type EntryLine } from "./entryFields";
+import { groupCompany, parseEducationLines, parseExperienceLines, parseListLines, type EntryLine } from "./entryFields";
 
 // How each section's heading is recognized. A few sections have multiple real-world heading
 // variants, so those match by substring. Shared by extraction and detection so they can't drift.
@@ -31,6 +31,24 @@ const SECTION_MATCHERS: { name: ProfileSectionName; matches: (headingText: strin
 
 function matcherFor(name: ProfileSectionName): (headingText: string) => boolean {
   return SECTION_MATCHERS.find((m) => m.name === name)!.matches;
+}
+
+// Exact heading texts, since a real entry like "AP Scholar Award" also contains "award".
+const SECTION_HEADINGS: Record<ProfileSectionName, string[]> = {
+  about: ["about"],
+  experience: ["experience"],
+  education: ["education"],
+  skills: ["skills"],
+  projects: ["projects"],
+  certifications: ["licenses & certifications", "certifications", "licenses"],
+  organizations: ["organizations"],
+  volunteering: ["volunteering", "volunteer experience", "volunteering experience"],
+  languages: ["languages"],
+  honors: ["honors & awards", "honors and awards", "honors", "awards"],
+};
+
+function isSectionHeading(name: ProfileSectionName, text: string): boolean {
+  return SECTION_HEADINGS[name].includes(text.toLowerCase().replace(/\(\d+\)/, "").trim());
 }
 
 function cleanText(text: string | null | undefined): string | undefined {
@@ -265,11 +283,10 @@ function lineStream(root: HTMLElement): (DomLine | null)[] {
 }
 
 function entryBlocks(root: HTMLElement, name: ProfileSectionName): DomLine[][] {
-  const heading = matcherFor(name);
   const blocks: DomLine[][] = [[]];
   for (const line of lineStream(root)) {
     if (!line) blocks.push([]);
-    else if (!heading(line.text.toLowerCase()) && !blocks.at(-1)!.some((l) => l.text === line.text)) blocks.at(-1)!.push(line);
+    else if (!isSectionHeading(name, line.text) && !blocks.at(-1)!.some((l) => l.text === line.text)) blocks.at(-1)!.push(line);
   }
   return blocks.filter((block) => block.length > 0);
 }
@@ -284,6 +301,12 @@ function experienceFromBlock(block: DomLine[]): ProfileExperienceEntry[] {
   if (items.length === 0) return [parseExperienceLines(block)];
   const employer = groupCompany(block.filter((line) => !line.item));
   return items.map((item) => parseExperienceLines(block.filter((line) => line.item === item), employer));
+}
+
+function listFromBlock(block: DomLine[]): ProfileListEntry[] {
+  const items = blockItems(block);
+  if (items.length === 0) return [parseListLines(block)];
+  return items.map((item) => parseListLines(block.filter((line) => line.item === item)));
 }
 
 function educationFromBlock(block: DomLine[]): ProfileEducationEntry[] {
@@ -350,6 +373,11 @@ function extractEducation(headings: HTMLElement[]): ProfileEducationEntry[] {
 function extractListEntries(headings: HTMLElement[], name: ProfileSectionName): ProfileListEntry[] {
   const section = findHeadingSection(headings, name);
   if (!section) return [];
+
+  if (hasSeparatedEntries(section)) {
+    const entries = structuredEntries(section, name, listFromBlock);
+    if (entries.length > 0) return entries;
+  }
 
   const items = Array.from(section.querySelectorAll<HTMLElement>("li"));
   if (items.length > 0) {
@@ -462,10 +490,11 @@ export function extractDetailsPageProfile(doc: Document = document): LinkedInPro
   if (!section || (!list && !container)) return extractLinkedInProfile(doc);
 
   const profile: LinkedInProfile = { ...EMPTY_PROFILE, experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] };
-  if (section === "experience" || section === "education") {
+  if (section !== "skills" && section !== "about") {
     const root = (container ?? list)!;
     if (section === "experience") profile.experience = structuredEntries(root, section, experienceFromBlock);
-    else profile.education = structuredEntries(root, section, educationFromBlock);
+    else if (section === "education") profile.education = structuredEntries(root, section, educationFromBlock);
+    else profile[section] = structuredEntries(root, section, listFromBlock);
     profile.extracted = foundSections(profile).length > 0;
     return profile;
   }
@@ -473,7 +502,7 @@ export function extractDetailsPageProfile(doc: Document = document): LinkedInPro
   const entries = list ? Array.from(list.children).filter((el): el is HTMLElement => el.tagName !== "HR") : [container!];
   for (const entry of entries) {
     const lines = entryLines(entry);
-    if (lines.length > 0 && matcherFor(section)(lines[0]!.toLowerCase())) lines.shift();
+    if (lines.length > 0 && isSectionHeading(section, lines[0]!)) lines.shift();
     if (lines.length === 0) continue;
     const part = entryFromLines(section, lines);
     for (const [key, value] of Object.entries(part)) {
