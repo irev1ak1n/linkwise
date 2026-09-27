@@ -47,7 +47,6 @@ import {
   type AutoScanSession,
 } from "./autoScanSession";
 import { loadAutoScanSession, saveAutoScanSession } from "../storage/autoScanSessionRepository";
-import { saveProfileEvidence } from "../storage/profileEvidenceRepository";
 import { loadProfileSession, updateProfileSession } from "../storage/profileSessionRepository";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
 import { getPanelProfileData, setPanelProfileData, type AutoScanProgress } from "./panel/panelStore";
@@ -165,7 +164,7 @@ const engine = createCollectionEngine({
     const settled = collection.status === "settled" || (restoredSession && sessionKey === profileKey);
     if (settled && merged.extracted) {
       autoScanEvidence = merged;
-      void saveProfileEvidence(profileKey, merged);
+      void persistSession(profileKey, { evidence: merged });
     }
     setPanelProfileData({
       profileKey,
@@ -199,16 +198,25 @@ let autoScanLoadedForKey: string | null = null;
 let sessionKey: string | null = null;
 let sessionReady = false;
 let restoredSession = false;
+let sessionStartedAt: number | null = null;
+
+// Writes keep the session's original start, so evidence carried in memory never outlives it.
+async function persistSession(profileKey: string, update: { evidence: LinkedInProfile; scannedSection?: string | null }): Promise<void> {
+  const session = await updateProfileSession(profileKey, { ...update, startedAt: sessionKey === profileKey ? sessionStartedAt : null });
+  if (session && sessionKey === profileKey) sessionStartedAt ??= session.createdAt;
+}
 
 function ensureProfileSession(profileKey: string): boolean {
   if (sessionKey === profileKey) return sessionReady;
   sessionKey = profileKey;
   sessionReady = false;
   restoredSession = false;
+  sessionStartedAt = null;
   autoScanEvidence = { ...EMPTY_PROFILE };
   void loadProfileSession(profileKey).then((session) => {
     if (sessionKey !== profileKey || torndown) return;
     sessionReady = true;
+    sessionStartedAt = session?.createdAt ?? null;
     if (session?.evidence.extracted) {
       autoScanEvidence = session.evidence;
       restoredSession = true;
@@ -324,7 +332,7 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
   if (JSON.stringify(merged) === JSON.stringify(base)) return;
 
   autoScanEvidence = merged;
-  void updateProfileSession(profileKey, { evidence: merged, scannedSection: detailsPageSection(currentUrl) });
+  void persistSession(profileKey, { evidence: merged, scannedSection: detailsPageSection(currentUrl) });
   setPanelProfileData({
     profileKey,
     profile: merged,
@@ -390,7 +398,7 @@ function tickAutoScanCrawl(): void {
     const session = startAutoScanSession(profileKey, currentUrl, discovered);
     autoScanSession = session;
     void saveAutoScanSession(session);
-    void saveProfileEvidence(profileKey, autoScanEvidence);
+    void persistSession(profileKey, { evidence: autoScanEvidence });
     publishAutoScanState(profileKey);
     goToNextSectionOrFinish(session);
     return;
@@ -459,7 +467,7 @@ function tickAutoScanCrawl(): void {
   sectionHandledUrl = pending.normalizedUrl;
 
   void (async () => {
-    await saveProfileEvidence(profileKey, autoScanEvidence);
+    await persistSession(profileKey, { evidence: autoScanEvidence });
     autoScanSession = markCurrentSectionDone(autoScanSession!);
     await saveAutoScanSession(autoScanSession);
     const verified = await loadAutoScanSession(profileKey);

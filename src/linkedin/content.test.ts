@@ -995,6 +995,16 @@ describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
     expect(getPanelProfileData().profile?.education.map((e) => e.school)).toContain("State University");
   });
 
+  it("stops persisting once the restored session passes 10 minutes", async () => {
+    const createdAt = Date.now() - 10 * 60 * 1000 + 1000;
+    const stored = { irev1ak1n: { profileKey: "irev1ak1n", createdAt, updatedAt: createdAt, evidence: mainEvidence, scannedSections: [] } };
+    const { storage, getPanelProfileData } = await openEducation({}, stored);
+    expect(getPanelProfileData().profile?.education.map((e) => e.school)).toContain("State University");
+    const sessions = (await storage.local.get("finder.profileSessions.v1"))["finder.profileSessions.v1"] as Record<string, { createdAt: number; scannedSections: string[] }>;
+    expect(sessions.irev1ak1n.createdAt).toBe(createdAt);
+    expect(sessions.irev1ak1n.scannedSections).toEqual([]);
+  });
+
   it("persists the merged evidence for the same profile", async () => {
     const { storage } = await openEducation({});
     const sessions = (await storage.local.get("finder.profileSessions.v1"))["finder.profileSessions.v1"] as Record<string, { evidence: LinkedInProfile; scannedSections: string[] }>;

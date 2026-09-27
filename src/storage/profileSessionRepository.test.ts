@@ -55,6 +55,13 @@ describe("profileSessionRepository", () => {
     expect(Object.keys(stored)).toEqual(["irev1ak1n"]);
   });
 
+  it("never re-persists evidence whose session started more than 10 minutes ago", async () => {
+    await updateProfileSession("irev1ak1n", { evidence: evidence("Illia") }, 0);
+    expect(await updateProfileSession("irev1ak1n", { evidence: evidence("Illia v2"), startedAt: 0 }, PROFILE_SESSION_TTL_MS + 1)).toBeNull();
+    expect(await loadProfileSession("irev1ak1n", PROFILE_SESSION_TTL_MS + 2)).toBeNull();
+    expect((await updateProfileSession("irev1ak1n", { evidence: evidence("Illia") }, PROFILE_SESSION_TTL_MS + 3))?.createdAt).toBe(PROFILE_SESSION_TTL_MS + 3);
+  });
+
   it("does not create a session from a section mark alone", async () => {
     expect(await updateProfileSession("irev1ak1n", { scannedSection: "education" }, 0)).toBeNull();
   });

@@ -16,7 +16,7 @@ export interface ProfileSession {
 type SessionMap = Record<string, ProfileSession>;
 
 // A fixed lifetime from creation, so browsing a profile never keeps its session alive forever.
-export function isProfileSessionFresh(session: ProfileSession, now: number): boolean {
+export function isProfileSessionFresh(session: Pick<ProfileSession, "createdAt">, now: number): boolean {
   return now - session.createdAt < PROFILE_SESSION_TTL_MS;
 }
 
@@ -32,19 +32,21 @@ export async function loadProfileSession(profileKey: string, now = Date.now()): 
 
 export async function updateProfileSession(
   profileKey: string,
-  update: { evidence?: LinkedInProfile; scannedSection?: string | null },
+  update: { evidence?: LinkedInProfile; scannedSection?: string | null; startedAt?: number | null },
   now = Date.now(),
 ): Promise<ProfileSession | null> {
   const sessions = await readSessions();
   const existing = sessions[profileKey];
   const current = existing && isProfileSessionFresh(existing, now) ? existing : null;
   if (!current && !update.evidence) return null;
+  const createdAt = current?.createdAt ?? update.startedAt ?? now;
+  if (!isProfileSessionFresh({ createdAt }, now)) return null;
 
   const scanned = new Set(current?.scannedSections ?? []);
   if (update.scannedSection) scanned.add(update.scannedSection);
   const next: ProfileSession = {
     profileKey,
-    createdAt: current?.createdAt ?? now,
+    createdAt,
     updatedAt: now,
     evidence: update.evidence ?? current!.evidence,
     scannedSections: [...scanned],
