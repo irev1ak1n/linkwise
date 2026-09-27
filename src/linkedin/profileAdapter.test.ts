@@ -530,6 +530,34 @@ describe("extractDetailsPageProfile", () => {
     ]);
   });
 
+  it("reads every entry when each one is wrapped with its own separator", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/experience/", configurable: true });
+    setBody(`
+      <main role="main">
+        <section><div componentkey="com.linkedin.sdui.profile.card.refABC"><div>
+          <div><p>Experience</p></div>
+          <div><p>Web Lead</p><p>Yearbook Club</p></div>
+          <div><hr role="presentation"><div><p>Tutor</p><p>Self-Employed</p></div></div>
+          <div><hr role="presentation"><div><p>Video Editor</p><p>Academy</p></div></div>
+        </div></div></section>
+      </main>
+    `);
+    expect(extractDetailsPageProfile(document).experience.map((e) => e.title)).toEqual(["Web Lead", "Tutor", "Video Editor"]);
+  });
+
+  it("reads both entries when a wrapped layout has a single separator", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/experience/", configurable: true });
+    setBody(`
+      <main role="main">
+        <div componentkey="com.linkedin.sdui.profile.card.refABC"><div>
+          <div><p>Web Lead</p><p>Yearbook Club</p></div>
+          <div><hr role="presentation"><div><p>Tutor</p><p>Self-Employed</p></div></div>
+        </div></div>
+      </main>
+    `);
+    expect(extractDetailsPageProfile(document).experience.map((e) => e.title)).toEqual(["Web Lead", "Tutor"]);
+  });
+
   it("reads a single-entry details page without taking its heading as an entry", () => {
     Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/education/", configurable: true });
     setBody(`

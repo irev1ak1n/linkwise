@@ -180,4 +180,20 @@ describe("locateSignals - detail pages", () => {
     expect(find("about", "Aspiring engineer with 9 years of practice")).toBeUndefined();
     expect(find("experience", "Admitted at age 13 after ranking first")).toBeUndefined();
   });
+
+  it("highlights any entry when each entry is wrapped with its own separator", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/experience/", configurable: true });
+    document.body.innerHTML = `
+      <main role="main">
+        <div componentkey="com.linkedin.sdui.profile.card.refABC"><div>
+          <div><p>Experience</p></div>
+          <div><p>Web Lead</p><p>Built the school website</p></div>
+          <div><hr role="presentation"><div><p>Tutor</p><p>Completed 200+ hours of tutoring</p></div></div>
+          <div><hr role="presentation"><div><p>Volunteer</p><p>Edited videos for 80+ children</p></div></div>
+        </div></div>
+      </main>
+    `;
+    expect(find("experience", "Completed 200+ hours of tutoring")).toBeDefined();
+    expect(find("experience", "Built the school website")).toBeDefined();
+  });
 });

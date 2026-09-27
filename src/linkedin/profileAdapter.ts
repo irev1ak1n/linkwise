@@ -385,8 +385,17 @@ function entryFromLines(section: ProfileSectionName, lines: string[]): Partial<L
   }
 }
 
+// Entries are either siblings split by <hr>, or each wrapped with its own leading <hr>.
 function detailsEntryList(doc: Document): HTMLElement | null {
-  return doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"] hr, main [componentkey*="profile.card"] hr')?.parentElement ?? null;
+  const first = doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"] hr, main [componentkey*="profile.card"] hr');
+  const scope = first?.closest<HTMLElement>('[data-testid*="DetailsSection"], [componentkey*="profile.card"]');
+  if (!first || !scope) return null;
+  const separators = Array.from(scope.querySelectorAll("hr"));
+  const holdsAll = (el: HTMLElement) => separators.every((hr) => el.contains(hr));
+  let list = first.parentElement;
+  while (list && list !== scope && !holdsAll(list)) list = list.parentElement;
+  if (list && list === first.parentElement && !first.previousElementSibling && list !== scope) list = list.parentElement;
+  return list;
 }
 
 // The element holding a details page's own entries, for scoping work to that section only.
