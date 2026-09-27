@@ -3,6 +3,7 @@ import { buildEvidencePayload } from "./evidencePayload";
 import { hashString } from "./aiAnalysisCache";
 import { requestSignalAnalysis as defaultRequest, type AnalyzeSignalsRequestBody, type PendingSignalRequest } from "./signalsClient";
 import type { ProfileSignalDTO, SignalAnalysisOutcome, SignalFactDTO } from "./signalTypes";
+import { PROFILE_SESSION_RETENTION_MS } from "../storage/profileSessionRepository";
 import { createPersistentCache, type PersistentCache } from "./persistentCache";
 
 export const SIGNAL_ANALYSIS_VERSION = "signals-v1";
@@ -17,7 +18,7 @@ export type SignalAnalysisState =
 
 type Ready = Extract<SignalAnalysisState, { status: "ready" }>;
 
-const signalCache = createPersistentCache<Ready>("finder.signalCache.v1", 10 * 60 * 1000, 30);
+const signalCache = createPersistentCache<Ready>("finder.signalCache.v1", PROFILE_SESSION_RETENTION_MS, 30);
 
 export function hydrateSignalCache(): Promise<void> {
   return signalCache.hydrate();
