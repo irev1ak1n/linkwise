@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
-import { SignalAnalysisController, type SignalAnalysisState } from "../ai/signalAnalysisController";
+import { SignalAnalysisController, clearSignalCache, type SignalAnalysisState } from "../ai/signalAnalysisController";
 import type { AnalyzeSignalsRequestBody } from "../ai/signalsClient";
 import type { SignalAnalysisOutcome } from "../ai/signalTypes";
 import { QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
@@ -45,6 +45,7 @@ const JORDAN = "https://www.linkedin.com/in/jordan/";
 beforeEach(() => {
   vi.useFakeTimers();
   entries.clear();
+  clearSignalCache();
 });
 
 afterEach(() => {

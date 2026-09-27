@@ -1,6 +1,7 @@
 // An in-memory cache and in-flight-request map for AI analysis results, kept client-side.
 // Clears on every content-script reload, which is fine for now.
 import type { AiAnalysisOutcome } from "./apiTypes";
+import { createPersistentCache } from "./persistentCache";
 
 // Bump this whenever the analysis contract changes, so old cached results never get served
 // under a new contract.
@@ -30,7 +31,8 @@ export function hashString(input: string): string {
 
 type ReadyOutcome = Extract<AiAnalysisOutcome, { status: "ok" }>;
 
-const resultCache = new Map<string, ReadyOutcome>();
+const ANALYSIS_CACHE_TTL_MS = 10 * 60 * 1000;
+const resultCache = createPersistentCache<ReadyOutcome>("finder.analysisCache.v1", ANALYSIS_CACHE_TTL_MS, 30);
 const inFlightRequests = new Map<string, Promise<AiAnalysisOutcome>>();
 
 export function getCachedAnalysis(key: string): ReadyOutcome | undefined {
@@ -54,6 +56,18 @@ export function getOrStartInFlight(key: string, start: () => Promise<AiAnalysisO
 
 export function forgetInFlight(key: string): void {
   inFlightRequests.delete(key);
+}
+
+export function hydrateAnalysisCache(): Promise<void> {
+  return resultCache.hydrate();
+}
+
+export function isAnalysisCacheReady(): boolean {
+  return resultCache.isReady();
+}
+
+export function whenAnalysisCacheReady(): Promise<void> {
+  return resultCache.whenReady();
 }
 
 /** For tests, resets both maps between cases. */

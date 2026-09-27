@@ -6,7 +6,7 @@ import type { MatchResult } from "../matching/scoreProfile";
 import { buildAnalyzeProfileRequest, type AnalyzeProfileRequestBody } from "./buildAnalyzeRequest";
 import { requestAiAnalysis as defaultRequestAiAnalysis, type PendingAiRequest } from "./analyzeProfileClient";
 import { analysisSubjectKey, computeAnalysisCacheKey } from "./analysisCacheKey";
-import { forgetInFlight, getCachedAnalysis, getOrStartInFlight, setCachedAnalysis } from "./aiAnalysisCache";
+import { forgetInFlight, getCachedAnalysis, getOrStartInFlight, isAnalysisCacheReady, setCachedAnalysis, whenAnalysisCacheReady } from "./aiAnalysisCache";
 import type { AiAnalysisOutcome } from "./apiTypes";
 
 // Lets rapid edits settle before spending an API call on each one.
@@ -39,6 +39,7 @@ export class AiAnalysisController {
   private subject: string | null = null;
   private showingResult = false;
   private current: Extract<AiAnalysisOutcome, { status: "ok" }> | null = null;
+  private deferred: Parameters<AiAnalysisController["request"]> | null = null;
   private onStateChange: (state: AiAnalysisState) => void = () => {};
   private readonly requestAiAnalysisImpl: typeof defaultRequestAiAnalysis;
   private readonly debounceMs: number;
@@ -63,6 +64,7 @@ export class AiAnalysisController {
 
   /** Full teardown. Forgets the latest key too, so a stray promise can't be mistaken as current. */
   reset(): void {
+    this.deferred = null;
     this.cancelPending();
     this.latestKey = null;
     this.subject = null;
@@ -74,6 +76,18 @@ export class AiAnalysisController {
    * cancels an in-flight request; it queues one refresh instead. */
   request(goal: Goal, profile: LinkedInProfile, localResult: MatchResult, onStateChange: (state: AiAnalysisState) => void): void {
     this.onStateChange = onStateChange;
+    if (!isAnalysisCacheReady()) {
+      if (!this.deferred) {
+        void whenAnalysisCacheReady().then(() => {
+          const args = this.deferred;
+          this.deferred = null;
+          if (args) this.request(...args);
+        });
+      }
+      this.deferred = [goal, profile, localResult, onStateChange];
+      if (!this.showingResult) this.show({ status: "loading" });
+      return;
+    }
     const body = buildAnalyzeProfileRequest(goal, profile, localResult);
     const key = computeAnalysisCacheKey(goal, body);
     if (key === this.latestKey) return;

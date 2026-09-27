@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
-import { SignalAnalysisController, buildSignalsRequest, signalsCacheKey, type SignalAnalysisState } from "./signalAnalysisController";
+import { SignalAnalysisController, buildSignalsRequest, clearSignalCache, signalsCacheKey, type SignalAnalysisState } from "./signalAnalysisController";
 import type { AnalyzeSignalsRequestBody, PendingSignalRequest } from "./signalsClient";
 import type { SignalAnalysisOutcome } from "./signalTypes";
 
@@ -28,6 +28,7 @@ function harness(outcome: SignalAnalysisOutcome | (() => Promise<SignalAnalysisO
 
 beforeEach(() => {
   vi.useFakeTimers();
+  clearSignalCache();
 });
 
 afterEach(() => {

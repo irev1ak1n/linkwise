@@ -61,6 +61,8 @@ import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedA
 import { getManualSectionsState, initManualSectionsStore } from "./panel/manualSectionsStore";
 import { autoExpandPreference } from "./panel/autoExpandPreference";
 import { SECTION_SCROLL_STEP_PX, nextSectionScanStep, startSectionScan, type SectionScanState } from "./sectionScan";
+import { hydrateAnalysisCache } from "../ai/aiAnalysisCache";
+import { hydrateSignalCache } from "../ai/signalAnalysisController";
 import { expandSeeMoreToggles } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
@@ -561,6 +563,8 @@ registerCleanup(subscribeScanModeStore(tick));
 initExpandDetailsStore();
 registerCleanup(subscribeExpandDetailsStore(tick));
 
+void hydrateAnalysisCache();
+void hydrateSignalCache();
 initManualSectionsStore();
 autoExpandPreference.init();
 initEnhancedAnalysisStore();

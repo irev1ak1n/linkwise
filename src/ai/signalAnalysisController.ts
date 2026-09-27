@@ -3,6 +3,7 @@ import { buildEvidencePayload } from "./evidencePayload";
 import { hashString } from "./aiAnalysisCache";
 import { requestSignalAnalysis as defaultRequest, type AnalyzeSignalsRequestBody, type PendingSignalRequest } from "./signalsClient";
 import type { ProfileSignalDTO, SignalAnalysisOutcome, SignalFactDTO } from "./signalTypes";
+import { createPersistentCache, type PersistentCache } from "./persistentCache";
 
 export const SIGNAL_ANALYSIS_VERSION = "signals-v1";
 export const SIGNAL_DEBOUNCE_MS = 1500;
@@ -15,6 +16,16 @@ export type SignalAnalysisState =
   | { status: "unavailable"; reason: string };
 
 type Ready = Extract<SignalAnalysisState, { status: "ready" }>;
+
+const signalCache = createPersistentCache<Ready>("finder.signalCache.v1", 10 * 60 * 1000, 30);
+
+export function hydrateSignalCache(): Promise<void> {
+  return signalCache.hydrate();
+}
+
+export function clearSignalCache(): void {
+  signalCache.clear();
+}
 
 export function buildSignalsRequest(profileKey: string, profile: LinkedInProfile): AnalyzeSignalsRequestBody | null {
   const evidence = buildEvidencePayload(profile).filter((item) => item.section !== "location");
@@ -30,6 +41,7 @@ export interface SignalAnalysisControllerOptions {
   request?: (body: AnalyzeSignalsRequestBody) => PendingSignalRequest;
   debounceMs?: number;
   timeoutMs?: number;
+  cache?: PersistentCache<Ready>;
 }
 
 interface Job {
@@ -45,7 +57,8 @@ export class SignalAnalysisController {
   private pending: (PendingSignalRequest & { key: string }) | null = null;
   private queued: Job | null = null;
   private profileKey: string | null = null;
-  private readonly cache = new Map<string, Ready>();
+  private readonly cache: PersistentCache<Ready>;
+  private deferred: { profileKey: string; profile: LinkedInProfile } | null = null;
   private readonly request: (body: AnalyzeSignalsRequestBody) => PendingSignalRequest;
   private readonly debounceMs: number;
   private readonly timeoutMs: number;
@@ -56,6 +69,7 @@ export class SignalAnalysisController {
     this.request = options.request ?? defaultRequest;
     this.debounceMs = options.debounceMs ?? SIGNAL_DEBOUNCE_MS;
     this.timeoutMs = options.timeoutMs ?? SIGNAL_TIMEOUT_MS;
+    this.cache = options.cache ?? signalCache;
   }
 
   getState(): SignalAnalysisState {
@@ -68,6 +82,13 @@ export class SignalAnalysisController {
       this.reset();
       return;
     }
+
+    if (!this.cache.isReady()) {
+      if (!this.deferred) void this.cache.whenReady().then(() => this.update(this.deferred));
+      this.deferred = input;
+      return;
+    }
+    this.deferred = null;
 
     const key = signalsCacheKey(body);
     if (key === this.currentKey) return;
@@ -94,6 +115,7 @@ export class SignalAnalysisController {
   }
 
   reset(): void {
+    this.deferred = null;
     this.cancelPending();
     this.currentKey = null;
     this.profileKey = null;
@@ -137,7 +159,7 @@ export class SignalAnalysisController {
         }
         const next = this.queued;
         this.queued = null;
-        if (next && next.key === this.currentKey && !this.cache.has(next.key)) this.schedule(next);
+        if (next && next.key === this.currentKey && !this.cache.get(next.key)) this.schedule(next);
       });
   }
 
