@@ -1,5 +1,5 @@
 import { ALL_PROFILE_SECTIONS, type ProfileSectionName } from "../models/profile";
-import { findProfileSectionRoot } from "./profileAdapter";
+import { detailsPageSection, findDetailsSectionRoot, findProfileSectionRoot } from "./profileAdapter";
 
 export interface SignalTarget {
   key: string;
@@ -92,15 +92,22 @@ function locateInIndex(index: TextIndex, target: SignalTarget): LocatedSignal | 
   return { quote: rangeFor(index, start, quote.length), metrics };
 }
 
+function indexFor(doc: Document, section: string): TextIndex | null {
+  const pageSection = detailsPageSection(doc.URL);
+  if (pageSection) {
+    const root = section === pageSection ? findDetailsSectionRoot(doc) : null;
+    return root ? buildIndex(root) : null;
+  }
+  const known = ALL_PROFILE_SECTIONS.includes(section as ProfileSectionName);
+  const root = known ? findProfileSectionRoot(doc, section as ProfileSectionName) : null;
+  return root ? buildIndex(root) : null;
+}
+
 export function locateSignals(doc: Document, targets: SignalTarget[]): Map<string, LocatedSignal> {
   const located = new Map<string, LocatedSignal>();
   const indexes = new Map<string, TextIndex | null>();
   for (const target of targets) {
-    if (!indexes.has(target.section)) {
-      const known = ALL_PROFILE_SECTIONS.includes(target.section as ProfileSectionName);
-      const root = known ? findProfileSectionRoot(doc, target.section as ProfileSectionName) : null;
-      indexes.set(target.section, root ? buildIndex(root) : null);
-    }
+    if (!indexes.has(target.section)) indexes.set(target.section, indexFor(doc, target.section));
     const index = indexes.get(target.section);
     const result = index ? locateInIndex(index, target) : null;
     if (result) located.set(target.key, result);

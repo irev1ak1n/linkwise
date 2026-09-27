@@ -385,12 +385,22 @@ function entryFromLines(section: ProfileSectionName, lines: string[]): Partial<L
   }
 }
 
+function detailsEntryList(doc: Document): HTMLElement | null {
+  return doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"] hr, main [componentkey*="profile.card"] hr')?.parentElement ?? null;
+}
+
+// The element holding a details page's own entries, for scoping work to that section only.
+export function findDetailsSectionRoot(doc: Document = document): HTMLElement | null {
+  if (!detailsPageSection(doc.URL)) return null;
+  return doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"]') ?? detailsEntryList(doc);
+}
+
 // Newer "/details/{section}/" pages have no section heading, just a profile card listing
 // entries separated by <hr>. Reads only those entries, never the top card or sidebar.
 export function extractDetailsPageProfile(doc: Document = document): LinkedInProfile {
   const section = detailsPageSection(doc.URL);
   const container = doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"]');
-  const list = doc.querySelector('[data-testid*="DetailsSection"] hr, main [componentkey*="profile.card"] hr')?.parentElement;
+  const list = detailsEntryList(doc);
   if (!section || (!list && !container)) return extractLinkedInProfile(doc);
 
   const entries = list ? Array.from(list.children).filter((el): el is HTMLElement => el.tagName !== "HR") : [container!];

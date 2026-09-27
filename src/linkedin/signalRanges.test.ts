@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { compactText, locateSignals, type SignalTarget } from "./signalRanges";
 
 function setPage(): void {
@@ -131,5 +131,53 @@ describe("locateSignals - titles are never highlighted", () => {
     expect(located.quote.toString()).toBe("Led a 4-person Webmaster team");
     expect(located.metrics.map((r) => r.toString())).toEqual(["4-person"]);
     expect(find("experience", "Reached 300+ visitors", ["300+"])!.metrics[0]!.toString()).toBe("300+");
+  });
+});
+
+describe("locateSignals - detail pages", () => {
+  function setEducationDetails(): void {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/education/", configurable: true });
+    document.body.innerHTML = `
+      <style>.b { font-weight: 600; }</style>
+      <main role="main">
+        <div><p class="b">Jordan Rivera</p><p>Aspiring engineer with 9 years of practice</p></div>
+        <div data-testid="profile_EducationDetailsSection_jordan">
+          <p class="b">Education</p>
+          <div>
+            <div><a href="#"><p class="b">State Academy</p><p>Software Engineering</p></a><p>Over 9 years, I built skills in Python and C++</p></div>
+            <hr role="presentation">
+            <div><a href="#"><p class="b">City High School</p></a><p>Admitted at age 13 after ranking first</p></div>
+          </div>
+        </div>
+        <section><h2>People you may know</h2><p>Over 9 years, I built skills in Python and C++</p></section>
+      </main>
+    `;
+  }
+
+  afterEach(() => {
+    Object.defineProperty(document, "URL", { value: "http://localhost/", configurable: true });
+  });
+
+  function find(section: string, quote: string, metrics: string[] = []) {
+    return locateSignals(document, [{ key: "k", section, quote, metrics }]).get("k");
+  }
+
+  it("highlights description evidence inside the page's own section", () => {
+    setEducationDetails();
+    const located = find("education", "Over 9 years, I built skills in Python and C++", ["9 years"])!;
+    expect(located.quote.startContainer.parentElement!.closest('[data-testid*="DetailsSection"]')).not.toBeNull();
+    expect(located.metrics.map((r) => r.toString())).toEqual(["9 years"]);
+  });
+
+  it("never highlights the school name or the section heading", () => {
+    setEducationDetails();
+    expect(find("education", "State Academy")).toBeUndefined();
+    expect(find("education", "Education")).toBeUndefined();
+  });
+
+  it("ignores signals from other sections and text outside the section", () => {
+    setEducationDetails();
+    expect(find("about", "Aspiring engineer with 9 years of practice")).toBeUndefined();
+    expect(find("experience", "Admitted at age 13 after ranking first")).toBeUndefined();
   });
 });
