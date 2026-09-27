@@ -33,6 +33,20 @@ describe("SignalModeSection", () => {
     expect(render(true, { status: "unavailable", reason: "not_configured" })).toContain("AI signal analysis unavailable");
   });
 
+  it("keeps facts visible while signals update with a new section", () => {
+    const html = renderToStaticMarkup(
+      <SignalModeSection
+        enabled
+        analysis={{ status: "ready", profileKey: "jordan", signals: [], facts: [{ text: "Led 4-person web team", evidenceId: "experience:0" }], updating: true }}
+        highlighted={1}
+        onChange={() => {}}
+        updatingSection="education"
+      />,
+    );
+    expect(html).toContain("Updating signals with Education…");
+    expect(html).toContain("Led 4-person web team");
+  });
+
   it("says so when a profile has no strong evidence", () => {
     expect(render(true, { status: "ready", profileKey: "sam", signals: [], facts: [] })).toContain("No strong evidence found");
   });

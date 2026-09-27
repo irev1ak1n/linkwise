@@ -5,7 +5,7 @@ import { SignalAnalysisController, clearSignalCache, type SignalAnalysisState } 
 import type { AnalyzeSignalsRequestBody } from "../ai/signalsClient";
 import type { SignalAnalysisOutcome } from "../ai/signalTypes";
 import { QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
-import { createSignalRuntime, isMainProfilePage, signalTargets, signalTickInput } from "./signalRuntime";
+import { createSignalRuntime, isMainProfilePage, isProfileSessionPage, signalTargets, signalTickInput } from "./signalRuntime";
 
 const entries = new Map<string, { ranges: Range[] }>();
 const registry: HighlightRegistryLike = { set: (n, h) => entries.set(n, h as unknown as { ranges: Range[] }), delete: (n) => entries.delete(n) };
@@ -58,6 +58,15 @@ describe("isMainProfilePage", () => {
     expect(isMainProfilePage("https://www.linkedin.com/in/jordan?trk=x")).toBe(true);
     expect(isMainProfilePage("https://www.linkedin.com/in/jordan/details/experience/")).toBe(false);
     expect(isMainProfilePage("https://www.linkedin.com/feed/")).toBe(false);
+  });
+});
+
+describe("isProfileSessionPage", () => {
+  it("accepts the main page and its detail pages, nothing else", () => {
+    expect(isProfileSessionPage("https://www.linkedin.com/in/jordan/")).toBe(true);
+    expect(isProfileSessionPage("https://www.linkedin.com/in/jordan/details/education/")).toBe(true);
+    expect(isProfileSessionPage("https://www.linkedin.com/in/jordan/details/education/edit/forms/1/")).toBe(false);
+    expect(isProfileSessionPage("https://www.linkedin.com/in/jordan/recent-activity/all/")).toBe(false);
   });
 });
 
@@ -132,9 +141,21 @@ describe("createSignalRuntime", () => {
   it("stays off on non-profile pages", () => {
     setPage("Led a 4-person web team");
     const { runtime, request, published } = harness();
-    runtime.tick({ enabled: true, href: "https://www.linkedin.com/in/jordan/details/experience/", profileKey: "jordan", profile: profile("x"), ready: true });
+    runtime.tick({ enabled: true, href: "https://www.linkedin.com/in/jordan/recent-activity/all/", profileKey: "jordan", profile: profile("x"), ready: true });
     expect(request).not.toHaveBeenCalled();
     expect(published.at(-1)).toEqual({ status: "idle" });
+  });
+
+  it("keeps the same person's signals when moving from the main page to a detail page", async () => {
+    setPage("Led a 4-person web team");
+    const { runtime, request, published } = harness();
+    runtime.tick({ enabled: true, href: JORDAN, profileKey: "jordan", profile: profile("Led a 4-person web team"), ready: true });
+    await vi.advanceTimersByTimeAsync(50);
+    runtime.tick({ enabled: true, href: "https://www.linkedin.com/in/jordan/details/education/", profileKey: "jordan", profile: profile("Led a 4-person web team"), ready: true });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(published.at(-1)).toMatchObject({ status: "ready", profileKey: "jordan" });
+    expect(published.some((s) => s.status === "idle" && published.indexOf(s) > 1)).toBe(false);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it("publishes unavailable and highlights nothing when AI is unavailable", async () => {

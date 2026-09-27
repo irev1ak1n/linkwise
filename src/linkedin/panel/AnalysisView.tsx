@@ -5,6 +5,7 @@ import { EXPERIENCE_LEVEL_LABELS } from "../../matching/profileAnalysis";
 import { buildProfileEvidence } from "../../evidence/buildProfileEvidence";
 import { buildFinalAnalysis } from "../../ai/mergeIntoAnalysis";
 import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
+import { sectionLabel } from "./sectionLabels";
 import type { AiAnalysisState } from "./useAiAnalysis";
 import type { Goal } from "../../models/goal";
 import type { LinkedInProfile } from "../../models/profile";
@@ -20,18 +21,6 @@ interface AnalysisViewProps {
   updatingSection?: string | null;
 }
 
-const SECTION_LABELS: Record<string, string> = {
-  about: "About",
-  experience: "Experience",
-  education: "Education",
-  skills: "Skills",
-  projects: "Projects",
-  certifications: "Licenses & certifications",
-  organizations: "Organizations",
-  volunteering: "Volunteering",
-  languages: "Languages",
-  honors: "Honors & awards",
-};
 
 // The final profile analysis, never a preview of an in-progress read. A statement of
 // relevance to the current goal, not a judgment of the person. Shows one result, never
@@ -58,7 +47,7 @@ export function AnalysisView({ result, goal, profile, aiState, onRetry, updating
         <div className="lw-summary-card__target">For: {goal.name}</div>
 
         {aiState.status === "ready" && aiState.updating && (
-          <p className="lw-ai-status">Updating{updatingSection && SECTION_LABELS[updatingSection] ? ` with ${SECTION_LABELS[updatingSection]}` : ""}…</p>
+          <p className="lw-ai-status">Updating{sectionLabel(updatingSection) ? ` with ${sectionLabel(updatingSection)}` : ""}…</p>
         )}
         {aiState.status === "ready" && !aiState.updating && aiState.updateError && (
           <p className="lw-ai-status">

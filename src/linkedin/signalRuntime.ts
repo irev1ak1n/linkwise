@@ -20,6 +20,10 @@ export function isMainProfilePage(href: string): boolean {
   return /linkedin\.com\/in\/[^/?#]+\/?(?:[?#]|$)/.test(href);
 }
 
+export function isProfileSessionPage(href: string): boolean {
+  return isMainProfilePage(href) || /linkedin\.com\/in\/[^/?#]+\/details\/[^/?#]+\/?(?:[?#]|$)/.test(href);
+}
+
 // Panel data can still describe the previous profile for a tick after SPA navigation.
 export function signalTickInput(enabled: boolean, href: string, data: PanelProfileData): SignalTickInput {
   const profileKey = profileIdentityKey(href);
@@ -59,7 +63,7 @@ export function createSignalRuntime(options: SignalRuntimeOptions) {
   }
 
   function tick(input: SignalTickInput): void {
-    if (!input.enabled || !input.profileKey || !isMainProfilePage(input.href)) {
+    if (!input.enabled || !input.profileKey || !isProfileSessionPage(input.href)) {
       activeProfileKey = null;
       controller.reset();
       paint();

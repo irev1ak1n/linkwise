@@ -12,7 +12,7 @@ export const SIGNAL_TIMEOUT_MS = 75000;
 export type SignalAnalysisState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; profileKey: string; signals: ProfileSignalDTO[]; facts: SignalFactDTO[] }
+  | { status: "ready"; profileKey: string; signals: ProfileSignalDTO[]; facts: SignalFactDTO[]; updating?: boolean; updateError?: string }
   | { status: "unavailable"; reason: string };
 
 type Ready = Extract<SignalAnalysisState, { status: "ready" }>;
@@ -106,11 +106,12 @@ export class SignalAnalysisController {
     }
 
     const job = { key, profileKey: input.profileKey, body };
+    if (this.isShowing(input.profileKey)) this.setState({ ...(this.state as Ready), updating: true, updateError: undefined });
+    else if (!this.pending) this.setState({ status: "loading" });
     if (this.pending) {
       this.queued = job;
       return;
     }
-    if (!this.isShowing(input.profileKey)) this.setState({ status: "loading" });
     this.schedule(job);
   }
 
@@ -150,10 +151,13 @@ export class SignalAnalysisController {
         if (this.pending?.key !== job.key || this.profileKey !== job.profileKey) return;
         this.pending = null;
         const current = job.key === this.currentKey || !this.isShowing(job.profileKey);
+        const refreshing = this.queued !== null && this.queued.key === this.currentKey;
         if (outcome.status === "ok") {
           const ready: Ready = { status: "ready", profileKey: job.profileKey, signals: outcome.signals, facts: outcome.facts };
           this.cache.set(job.key, ready);
-          if (current) this.setState(ready);
+          if (current) this.setState({ ...ready, updating: refreshing });
+        } else if (this.isShowing(job.profileKey)) {
+          this.setState({ ...(this.state as Ready), updating: refreshing, updateError: refreshing ? undefined : outcome.reason });
         } else if (current) {
           this.setState({ status: "unavailable", reason: outcome.reason });
         }

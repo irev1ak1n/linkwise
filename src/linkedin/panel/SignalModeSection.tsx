@@ -1,36 +1,47 @@
 import type { SignalAnalysisState } from "../../ai/signalAnalysisController";
 import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
+import { sectionLabel } from "./sectionLabels";
 
 interface SignalModeSectionProps {
   enabled: boolean;
   analysis: SignalAnalysisState;
   highlighted: number;
   onChange: (enabled: boolean) => void;
+  updatingSection?: string | null;
 }
 
-function SignalStatus({ analysis, highlighted }: Pick<SignalModeSectionProps, "analysis" | "highlighted">) {
+function SignalStatus({ analysis, highlighted, updatingSection }: Pick<SignalModeSectionProps, "analysis" | "highlighted" | "updatingSection">) {
   if (analysis.status === "idle") return <p className="lw-signals__status">Waiting for the profile to finish loading…</p>;
   if (analysis.status === "loading") return <p className="lw-signals__status">Finding high-signal evidence…</p>;
   if (analysis.status === "unavailable") {
     return <p className="lw-signals__status lw-signals__status--error">AI signal analysis unavailable: {describeAiUnavailableReason(analysis.reason)}.</p>;
   }
-  if (analysis.facts.length === 0) return <p className="lw-signals__status">No strong evidence found on this profile.</p>;
+  const label = sectionLabel(updatingSection);
+  const note = analysis.updating ? (
+    <p className="lw-signals__status">Updating signals{label ? ` with ${label}` : ""}…</p>
+  ) : analysis.updateError ? (
+    <p className="lw-signals__status lw-signals__status--error">Couldn't update signals — showing the previous ones.</p>
+  ) : null;
+  if (analysis.facts.length === 0) return note ?? <p className="lw-signals__status">No strong evidence found on this profile.</p>;
 
   return (
-    <details className="lw-signals__facts" open>
-      <summary>
-        High-signal facts <span className="lw-signals__count">{highlighted} highlighted</span>
-      </summary>
-      <ul>
-        {analysis.facts.map((fact) => (
-          <li key={`${fact.evidenceId}:${fact.text}`}>{fact.text}</li>
-        ))}
-      </ul>
-    </details>
+    <>
+      {note}
+      <details className="lw-signals__facts" open>
+        <summary>
+          High-signal facts <span className="lw-signals__count">{highlighted} highlighted</span>
+        </summary>
+        <ul>
+          {analysis.facts.map((fact) => (
+            <li key={`${fact.evidenceId}:${fact.text}`}>{fact.text}</li>
+          ))}
+        </ul>
+      </details>
+    </>
   );
 }
 
-export function SignalModeSection({ enabled, analysis, highlighted, onChange }: SignalModeSectionProps) {
+export function SignalModeSection({ enabled, analysis, highlighted, onChange, updatingSection }: SignalModeSectionProps) {
   return (
     <div className="lw-signals">
       <label className="lw-signals__toggle">
@@ -39,7 +50,7 @@ export function SignalModeSection({ enabled, analysis, highlighted, onChange }: 
           Signal Mode <span className="lw-signals__hint">Highlight useful evidence</span>
         </span>
       </label>
-      {enabled && <SignalStatus analysis={analysis} highlighted={highlighted} />}
+      {enabled && <SignalStatus analysis={analysis} highlighted={highlighted} updatingSection={updatingSection} />}
     </div>
   );
 }

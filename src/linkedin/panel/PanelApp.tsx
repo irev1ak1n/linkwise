@@ -132,6 +132,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
                 analysis={signalMode.analysis}
                 highlighted={signalMode.highlighted}
                 onChange={signalMode.setSignalModeEnabled}
+                updatingSection={updatingSection}
               />
             )}
             <JobsSettingsSection settings={jobsSettings} onChange={setJobsSettings} />

@@ -89,11 +89,22 @@ describe("SignalAnalysisController", () => {
     const { controller, request, states } = harness();
     controller.update({ profileKey: "jordan", profile: profile("Led a team") });
     await vi.advanceTimersByTimeAsync(100);
-    const count = states.length;
     controller.update({ profileKey: "jordan", profile: profile("Led a team of 5") });
-    expect(states.length).toBe(count);
+    expect(states.at(-1)).toMatchObject({ status: "ready", updating: true, facts: ok.status === "ok" ? ok.facts : [] });
+    expect(states.some((s) => s.status === "loading" && states.indexOf(s) > 0)).toBe(false);
     await vi.advanceTimersByTimeAsync(100);
     expect(request).toHaveBeenCalledTimes(2);
+    expect(states.at(-1)).toMatchObject({ status: "ready", updating: false });
+  });
+
+  it("keeps the previous facts when an update fails", async () => {
+    let calls = 0;
+    const { controller, states } = harness(() => (++calls === 1 ? Promise.resolve(ok) : Promise.resolve({ status: "unavailable", reason: "openai_error" })));
+    controller.update({ profileKey: "jordan", profile: profile("Led a team") });
+    await vi.advanceTimersByTimeAsync(100);
+    controller.update({ profileKey: "jordan", profile: profile("Led a team of 5") });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(states.at(-1)).toMatchObject({ status: "ready", updateError: "openai_error", facts: ok.status === "ok" ? ok.facts : [] });
   });
 
   it("shows loading, not the previous profile's signals, on a different profile", () => {
