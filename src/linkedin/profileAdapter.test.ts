@@ -407,7 +407,7 @@ describe("extractLinkedInProfile - newer paragraph-based layout", () => {
             <p><span data-testid="expandable-text-box">${bullets.join("<br><br>")}<br><br>
               <button data-testid="expandable-text-button" aria-hidden="true"><span><span>…</span><span>more</span></span></button>
             </span></p>
-            <div><a href="#"><div><svg aria-hidden="true"></svg></div><div><p>${org}</p></div></a></div>
+            <div><a href="https://example.com/media"><div><svg aria-hidden="true"></svg></div><div><p>${org}</p></div></a></div>
           </div>
         </div>
       </li>`;
@@ -427,10 +427,79 @@ describe("extractLinkedInProfile - newer paragraph-based layout", () => {
     `);
     const profile = extractLinkedInProfile(document);
     expect(profile.experience).toEqual([
-      { title: "Web Team Lead", company: "Feb 2026 - Apr 2026 · 3 mos", description: "• Led a 4-person web team • Reached 300+ visitors" },
+      { title: "Web Team Lead", dates: "Feb 2026 - Apr 2026 · 3 mos", description: "• Led a 4-person web team • Reached 300+ visitors" },
     ]);
     expect(profile.volunteering[0]).toEqual({ name: "Tutor", description: "Completed 60+ hours of tutoring in Java" });
     expect(JSON.stringify(profile)).not.toContain("more");
+  });
+});
+
+describe("extractLinkedInProfile - entries separated by <hr>", () => {
+  function setSeparatedLayout(): void {
+    setBody(`
+      <main role="main">
+        <section><h1>Jordan Rivera</h1><p>Student Developer</p></section>
+        <section><h2>Experience</h2>
+          <div>
+            <a href="/company/1/"><div><p>Lincoln High School</p><p>8 mos</p></div><p>Austin, Texas, United States</p></a>
+            <ul>
+              <li><a href="/in/jordan/edit/forms/position/1/"><p>Yearbook Website Developer</p><p>Mar 2026 - Present · 7 mos</p></a>
+                <span data-testid="expandable-text-box">Built the yearbook website</span>
+                <a href="https://yearbook.example.com/"><p>Yearbook Site</p></a></li>
+              <li><p>Prom Committee Member</p><p>Feb 2026 - Apr 2026 · 3 mos</p><span data-testid="expandable-text-box">Sold 250 tickets</span></li>
+            </ul>
+            <hr>
+            <div><p>Video Editor</p><p>Legacy Academy</p><p>May 2024 - Present · 2 yrs 5 mos</p><p>Austin, Texas, United States · Hybrid</p><span data-testid="expandable-text-box">Edited videos</span></div>
+            <hr>
+            <div><p>Private Programming Tutor</p><p>Self-Employed · Part-time</p><p>Jul 2020 - Nov 2024 · 4 yrs 5 mos</p><p>Hybrid</p></div>
+            <hr>
+            <div><p>Volunteer</p><p>Jan 2023 - Present</p></div>
+          </div>
+        </section>
+        <section><h2>Education</h2>
+          <div><a href="/school/1/"><p>State Academy</p><p>Higher National Diploma, Software Engineering</p></a><p>2016 – 2025</p>
+            <span data-testid="expandable-text-box">Studied C++ for 9 years</span><a href="#">C++, Java and +3 skills</a></div>
+          <hr>
+          <div><p>City High School</p><p>Computer Engineering</p><p>2024 – 2027</p><p>Grade: 4.2 GPA</p></div>
+          <hr><a href="/in/jordan/details/education/"><span>Show all 5 educations</span></a>
+        </section>
+      </main>
+    `);
+  }
+
+  it("takes a grouped role's company from its employer header, never from its date line", () => {
+    setSeparatedLayout();
+    const experience = extractLinkedInProfile(document).experience;
+    expect(experience.slice(0, 2)).toEqual([
+      { title: "Yearbook Website Developer", company: "Lincoln High School", dates: "Mar 2026 - Present · 7 mos", description: "Built the yearbook website" },
+      { title: "Prom Committee Member", company: "Lincoln High School", dates: "Feb 2026 - Apr 2026 · 3 mos", description: "Sold 250 tickets" },
+    ]);
+  });
+
+  it("keeps dates, location and employment type out of the company", () => {
+    setSeparatedLayout();
+    const experience = extractLinkedInProfile(document).experience;
+    expect(experience[2]).toEqual({
+      title: "Video Editor",
+      company: "Legacy Academy",
+      dates: "May 2024 - Present · 2 yrs 5 mos",
+      location: "Austin, Texas, United States · Hybrid",
+      description: "Edited videos",
+    });
+    expect(experience[3]).toEqual({ title: "Private Programming Tutor", employmentType: "Self-Employed · Part-time", dates: "Jul 2020 - Nov 2024 · 4 yrs 5 mos", location: "Hybrid" });
+  });
+
+  it("leaves the company empty rather than guessing it", () => {
+    setSeparatedLayout();
+    expect(extractLinkedInProfile(document).experience[4]).toEqual({ title: "Volunteer", dates: "Jan 2023 - Present" });
+  });
+
+  it("reads each school as its own structured entry instead of one run-together blob", () => {
+    setSeparatedLayout();
+    expect(extractLinkedInProfile(document).education).toEqual([
+      { school: "State Academy", degree: "Higher National Diploma, Software Engineering", dates: "2016 – 2025", description: "Studied C++ for 9 years" },
+      { school: "City High School", degree: "Computer Engineering", dates: "2024 – 2027", description: "Grade: 4.2 GPA" },
+    ]);
   });
 });
 
@@ -497,8 +566,8 @@ describe("extractDetailsPageProfile", () => {
     ]);
     const profile = extractDetailsPageProfile(document);
     expect(profile.education).toEqual([
-      { school: "State University", degree: "BS Computer Science", field: "2021 – 2025 · Led the robotics club" },
-      { school: "City High School", degree: "Diploma", field: undefined },
+      { school: "State University", degree: "BS Computer Science", dates: "2021 – 2025", description: "Led the robotics club" },
+      { school: "City High School", degree: "Diploma" },
     ]);
     expect(profile.headline).toBeUndefined();
     expect(profile.location).toBeUndefined();
@@ -558,6 +627,24 @@ describe("extractDetailsPageProfile", () => {
     expect(extractDetailsPageProfile(document).experience.map((e) => e.title)).toEqual(["Web Lead", "Tutor"]);
   });
 
+  it("reads grouped roles on a details page with the employer as their company", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/experience/", configurable: true });
+    setBody(`
+      <main role="main">
+        <div componentkey="com.linkedin.sdui.profile.card.refABC"><div>
+          <div><p>Experience</p></div>
+          <div><a href="/company/1/"><p>Lincoln High School</p><p>8 mos</p></a>
+            <ul><li><p>Yearbook Website Developer</p><p>Mar 2026 - Present · 7 mos</p></li></ul></div>
+          <div><hr role="presentation"><div><p>Tutor</p><p>Self-Employed</p><p>Jul 2020 - Nov 2024</p><p>Skills: C++, Java</p></div></div>
+        </div></div>
+      </main>
+    `);
+    expect(extractDetailsPageProfile(document).experience).toEqual([
+      { title: "Yearbook Website Developer", company: "Lincoln High School", dates: "Mar 2026 - Present · 7 mos" },
+      { title: "Tutor", employmentType: "Self-Employed", dates: "Jul 2020 - Nov 2024", description: "Skills: C++, Java" },
+    ]);
+  });
+
   it("reads a single-entry details page without taking its heading as an entry", () => {
     Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/education/", configurable: true });
     setBody(`
@@ -565,7 +652,7 @@ describe("extractDetailsPageProfile", () => {
         <div data-testid="profile_EducationDetailsSection_jordan"><p>Education</p><div><p>City High School</p><p>High School Diploma</p><p>2024 – Present</p></div></div>
       </main>
     `);
-    expect(extractDetailsPageProfile(document).education).toEqual([{ school: "City High School", degree: "High School Diploma", field: "2024 – Present" }]);
+    expect(extractDetailsPageProfile(document).education).toEqual([{ school: "City High School", degree: "High School Diploma", dates: "2024 – Present" }]);
   });
 
   it("falls back to the regular extractor without a DetailsSection container", () => {

@@ -12,6 +12,7 @@ import {
   type ProfileListEntry,
   type ProfileSectionName,
 } from "../models/profile";
+import { groupCompany, parseEducationLines, parseExperienceLines, type EntryLine } from "./entryFields";
 
 // How each section's heading is recognized. A few sections have multiple real-world heading
 // variants, so those match by substring. Shared by extraction and detection so they can't drift.
@@ -234,32 +235,93 @@ function sectionBodyText(section: HTMLElement, name: ProfileSectionName): string
   return cleanText(text.replace(/…\s*(see more|more)/gi, ""));
 }
 
-// LinkedIn often doesn't render Experience as li/ul, just unlabeled nested divs with no
-// reliable boundary between roles. Falls back to one blob entry rather than guessing splits.
+const DESCRIPTION_BOX = '[data-testid="expandable-text-box"]';
+
+interface DomLine extends EntryLine {
+  item: Element | null;
+}
+
+// Media attached to an entry links off LinkedIn, and its title is not part of the entry.
+function isAttachment(el: Element): boolean {
+  const href = el.closest("a[href]")?.getAttribute("href") ?? "";
+  return /^https?:\/\//i.test(href) && !/^https?:\/\/([a-z]+\.)?linkedin\.com\//i.test(href);
+}
+
+// An entry's lines in document order, null wherever an <hr> separates two entries.
+function lineStream(root: HTMLElement): (DomLine | null)[] {
+  const stream: (DomLine | null)[] = [];
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>(`hr, p, ${DESCRIPTION_BOX}`))) {
+    if (el.tagName === "HR") {
+      stream.push(null);
+      continue;
+    }
+    const box = el.matches(DESCRIPTION_BOX);
+    if (box ? el.parentElement?.closest(DESCRIPTION_BOX) : el.querySelector(`p, ${DESCRIPTION_BOX}`) || el.closest(DESCRIPTION_BOX)) continue;
+    if (isAttachment(el)) continue;
+    const text = textWithoutControls(el);
+    if (text) stream.push({ text, description: box, item: el.closest("li") });
+  }
+  return stream;
+}
+
+function entryBlocks(root: HTMLElement, name: ProfileSectionName): DomLine[][] {
+  const heading = matcherFor(name);
+  const blocks: DomLine[][] = [[]];
+  for (const line of lineStream(root)) {
+    if (!line) blocks.push([]);
+    else if (!heading(line.text.toLowerCase()) && !blocks.at(-1)!.some((l) => l.text === line.text)) blocks.at(-1)!.push(line);
+  }
+  return blocks.filter((block) => block.length > 0);
+}
+
+function blockItems(block: DomLine[]): Element[] {
+  return [...new Set(block.map((line) => line.item).filter((item): item is Element => item !== null))];
+}
+
+// Several roles at one employer are list items under a header naming the employer.
+function experienceFromBlock(block: DomLine[]): ProfileExperienceEntry[] {
+  const items = blockItems(block);
+  if (items.length === 0) return [parseExperienceLines(block)];
+  const employer = groupCompany(block.filter((line) => !line.item));
+  return items.map((item) => parseExperienceLines(block.filter((line) => line.item === item), employer));
+}
+
+function educationFromBlock(block: DomLine[]): ProfileEducationEntry[] {
+  const items = blockItems(block);
+  if (items.length === 0) return [parseEducationLines(block)];
+  return items.map((item) => parseEducationLines(block.filter((line) => line.item === item)));
+}
+
+function structuredEntries<T extends object>(root: HTMLElement, name: ProfileSectionName, fromBlock: (block: DomLine[]) => T[]): T[] {
+  return entryBlocks(root, name)
+    .flatMap(fromBlock)
+    .filter((entry) => Object.keys(entry).length > 0);
+}
+
+// Entries split by <hr>, or a single entry. Older layouts list every entry as an <li> instead.
+function hasSeparatedEntries(section: HTMLElement): boolean {
+  return !!section.querySelector("hr") || !section.querySelector("li");
+}
+
+function itemLines(item: HTMLElement): EntryLine[] {
+  const lines = lineStream(item).filter((line): line is DomLine => line !== null);
+  return lines.length > 0 ? lines : entryLines(item).map((text) => ({ text }));
+}
+
 function extractExperience(headings: HTMLElement[]): ProfileExperienceEntry[] {
   const section = findHeadingSection(headings, "experience");
   if (!section) return [];
 
-  const items = Array.from(section.querySelectorAll<HTMLElement>("li"));
-  if (items.length > 0) {
-    const entries: ProfileExperienceEntry[] = [];
-    for (const item of items) {
-      const unique = entryLines(item);
-      if (unique.length === 0) continue;
+  if (hasSeparatedEntries(section)) {
+    const entries = structuredEntries(section, "experience", experienceFromBlock);
+    if (entries.length > 0) return entries;
+  }
 
-      const [title, company, ...rest] = unique;
-      const description = rest.find((line) => line.length > 40);
-      const entry: ProfileExperienceEntry = {
-        title: cleanText(title),
-        company: cleanText(company),
-        description: cleanText(description),
-      };
-      if (entry.title || entry.company || entry.description) entries.push(entry);
-    }
-    if (entries.length > 0) {
-      const rest = textOutsideItems(section, "experience");
-      return rest ? [...entries, { description: rest }] : entries;
-    }
+  const items = Array.from(section.querySelectorAll<HTMLElement>("li"));
+  const entries = items.map((item) => parseExperienceLines(itemLines(item))).filter((entry) => Object.keys(entry).length > 0);
+  if (entries.length > 0) {
+    const rest = textOutsideItems(section, "experience");
+    return rest ? [...entries, { description: rest }] : entries;
   }
 
   const body = sectionBodyText(section, "experience");
@@ -270,22 +332,14 @@ function extractEducation(headings: HTMLElement[]): ProfileEducationEntry[] {
   const section = findHeadingSection(headings, "education");
   if (!section) return [];
 
-  const items = Array.from(section.querySelectorAll<HTMLElement>("li"));
-  if (items.length > 0) {
-    const entries: ProfileEducationEntry[] = [];
-    for (const item of items) {
-      const unique = entryLines(item);
-      if (unique.length === 0) continue;
-
-      const [school, degreeAndField] = unique;
-      const entry: ProfileEducationEntry = {
-        school: cleanText(school),
-        degree: cleanText(degreeAndField),
-      };
-      if (entry.school || entry.degree) entries.push(entry);
-    }
+  if (hasSeparatedEntries(section)) {
+    const entries = structuredEntries(section, "education", educationFromBlock);
     if (entries.length > 0) return entries;
   }
+
+  const items = Array.from(section.querySelectorAll<HTMLElement>("li"));
+  const entries = items.map((item) => parseEducationLines(itemLines(item))).filter((entry) => Object.keys(entry).length > 0);
+  if (entries.length > 0) return entries;
 
   const body = sectionBodyText(section, "education");
   return body ? [{ school: body }] : [];
@@ -370,12 +424,7 @@ export function findProfileSectionRoot(doc: Document, name: ProfileSectionName):
 
 function entryFromLines(section: ProfileSectionName, lines: string[]): Partial<LinkedInProfile> {
   const [first, second, ...rest] = lines;
-  const details = rest.join(" · ") || undefined;
   switch (section) {
-    case "experience":
-      return { experience: [{ title: first, company: second, description: details }] };
-    case "education":
-      return { education: [{ school: first, degree: second, field: details }] };
     case "skills":
       return { skills: first ? [first] : [] };
     case "about":
@@ -412,8 +461,16 @@ export function extractDetailsPageProfile(doc: Document = document): LinkedInPro
   const list = detailsEntryList(doc);
   if (!section || (!list && !container)) return extractLinkedInProfile(doc);
 
-  const entries = list ? Array.from(list.children).filter((el): el is HTMLElement => el.tagName !== "HR") : [container!];
   const profile: LinkedInProfile = { ...EMPTY_PROFILE, experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] };
+  if (section === "experience" || section === "education") {
+    const root = (container ?? list)!;
+    if (section === "experience") profile.experience = structuredEntries(root, section, experienceFromBlock);
+    else profile.education = structuredEntries(root, section, educationFromBlock);
+    profile.extracted = foundSections(profile).length > 0;
+    return profile;
+  }
+
+  const entries = list ? Array.from(list.children).filter((el): el is HTMLElement => el.tagName !== "HR") : [container!];
   for (const entry of entries) {
     const lines = entryLines(entry);
     if (lines.length > 0 && matcherFor(section)(lines[0]!.toLowerCase())) lines.shift();

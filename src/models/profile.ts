@@ -4,13 +4,17 @@
 export interface ProfileExperienceEntry {
   title?: string;
   company?: string;
+  employmentType?: string;
+  dates?: string;
+  location?: string;
   description?: string;
 }
 
 export interface ProfileEducationEntry {
   school?: string;
   degree?: string;
-  field?: string;
+  dates?: string;
+  description?: string;
 }
 
 // A generic named/described entry, shared by the sections that all render as a simple list
@@ -117,7 +121,7 @@ export function profileTextFields(profile: LinkedInProfile): ProfileTextField[] 
   if (profile.location) fields.push({ label: "Location", text: profile.location, section: "location" });
   if (profile.about) fields.push({ label: "About", text: profile.about, section: "about" });
   for (const entry of profile.experience) {
-    const parts = [entry.title, entry.company, entry.description].filter(Boolean);
+    const parts = [entry.title, entry.company, entry.employmentType, entry.dates, entry.location, entry.description].filter(Boolean);
     if (parts.length > 0) {
       fields.push({
         label: `Experience${entry.title ? `: ${entry.title}` : ""}`,
@@ -127,7 +131,7 @@ export function profileTextFields(profile: LinkedInProfile): ProfileTextField[] 
     }
   }
   for (const entry of profile.education) {
-    const parts = [entry.school, entry.degree, entry.field].filter(Boolean);
+    const parts = [entry.school, entry.degree, entry.dates, entry.description].filter(Boolean);
     if (parts.length > 0) {
       fields.push({
         label: `Education${entry.school ? `: ${entry.school}` : ""}`,
