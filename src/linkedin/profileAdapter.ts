@@ -165,6 +165,11 @@ function isPronounBadge(text: string): boolean {
     .every((part) => PRONOUN_WORDS.has(part));
 }
 
+// Prompts like "Verify in 2 minutes" or "Contact info" are links or buttons, never identity text.
+function isInteractive(el: Element): boolean {
+  return !!el.closest("a, button, [role='button'], [role='link']");
+}
+
 // The headline is a short plain-text block just below the name, no interactive children.
 function extractHeadline(main: HTMLElement): string | undefined {
   const heading = findIdentityHeading(main);
@@ -176,7 +181,7 @@ function extractHeadline(main: HTMLElement): string | undefined {
   // LinkedIn doesn't consistently use one tag here, check div/span/p rather than assume.
   const candidates = Array.from(container.querySelectorAll<HTMLElement>("div, span, p"));
   for (const el of candidates) {
-    if (el.querySelector("h1, h2, button, a, ul, li")) continue;
+    if (el.querySelector("h1, h2, button, a, ul, li") || isInteractive(el)) continue;
     const text = visibleText(el);
     if (
       text &&
@@ -200,6 +205,7 @@ function extractLocation(main: HTMLElement, headline: string | undefined): strin
 
   const candidates = Array.from(container.querySelectorAll<HTMLElement>("span, p"));
   for (const el of candidates) {
+    if (isInteractive(el)) continue;
     const text = visibleText(el);
     if (!text || text === headline || text.length > 100) continue;
     // A location line is short and usually has a comma or "area", rather than a hardcoded

@@ -546,3 +546,22 @@ describe("extractDetailsPageProfile", () => {
     expect(extractDetailsPageProfile(document).education[0]).toMatchObject({ school: "State University" });
   });
 });
+
+describe("extractLinkedInProfile - owner view prompts", () => {
+  it("never reads a verification prompt link as the headline or location", () => {
+    setBody(`
+      <main role="main">
+        <section>
+          <h1>Jordan Rivera</h1>
+          <a href="https://www.linkedin.com/trust/verification"><div><p>Verify in 2 minutes</p></div></a>
+          <div><p>Aspiring Software Engineer | Robotics Club Lead</p></div>
+          <div><p>Charlotte, North Carolina, United States</p><p>·</p><a href="/overlay/contact-info/"><p>Contact info</p></a></div>
+          <button type="button">Open to</button>
+        </section>
+      </main>
+    `);
+    const profile = extractLinkedInProfile(document);
+    expect(profile.headline).toBe("Aspiring Software Engineer | Robotics Club Lead");
+    expect(profile.location).toBe("Charlotte, North Carolina, United States");
+  });
+});
