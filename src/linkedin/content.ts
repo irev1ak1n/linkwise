@@ -58,6 +58,7 @@ import { getScanModeState, initScanModeStore, subscribeScanModeStore, type ScanM
 import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsStore } from "./panel/expandDetailsStore";
 import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedAnalysisStore } from "./panel/enhancedAnalysisStore";
 import { getManualSectionsState, initManualSectionsStore } from "./panel/manualSectionsStore";
+import { autoExpandPreference } from "./panel/autoExpandPreference";
 import { expandSeeMoreToggles } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
@@ -168,7 +169,7 @@ const engine = createCollectionEngine({
 });
 
 function shouldExpandDetailsThisTick(mode: ScanMode): boolean {
-  return mode === "auto" || getExpandDetailsState().enabled;
+  return mode === "auto" ? autoExpandPreference.getState().enabled : getExpandDetailsState().enabled;
 }
 
 // --- Auto scan checklist state (separate from the single-page engine above, only ever driven
@@ -505,6 +506,7 @@ initExpandDetailsStore();
 registerCleanup(subscribeExpandDetailsStore(tick));
 
 initManualSectionsStore();
+autoExpandPreference.init();
 initEnhancedAnalysisStore();
 registerCleanup(subscribeEnhancedAnalysisStore(tick));
 

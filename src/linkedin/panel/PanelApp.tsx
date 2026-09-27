@@ -13,6 +13,8 @@ import { ScanModeToggle } from "./ScanModeToggle";
 import { ExpandDetailsCheckbox } from "./ExpandDetailsCheckbox";
 import { EnhancedAnalysisCheckbox } from "./EnhancedAnalysisCheckbox";
 import { ManualSectionsCheckbox } from "./ManualSectionsCheckbox";
+import { autoExpandPreference } from "./autoExpandPreference";
+import { useBooleanPreference } from "./useBooleanPreference";
 import { JobsSettingsSection } from "./JobsSettingsSection";
 import { SignalModeSection } from "./SignalModeSection";
 import { ScanningView } from "./ScanningView";
@@ -37,6 +39,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { enabled: expandDetailsEnabled, setExpandDetailsPreference } = useExpandDetailsPreference();
   const { enabled: enhancedAnalysisEnabled, setEnhancedAnalysisPreference } = useEnhancedAnalysisPreference();
   const { enabled: manualSectionsEnabled, setManualSectionsPreference } = useManualSectionsPreference();
+  const { enabled: autoExpandEnabled } = useBooleanPreference(autoExpandPreference);
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
@@ -112,6 +115,9 @@ export function PanelApp({ onClose }: PanelAppProps) {
             {profileKey !== null && <ScanModeToggle mode={scanMode} onChange={setScanMode} />}
             {profileKey !== null && scanMode === "scroll" && (
               <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />
+            )}
+            {profileKey !== null && scanMode === "auto" && (
+              <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />
             )}
             {profileKey !== null && scanMode === "auto" && (
               <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />
