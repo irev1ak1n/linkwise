@@ -82,6 +82,7 @@ const AUTO_SCROLL_MAX_DURATION_MS = 8000;
 // How long a detail page gets before its extraction is trusted, and how long before giving up
 // on it entirely. Generous: LinkedIn's own detail pages can be slow to render.
 const SECTION_SETTLE_MS = 1500;
+const SECTION_STEP_MS = 700;
 const SECTION_TIMEOUT_MS = 15000;
 const MAX_SECTION_ATTEMPTS = 2;
 // The whole multi-page crawl never runs longer than this, whatever isn't done yet gets marked
@@ -273,6 +274,18 @@ function withAccumulatedEvidence(profileKey: string, profile: LinkedInProfile): 
 }
 
 let manualScan: SectionScanState | null = null;
+let sectionStepHandle: ReturnType<typeof setTimeout> | null = null;
+registerCleanup(() => {
+  if (sectionStepHandle) clearTimeout(sectionStepHandle);
+});
+
+function scheduleSectionStep(): void {
+  if (sectionStepHandle) return;
+  sectionStepHandle = setTimeout(() => {
+    sectionStepHandle = null;
+    tick();
+  }, SECTION_STEP_MS);
+}
 
 function tickManualSection(profileKey: string, currentUrl: string): void {
   const preference = getManualSectionsState();
@@ -280,10 +293,12 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
   const container = findScrollContainer();
   if (manualScan?.url !== currentUrl) {
     manualScan = startSectionScan(currentUrl, Date.now(), container.scrollTop);
+    scheduleSectionStep();
     return;
   }
 
   const step = nextSectionScanStep(manualScan, Date.now(), SECTION_SETTLE_MS, container);
+  if (step !== "extract") scheduleSectionStep();
   if (step === "wait") return;
   if (autoExpandPreference.getState().enabled) expandSeeMoreToggles(document, { restrictToViewport: false });
   if (step === "scroll") {

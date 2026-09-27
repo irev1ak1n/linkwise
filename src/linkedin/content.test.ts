@@ -984,6 +984,17 @@ describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
     expect(data.collection?.status).toBe("settled");
   });
 
+  it("paces its own scan steps instead of waiting for the idle tick interval", async () => {
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
+    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.profileSessions.v1": sessionFor("irev1ak1n") });
+    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn() }, storage });
+    setEducationPage();
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3200);
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    expect(getPanelProfileData().profile?.education.map((e) => e.school)).toContain("State University");
+  });
+
   it("persists the merged evidence for the same profile", async () => {
     const { storage } = await openEducation({});
     const sessions = (await storage.local.get("finder.profileSessions.v1"))["finder.profileSessions.v1"] as Record<string, { evidence: LinkedInProfile; scannedSections: string[] }>;
