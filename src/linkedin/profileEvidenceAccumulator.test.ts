@@ -83,3 +83,47 @@ describe("mergeProfileEvidence - accumulates across sections, never replaces", (
     expect(merged.headline).toBe("Engineer");
   });
 });
+
+describe("mergeProfileEvidence - one record per real education or role", () => {
+  const detailSchool = {
+    school: "State Academy",
+    degree: "Higher National Diploma, Software Engineering",
+    dates: "2016 – 2025",
+    description: "Studied C++ for 9 years and built full-stack projects",
+  };
+
+  it("merges the main page and detail page copies of a school into one record", () => {
+    const main = profile({ education: [{ school: "State Academy", degree: "Higher National Diploma, Software Engineering", dates: "2016 – 2025", description: "Studied C++ for 9 years" }] });
+    const details = profile({ education: [detailSchool, { school: "City High School", degree: "Computer Engineering" }] });
+    expect(mergeProfileEvidence(main, details).education).toEqual([detailSchool, { school: "City High School", degree: "Computer Engineering" }]);
+  });
+
+  it("combines fields so neither copy's extra details are lost", () => {
+    const main = profile({ education: [{ school: "State Academy", dates: "2016 – 2025", description: "Studied C++ for 9 years" }] });
+    const details = profile({ education: [{ school: "State Academy", degree: "Higher National Diploma" }] });
+    expect(mergeProfileEvidence(main, details).education).toEqual([{ school: "State Academy", degree: "Higher National Diploma", dates: "2016 – 2025", description: "Studied C++ for 9 years" }]);
+  });
+
+  it("drops a run-together blob once structured entries cover it", () => {
+    const main = profile({ education: [{ school: "State AcademyHigher National Diploma, Software Engineering2016 – 2025Studied C++" }] });
+    const details = profile({ education: [detailSchool] });
+    expect(mergeProfileEvidence(main, details).education).toEqual([detailSchool]);
+  });
+
+  it("keeps two degrees from the same school apart", () => {
+    const merged = mergeProfileEvidence(profile({ education: [{ school: "State University", degree: "BS" }] }), profile({ education: [{ school: "State University", degree: "MS" }] }));
+    expect(merged.education).toHaveLength(2);
+  });
+
+  it("treats a role whose duration ticked over as the same role", () => {
+    const before = profile({ experience: [{ title: "Web Lead", company: "Robotics Club", dates: "Mar 2026 - Present · 7 mos" }] });
+    const after = profile({ experience: [{ title: "Web Lead", company: "Robotics Club", dates: "Mar 2026 - Present · 8 mos" }] });
+    expect(mergeProfileEvidence(before, after).experience).toHaveLength(1);
+  });
+
+  it("is stable when the same evidence is merged again", () => {
+    const details = profile({ education: [detailSchool], experience: [{ title: "Web Lead", company: "Robotics Club", dates: "2026" }] });
+    const once = mergeProfileEvidence(profile({}), details);
+    expect(mergeProfileEvidence(once, details)).toEqual(once);
+  });
+});

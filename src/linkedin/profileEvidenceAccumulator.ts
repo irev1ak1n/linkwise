@@ -30,12 +30,64 @@ function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
   return result;
 }
 
+function compact(text: string | undefined): string {
+  return (text ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+// Durations like "7 mos" change monthly, so only the date range identifies an entry.
+function dateRange(dates: string | undefined): string {
+  return compact(dates?.split("·")[0]);
+}
+
+function agrees(a: string, b: string): boolean {
+  return !a || !b || a === b;
+}
+
+// The same entry seen on two pages keeps, field by field, whichever text is longer.
+function combine<T extends object>(a: T, b: T): T {
+  const result = { ...a } as Record<string, unknown>;
+  for (const [key, value] of Object.entries(b)) {
+    const current = result[key];
+    if (typeof value === "string" && (typeof current !== "string" || value.length > current.length)) result[key] = value;
+  }
+  return result as T;
+}
+
+function mergeBy<T extends object>(items: T[], same: (a: T, b: T) => boolean): T[] {
+  const result: T[] = [];
+  for (const item of items) {
+    const at = result.findIndex((existing) => same(existing, item));
+    if (at === -1) result.push(item);
+    else result[at] = combine(result[at]!, item);
+  }
+  return result;
+}
+
+function sameExperience(a: ProfileExperienceEntry, b: ProfileExperienceEntry): boolean {
+  if (!a.title || !b.title) return !a.title && !b.title && compact(a.description) === compact(b.description);
+  return compact(a.title) === compact(b.title) && agrees(compact(a.company), compact(b.company)) && agrees(dateRange(a.dates), dateRange(b.dates));
+}
+
+function sameEducation(a: ProfileEducationEntry, b: ProfileEducationEntry): boolean {
+  if (!a.school || !b.school) return !a.school && !b.school && compact(a.description) === compact(b.description);
+  return compact(a.school) === compact(b.school) && agrees(compact(a.degree), compact(b.degree)) && agrees(dateRange(a.dates), dateRange(b.dates));
+}
+
 function mergeExperience(a: ProfileExperienceEntry[], b: ProfileExperienceEntry[]): ProfileExperienceEntry[] {
-  return dedupeBy([...a, ...b], (e) => (e.title || e.company ? `${normalize(e.title)}|${normalize(e.company)}` : normalize(e.description)));
+  return mergeBy([...a, ...b], sameExperience);
+}
+
+// Unstructured layouts yield one run-together "school" for the whole section. It adds nothing
+// once structured entries cover the schools it mentions.
+function isRunTogether(entry: ProfileEducationEntry, all: ProfileEducationEntry[]): boolean {
+  if (!entry.school || entry.degree || entry.dates || entry.description) return false;
+  const text = compact(entry.school);
+  return all.some((other) => other !== entry && !!other.school && !!(other.degree || other.dates) && text.includes(compact(other.school)) && text !== compact(other.school));
 }
 
 function mergeEducation(a: ProfileEducationEntry[], b: ProfileEducationEntry[]): ProfileEducationEntry[] {
-  return dedupeBy([...a, ...b], (e) => (e.school || e.degree ? `${normalize(e.school)}|${normalize(e.degree)}` : normalize(e.field)));
+  const merged = mergeBy([...a, ...b], sameEducation);
+  return merged.filter((entry) => !isRunTogether(entry, merged));
 }
 
 function mergeListEntries(a: ProfileListEntry[], b: ProfileListEntry[]): ProfileListEntry[] {
