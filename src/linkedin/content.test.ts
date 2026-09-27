@@ -107,6 +107,13 @@ describe("content.ts bootstrap", () => {
     expect(document.querySelectorAll("#finder-linkwise-opener")).toHaveLength(1);
   });
 
+  it("reopens the panel after a reload if it was open in this tab", async () => {
+    sessionStorage.setItem("linkwise.panelOpen", "1");
+    await import("./content");
+    expect(document.getElementById("finder-linkwise-panel-host")?.style.display).toBe("block");
+    sessionStorage.clear();
+  });
+
   it("does not create a panel host eagerly — only once the opener is actually clicked", async () => {
     await import("./content");
     expect(document.querySelectorAll("#finder-linkwise-panel-host")).toHaveLength(0);

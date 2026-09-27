@@ -51,7 +51,7 @@ import { saveProfileEvidence } from "../storage/profileEvidenceRepository";
 import { loadProfileSession, updateProfileSession } from "../storage/profileSessionRepository";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
 import { getPanelProfileData, setPanelProfileData, type AutoScanProgress } from "./panel/panelStore";
-import { destroyPanel, togglePanel } from "./panel/mount";
+import { destroyPanel, openPanel, togglePanel, wasPanelOpen } from "./panel/mount";
 import { installDevTooling } from "./devTools";
 import { createAutoScrollDriver } from "./autoScroll";
 import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
@@ -584,5 +584,6 @@ registerCleanup(
 );
 
 tick();
+if (wasPanelOpen()) openPanel();
 watchForChanges();
 registerCleanup(installDevTooling(() => getPanelProfileData()));

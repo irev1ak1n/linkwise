@@ -61,3 +61,21 @@ describe("mount.ts - opener offset stays in sync with panel state", () => {
     expect(openerRight()).toBe(`${PANEL_WIDTH_PX}px`);
   });
 });
+
+describe("mount.ts - panel stays open across a reload of the same tab", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    sessionStorage.clear();
+    vi.resetModules();
+  });
+
+  it("remembers an open panel and forgets it once closed", async () => {
+    addOpenerButton();
+    const { openPanel, closePanel, wasPanelOpen } = await import("./mount");
+    expect(wasPanelOpen()).toBe(false);
+    openPanel();
+    expect(wasPanelOpen()).toBe(true);
+    closePanel();
+    expect(wasPanelOpen()).toBe(false);
+  });
+});

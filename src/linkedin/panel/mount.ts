@@ -50,16 +50,35 @@ export function isPanelOpen(): boolean {
 
 // Open and close both live here alongside the opener-offset update, since the panel can be
 // closed from more than one place and each needs to reset the opener.
+const OPEN_KEY = "linkwise.panelOpen";
+
+function rememberOpen(open: boolean): void {
+  try {
+    if (open) sessionStorage.setItem(OPEN_KEY, "1");
+    else sessionStorage.removeItem(OPEN_KEY);
+  } catch {}
+}
+
+export function wasPanelOpen(): boolean {
+  try {
+    return sessionStorage.getItem(OPEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function openPanel(): void {
   ensureHost().style.display = "block";
   setOpenerOffset(PANEL_WIDTH_PX);
   setPanelVisible(true);
+  rememberOpen(true);
 }
 
 export function closePanel(): void {
   if (hostElement) hostElement.style.display = "none";
   setOpenerOffset(0);
   setPanelVisible(false);
+  rememberOpen(false);
 }
 
 export function togglePanel(): void {
