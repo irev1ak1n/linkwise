@@ -481,9 +481,24 @@ describe("content.ts bootstrap - safe expansion on profile detail pages (/detail
     expect(clicked).toBe(true);
   });
 
-  // Auto scan's own expansion on a details page is now driven by the checklist crawler (see
-  // the "Auto scan checklist" tests below), which arrives there as part of a real queued visit,
-  // not from any direct load of a details-page URL on its own.
+  it.each([
+    ["on by default", {}, true],
+    ["off when the Auto scan preference is off", { "finder.autoScanExpandDetails.v1": false }, false],
+  ])("Auto scan expands a safe 'more' on a manually opened details page (%s)", async (_label, prefs, expected) => {
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test", reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", ...prefs }),
+    });
+    stubDetailsPageUrl("irev1ak1n", "education");
+    const { button } = setDetailsPageWithSafeSeeMore();
+    let clicked = false;
+    button.addEventListener("click", () => (clicked = true));
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(8000);
+
+    expect(clicked).toBe(expected);
+  });
 });
 
 describe("content.ts bootstrap - Auto scan checklist crawler", () => {

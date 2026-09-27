@@ -59,6 +59,7 @@ import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsSt
 import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedAnalysisStore } from "./panel/enhancedAnalysisStore";
 import { getManualSectionsState, initManualSectionsStore } from "./panel/manualSectionsStore";
 import { autoExpandPreference } from "./panel/autoExpandPreference";
+import { SECTION_SCROLL_STEP_PX, nextSectionScanStep, startSectionScan, type SectionScanState } from "./sectionScan";
 import { expandSeeMoreToggles } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
@@ -226,18 +227,30 @@ function withAccumulatedEvidence(profileKey: string, profile: LinkedInProfile): 
   return autoScanLoadedForKey === profileKey && autoScanEvidence.extracted ? mergeProfileEvidence(profile, autoScanEvidence) : profile;
 }
 
-let manualSectionUrl: string | null = null;
-let manualSectionArrivedAt = 0;
+let manualScan: SectionScanState | null = null;
 
 function tickManualSection(profileKey: string, currentUrl: string): void {
   const preference = getManualSectionsState();
   if (!preference.loaded || !preference.enabled || !/\/details\//.test(currentUrl)) return;
-  if (manualSectionUrl !== currentUrl) {
-    manualSectionUrl = currentUrl;
-    manualSectionArrivedAt = Date.now();
+  const container = findScrollContainer();
+  if (manualScan?.url !== currentUrl) {
+    manualScan = startSectionScan(currentUrl, Date.now(), container.scrollTop);
     return;
   }
-  if (Date.now() - manualSectionArrivedAt < SECTION_SETTLE_MS) return;
+
+  const step = nextSectionScanStep(manualScan, Date.now(), SECTION_SETTLE_MS, container);
+  if (step === "wait") return;
+  if (autoExpandPreference.getState().enabled) expandSeeMoreToggles(document, { restrictToViewport: false });
+  if (step === "scroll") {
+    manualScan.steps++;
+    container.scrollBy({ top: SECTION_SCROLL_STEP_PX, behavior: "smooth" });
+    return;
+  }
+  if (step === "finish-scroll") {
+    manualScan.scrolled = true;
+    if (manualScan.steps > 0) container.scrollTo({ top: manualScan.startTop, behavior: "smooth" });
+    return;
+  }
 
   const sectionProfile = extractDetailsPageProfile(document);
   if (!sectionProfile.extracted) return;
