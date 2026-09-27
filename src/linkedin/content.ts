@@ -192,7 +192,7 @@ const engine = createCollectionEngine({
 });
 
 function shouldExpandDetailsThisTick(mode: ScanMode): boolean {
-  return mode === "auto" ? autoExpandPreference.getState().enabled : getExpandDetailsState().enabled;
+  return mode === "auto" ? autoExpandPreference.getState().value : getExpandDetailsState().enabled;
 }
 
 // --- Auto scan checklist state (separate from the single-page engine above, only ever driven
@@ -311,7 +311,7 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
   const step = nextSectionScanStep(manualScan, Date.now(), SECTION_SETTLE_MS, container);
   if (step !== "extract") scheduleSectionStep();
   if (step === "wait") return;
-  if (autoExpandPreference.getState().enabled) expandSeeMoreToggles(document, { restrictToViewport: false });
+  if (autoExpandPreference.getState().value) expandSeeMoreToggles(document, { restrictToViewport: false });
   if (step === "scroll") {
     manualScan.steps++;
     container.scrollBy({ top: SECTION_SCROLL_STEP_PX, behavior: "smooth" });

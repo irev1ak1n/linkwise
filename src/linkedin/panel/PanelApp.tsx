@@ -14,7 +14,7 @@ import { ExpandDetailsCheckbox } from "./ExpandDetailsCheckbox";
 import { EnhancedAnalysisCheckbox } from "./EnhancedAnalysisCheckbox";
 import { ManualSectionsCheckbox } from "./ManualSectionsCheckbox";
 import { autoExpandPreference } from "./autoExpandPreference";
-import { useBooleanPreference } from "./useBooleanPreference";
+import { useStoredPreference } from "./useStoredPreference";
 import { JobsSettingsSection } from "./JobsSettingsSection";
 import { SignalModeSection } from "./SignalModeSection";
 import { ScanningView } from "./ScanningView";
@@ -39,7 +39,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { enabled: expandDetailsEnabled, setExpandDetailsPreference } = useExpandDetailsPreference();
   const { enabled: enhancedAnalysisEnabled, setEnhancedAnalysisPreference } = useEnhancedAnalysisPreference();
   const { enabled: manualSectionsEnabled, setManualSectionsPreference } = useManualSectionsPreference();
-  const { enabled: autoExpandEnabled } = useBooleanPreference(autoExpandPreference);
+  const { value: autoExpandEnabled } = useStoredPreference(autoExpandPreference);
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
