@@ -76,7 +76,7 @@ const DOCUMENT_END_MARGIN_PX = 600;
 const MUTATION_DEBOUNCE_MS = 900;
 const TICK_INTERVAL_MS = 2500;
 const SETTLED_TICK_INTERVAL_MS = 6000;
-const AUTO_SCROLL_MAX_DURATION_MS = 8000;
+const AUTO_SCROLL_MAX_DURATION_MS = 15000;
 
 // How long a detail page gets before its extraction is trusted, and how long before giving up
 // on it entirely. Generous: LinkedIn's own detail pages can be slow to render.
@@ -531,7 +531,8 @@ function tick(): void {
   if (autoScroll.shouldScrollNow(mode, profileKey, goalActive, isNearDocumentEnd())) {
     autoScannedProfileKeys.add(profileKey);
     const container = findScrollContainer();
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    // One screen at a time: LinkedIn only renders a lazy section once it enters the viewport.
+    container.scrollBy({ top: container.clientHeight, behavior: "smooth" });
   }
 }
 

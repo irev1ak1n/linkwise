@@ -308,6 +308,33 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
     expect(clicked).toBe(true);
   });
 
+  it("Auto scan moves down one screen at a time so lazily rendered sections load", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test", reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.goals.v1": [{ id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Anything", importance: "PREFERRED" }] }],
+      }),
+    });
+    stubProfileUrl("irev1ak1n");
+    setProfilePageWithSafeSeeMore();
+    const sizes = { scrollHeight: 5000, clientHeight: 800, scrollTop: 0 };
+    for (const [name, value] of Object.entries(sizes)) Object.defineProperty(HTMLElement.prototype, name, { configurable: true, get: () => value, set: () => {} });
+    const scrollBy = vi.fn();
+    const scrollTo = vi.fn();
+    Element.prototype.scrollBy = scrollBy;
+    Element.prototype.scrollTo = scrollTo;
+
+    try {
+      await import("./content");
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(scrollBy).toHaveBeenCalledWith({ top: 800, behavior: "smooth" });
+      expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ top: 5000 }));
+    } finally {
+      for (const name of Object.keys(sizes)) delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+    }
+  });
+
   it("Analyze as I scroll, checkbox ON or OFF, never auto-scrolls the page either way", async () => {
     vi.stubGlobal("chrome", {
       runtime: { id: "test", reload: vi.fn() },
@@ -321,6 +348,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
     setProfilePageWithSafeSeeMore();
     const scrollToSpy = vi.fn();
     Element.prototype.scrollTo = scrollToSpy;
+    Element.prototype.scrollBy = scrollToSpy;
 
     await import("./content");
     await Promise.resolve();
@@ -359,6 +387,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
     button.addEventListener("click", () => (clicked = true));
     const scrollToSpy = vi.fn();
     Element.prototype.scrollTo = scrollToSpy;
+    Element.prototype.scrollBy = scrollToSpy;
 
     await import("./content");
     await Promise.resolve();
