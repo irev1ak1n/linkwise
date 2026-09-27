@@ -129,8 +129,14 @@ function isNearDocumentEnd(): boolean {
 
 const autoScroll = createAutoScrollDriver({ now: () => Date.now(), maxDurationMs: AUTO_SCROLL_MAX_DURATION_MS });
 
+// A page that can't scroll yet hasn't rendered its sections, so it isn't at its end.
+function isPageScrollable(): boolean {
+  const el = findScrollContainer();
+  return el.scrollHeight - el.clientHeight > 40;
+}
+
 function isNearDocumentEndOrTimedOut(): boolean {
-  return isNearDocumentEnd() || autoScroll.hasTimedOut(engine.getProfileKey());
+  return isPageScrollable() && (isNearDocumentEnd() || autoScroll.hasTimedOut(engine.getProfileKey()));
 }
 
 function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
@@ -519,7 +525,7 @@ function tick(): void {
     return;
   }
 
-  if (!shouldAttemptAutoScroll(mode, coverage) || restoredSession) return;
+  if (!shouldAttemptAutoScroll(mode, coverage) || restoredSession || !isPageScrollable()) return;
 
   const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
   if (autoScroll.shouldScrollNow(mode, profileKey, goalActive, isNearDocumentEnd())) {

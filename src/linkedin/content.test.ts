@@ -87,6 +87,18 @@ function installFakeChromeStorage(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// jsdom lays nothing out, so every element reports 0 for its scroll dimensions. A rendered
+// LinkedIn profile is taller than the window, scrolled to its end here.
+function stubRenderedPageHeight(): () => void {
+  const props = { scrollHeight: 3000, clientHeight: 800, scrollTop: 2200 };
+  for (const [name, value] of Object.entries(props)) {
+    Object.defineProperty(HTMLElement.prototype, name, { configurable: true, get: () => value, set: () => {} });
+  }
+  return () => {
+    for (const name of Object.keys(props)) delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+  };
+}
+
 describe("content.ts bootstrap", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -513,12 +525,15 @@ describe("content.ts bootstrap - safe expansion on profile detail pages (/detail
 });
 
 describe("content.ts bootstrap - Auto scan checklist crawler", () => {
+  let restoreHeight = () => {};
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
+    restoreHeight = stubRenderedPageHeight();
   });
 
   afterEach(() => {
+    restoreHeight();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     document.body.innerHTML = "";
@@ -568,8 +583,6 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
     await import("./content");
     // The Async variant flushes microtasks between timer firings, needed here since loading
     // the (nonexistent) saved session and evidence is itself async.
-    // jsdom reports 0 for every scroll dimension, so "near document end" is trivially true —
-    // the main page settles almost immediately once ticked.
     await vi.advanceTimersByTimeAsync(6000);
 
     expect(assign).toHaveBeenCalledWith("/in/irev1ak1n/details/experience/");
@@ -1102,12 +1115,15 @@ describe("content.ts bootstrap - profile sessions", () => {
 });
 
 describe("content.ts bootstrap - Enhanced analysis toggle", () => {
+  let restoreHeight = () => {};
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
+    restoreHeight = stubRenderedPageHeight();
   });
 
   afterEach(() => {
+    restoreHeight();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     document.body.innerHTML = "";
@@ -1151,6 +1167,25 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     const data = getPanelProfileData();
     expect(data.autoScanProgress).toBeNull(); // the crawler never started
     expect(data.collection?.status).toBe("settled"); // the single-page scan still finishes on its own
+  });
+
+  it("does not settle Auto scan while the page has not rendered enough to scroll", async () => {
+    restoreHeight();
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test", reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+    });
+    setMainProfilePage();
+
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(20000);
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    expect(getPanelProfileData().collection?.status).not.toBe("settled");
+
+    restoreHeight = stubRenderedPageHeight();
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(getPanelProfileData().collection?.status).toBe("settled");
   });
 
   it("turning Enhanced analysis on after the main page already settled starts the crawler without discarding its evidence", async () => {
