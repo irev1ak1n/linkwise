@@ -47,7 +47,8 @@ import {
   type AutoScanSession,
 } from "./autoScanSession";
 import { loadAutoScanSession, saveAutoScanSession } from "../storage/autoScanSessionRepository";
-import { loadProfileEvidence, saveProfileEvidence } from "../storage/profileEvidenceRepository";
+import { saveProfileEvidence } from "../storage/profileEvidenceRepository";
+import { loadProfileSession, updateProfileSession } from "../storage/profileSessionRepository";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
 import { getPanelProfileData, setPanelProfileData, type AutoScanProgress } from "./panel/panelStore";
 import { destroyPanel, togglePanel } from "./panel/mount";
@@ -131,6 +132,7 @@ function isNearDocumentEndOrTimedOut(): boolean {
 }
 
 function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
+  if (restoredSession && profile.extracted) return true;
   return getScanModeState().mode === "scroll" && profile.extracted && foundSections(profile).length > 0;
 }
 
@@ -156,7 +158,18 @@ const engine = createCollectionEngine({
   isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? isNearDocumentEndOrTimedOut() : isNearDocumentEnd()),
   hasEnoughEvidence: hasEnoughEvidenceToSettle,
   onUpdate: (profileKey, profile, collection) => {
-    setPanelProfileData({ profileKey, profile: withAccumulatedEvidence(profileKey, profile), collection, autoScanProgress: getPanelProfileData().autoScanProgress });
+    const merged = withAccumulatedEvidence(profileKey, profile);
+    const settled = collection.status === "settled" || (restoredSession && sessionKey === profileKey);
+    if (settled && merged.extracted) {
+      autoScanEvidence = merged;
+      void saveProfileEvidence(profileKey, merged);
+    }
+    setPanelProfileData({
+      profileKey,
+      profile: merged,
+      collection: settled ? { ...collection, status: "settled" } : collection,
+      autoScanProgress: getPanelProfileData().autoScanProgress,
+    });
   },
   onReset: (profileKey) => {
     savedScrollPositions.set(profileKey, findScrollContainer().scrollTop);
@@ -178,6 +191,36 @@ function shouldExpandDetailsThisTick(mode: ScanMode): boolean {
 let autoScanSession: AutoScanSession | null = null;
 let autoScanEvidence: LinkedInProfile = { ...EMPTY_PROFILE };
 let autoScanLoadedForKey: string | null = null;
+
+// One session per person, shared by their main page, detail pages and reloads for 10 minutes.
+let sessionKey: string | null = null;
+let sessionReady = false;
+let restoredSession = false;
+
+function ensureProfileSession(profileKey: string): boolean {
+  if (sessionKey === profileKey) return sessionReady;
+  sessionKey = profileKey;
+  sessionReady = false;
+  restoredSession = false;
+  autoScanEvidence = { ...EMPTY_PROFILE };
+  void loadProfileSession(profileKey).then((session) => {
+    if (sessionKey !== profileKey || torndown) return;
+    sessionReady = true;
+    if (session?.evidence.extracted) {
+      autoScanEvidence = session.evidence;
+      restoredSession = true;
+      const current = getPanelProfileData();
+      setPanelProfileData({
+        profileKey,
+        profile: current.profileKey === profileKey && current.profile ? mergeProfileEvidence(current.profile, session.evidence) : session.evidence,
+        collection: { ...engine.getCollectionState(), status: "settled" },
+        autoScanProgress: current.profileKey === profileKey ? (current.autoScanProgress ?? null) : null,
+      });
+    }
+    tick();
+  });
+  return false;
+}
 let autoScanLoadInFlight = false;
 let sectionArrivedAt: number | null = null;
 let sectionHandledUrl: string | null = null;
@@ -224,7 +267,7 @@ function goToNextSectionOrFinish(session: AutoScanSession): void {
 }
 
 function withAccumulatedEvidence(profileKey: string, profile: LinkedInProfile): LinkedInProfile {
-  return autoScanLoadedForKey === profileKey && autoScanEvidence.extracted ? mergeProfileEvidence(profile, autoScanEvidence) : profile;
+  return sessionKey === profileKey && autoScanEvidence.extracted ? mergeProfileEvidence(profile, autoScanEvidence) : profile;
 }
 
 let manualScan: SectionScanState | null = null;
@@ -264,7 +307,7 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
   if (JSON.stringify(merged) === JSON.stringify(base)) return;
 
   autoScanEvidence = merged;
-  void saveProfileEvidence(profileKey, merged);
+  void updateProfileSession(profileKey, { evidence: merged, scannedSection: detailsPageSection(currentUrl) });
   setPanelProfileData({
     profileKey,
     profile: merged,
@@ -289,11 +332,9 @@ function tickAutoScanCrawl(): void {
     if (autoScanLoadInFlight) return;
     autoScanLoadInFlight = true;
     autoScanSession = null;
-    autoScanEvidence = { ...EMPTY_PROFILE };
     discoveryFirstEmptyAt = null;
-    Promise.all([loadAutoScanSession(profileKey), loadProfileEvidence(profileKey)]).then(([session, evidence]) => {
+    loadAutoScanSession(profileKey).then((session) => {
       autoScanSession = session;
-      autoScanEvidence = evidence;
       autoScanLoadedForKey = profileKey;
       autoScanLoadInFlight = false;
       if (autoScanSession) publishAutoScanState(profileKey);
@@ -427,6 +468,8 @@ function tick(): void {
   runJobsTick(location.href, getJobsSettingsState().settings);
   tickSignals();
   if (!getScanModeState().loaded) return;
+  const urlProfileKey = profileIdentityKey(location.href);
+  if (urlProfileKey !== null && !ensureProfileSession(urlProfileKey)) return;
   const mode = getScanModeState().mode;
   const isDetailsPage = /\/details\//.test(location.href);
 
@@ -451,7 +494,7 @@ function tick(): void {
     return;
   }
 
-  if (!shouldAttemptAutoScroll(mode, coverage)) return;
+  if (!shouldAttemptAutoScroll(mode, coverage) || restoredSession) return;
 
   const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
   if (autoScroll.shouldScrollNow(mode, profileKey, goalActive, isNearDocumentEnd())) {

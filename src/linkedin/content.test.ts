@@ -2,7 +2,11 @@
 // Regression coverage for the reinjection-safety mechanism: content.ts must behave correctly
 // both on first run and when re-injected into a page with an orphaned instance already
 // running. React is mocked out since this is about DOM bootstrapping, not panel rendering.
+import type { LinkedInProfile } from "../models/profile";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The first test pays for compiling the whole content-script module graph.
+vi.setConfig({ testTimeout: 15000 });
 
 vi.mock("react-dom/client", () => ({
   createRoot: () => ({ render: vi.fn(), unmount: vi.fn() }),
@@ -182,18 +186,18 @@ describe("content.ts bootstrap", () => {
 
     setProfilePage("Jordan Rivera");
     stubProfileUrl("jordan-rivera");
-    vi.advanceTimersByTime(3000);
+    await vi.advanceTimersByTimeAsync(3000);
     expect(getPanelProfileData().profileKey).toBe("jordan-rivera");
 
     // Collection likely already settled during the 3000ms above, jsdom reports 0 for every
     // scroll dimension so "near document end" is trivially true. Advance past the backed-off tick.
     stubNonProfileUrl("/jobs/");
-    vi.advanceTimersByTime(6000);
+    await vi.advanceTimersByTimeAsync(6000);
     expect(getPanelProfileData().profileKey).toBeNull();
 
     setProfilePage("Alex Chen");
     stubProfileUrl("alex-chen");
-    vi.advanceTimersByTime(3000);
+    await vi.advanceTimersByTimeAsync(3000);
 
     expect(getPanelProfileData().profileKey).toBe("alex-chen");
     expect(document.querySelectorAll("#finder-linkwise-opener")).toHaveLength(1);
@@ -947,9 +951,13 @@ describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
     `;
   }
 
-  async function openEducation(prefs: Record<string, unknown>, stored: unknown = { profileKey: "irev1ak1n", profile: mainEvidence }) {
+  function sessionFor(profileKey: string) {
+    return { [profileKey]: { profileKey, createdAt: Date.now(), updatedAt: Date.now(), evidence: mainEvidence, scannedSections: [] } };
+  }
+
+  async function openEducation(prefs: Record<string, unknown>, stored: unknown = sessionFor("irev1ak1n")) {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
-    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.profileEvidence.v1": stored, ...prefs });
+    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.profileSessions.v1": stored, ...prefs });
     vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn() }, storage });
     setEducationPage();
     await import("./content");
@@ -971,9 +979,10 @@ describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
 
   it("persists the merged evidence for the same profile", async () => {
     const { storage } = await openEducation({});
-    const saved = (await storage.local.get("finder.profileEvidence.v1"))["finder.profileEvidence.v1"] as { profileKey: string; profile: typeof mainEvidence };
-    expect(saved.profileKey).toBe("irev1ak1n");
-    expect(saved.profile.experience).toEqual(mainEvidence.experience);
+    const sessions = (await storage.local.get("finder.profileSessions.v1"))["finder.profileSessions.v1"] as Record<string, { evidence: LinkedInProfile; scannedSections: string[] }>;
+    expect(sessions.irev1ak1n.evidence.experience).toEqual(mainEvidence.experience);
+    expect(sessions.irev1ak1n.evidence.education.map((e) => e.school)).toContain("State University");
+    expect(sessions.irev1ak1n.scannedSections).toContain("education");
   });
 
   it("publishes nothing more while the same section stays unchanged", async () => {
@@ -988,16 +997,79 @@ describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
     const { assign, storage, getPanelProfileData } = await openEducation({ "finder.analyzeOpenedSections.v1": false });
     expect(assign).not.toHaveBeenCalled();
     expect(getPanelProfileData().profile?.education ?? []).toEqual([]);
-    const saved = (await storage.local.get("finder.profileEvidence.v1"))["finder.profileEvidence.v1"] as { profile: typeof mainEvidence };
-    expect(saved.profile.education).toEqual([]);
+    const sessions = (await storage.local.get("finder.profileSessions.v1"))["finder.profileSessions.v1"] as Record<string, { evidence: typeof mainEvidence }>;
+    expect(sessions.irev1ak1n.evidence.education).toEqual([]);
   });
 
   it("never merges another person's saved evidence into this profile", async () => {
-    const { getPanelProfileData } = await openEducation({}, { profileKey: "someone-else", profile: mainEvidence });
+    const { getPanelProfileData } = await openEducation({}, sessionFor("someone-else"));
     const profile = getPanelProfileData().profile;
     expect(profile?.education.map((e) => e.school)).toContain("State University");
     expect(profile?.experience).toEqual([]);
     expect(profile?.about).toBeUndefined();
+  });
+});
+
+describe("content.ts bootstrap - profile sessions", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+    Object.defineProperty(document, "URL", { value: "http://localhost/", configurable: true });
+  });
+
+  const savedEvidence = {
+    ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] },
+    name: "Illia Reviakin",
+    about: "Builds websites.",
+    education: [{ school: "State University", degree: "BS" }],
+    extracted: true,
+  };
+
+  function session(profileKey: string, createdAt: number) {
+    return { [profileKey]: { profileKey, createdAt, updatedAt: createdAt, evidence: savedEvidence, scannedSections: ["education"] } };
+  }
+
+  function setMainPage(): void {
+    document.body.innerHTML = `<div id="app-root"><main role="main"><section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section></main></div>`;
+  }
+
+  async function reloadMain(stored: unknown) {
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test", reload: vi.fn() },
+      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.profileSessions.v1": stored }),
+    });
+    setMainPage();
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(50);
+    const { getPanelProfileData } = await import("./panel/panelStore");
+    return { getPanelProfileData };
+  }
+
+  it("restores a fresh session right away on a full reload, settled, with sections from earlier pages", async () => {
+    const { getPanelProfileData } = await reloadMain(session("irev1ak1n", Date.now() - 2 * 60 * 1000));
+    const data = getPanelProfileData();
+    expect(data.profile?.education.map((e) => e.school)).toEqual(["State University"]);
+    expect(data.collection?.status).toBe("settled");
+  });
+
+  it("ignores a session older than 10 minutes", async () => {
+    const { getPanelProfileData } = await reloadMain(session("irev1ak1n", Date.now() - 11 * 60 * 1000));
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(getPanelProfileData().profile?.education ?? []).toEqual([]);
+  });
+
+  it("never restores another person's session", async () => {
+    const { getPanelProfileData } = await reloadMain(session("robert-michels", Date.now()));
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(getPanelProfileData().profile?.education ?? []).toEqual([]);
+    expect(getPanelProfileData().profile?.about).toBeUndefined();
   });
 });
 

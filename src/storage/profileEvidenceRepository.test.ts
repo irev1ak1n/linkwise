@@ -6,6 +6,7 @@ import { EMPTY_PROFILE } from "../models/profile";
 function installFakeChromeStorage() {
   const data: Record<string, unknown> = {};
   (globalThis as unknown as { chrome: unknown }).chrome = {
+    runtime: { id: "test" },
     storage: {
       local: {
         get: (keys: string | string[]) =>
