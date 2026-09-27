@@ -34,7 +34,7 @@ import { createCollectionEngine } from "./collectionEngine";
 import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
 import { detailsPageSection, detectProfileSections, extractDetailsPageProfile, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
 import { discoverProfileSections, excludeFromAutoScanQueue } from "./sectionDiscovery";
-import { mergeProfileEvidence } from "./profileEvidenceAccumulator";
+import { mergeProfileEvidence, sameEvidence } from "./profileEvidenceAccumulator";
 import {
   forceCompleteSession,
   hasExceededOverallTimeout,
@@ -170,7 +170,8 @@ const engine = createCollectionEngine({
     const settled = collection.status === "settled" || (restoredSession && sessionKey === profileKey);
     if (settled && merged.extracted) {
       autoScanEvidence = merged;
-      void persistSession(profileKey, { evidence: merged });
+      const scannedToEnd = collection.status === "settled" && collection.reachedDocumentEnd;
+      void updateProfileSession(profileKey, { evidence: merged, validated: collection.status === "settled", scannedSection: scannedToEnd ? MAIN_PAGE_SECTION : null });
     }
     setPanelProfileData({
       profileKey,
@@ -200,32 +201,28 @@ let autoScanSession: AutoScanSession | null = null;
 let autoScanEvidence: LinkedInProfile = { ...EMPTY_PROFILE };
 let autoScanLoadedForKey: string | null = null;
 
-// One session per person, shared by their main page, detail pages and reloads for 10 minutes.
+// One session per person, shared by their main page, detail pages and reloads.
 let sessionKey: string | null = null;
 let sessionReady = false;
 let restoredSession = false;
-let sessionStartedAt: number | null = null;
-
-// Writes keep the session's original start, so evidence carried in memory never outlives it.
-async function persistSession(profileKey: string, update: { evidence: LinkedInProfile; scannedSection?: string | null }): Promise<void> {
-  const session = await updateProfileSession(profileKey, { ...update, startedAt: sessionKey === profileKey ? sessionStartedAt : null });
-  if (session && sessionKey === profileKey) sessionStartedAt ??= session.createdAt;
-}
+let mainPageScanned = false;
+// Marks a session whose main page was already scanned to the end, so it is never auto-scrolled again.
+const MAIN_PAGE_SECTION = "main";
 
 function ensureProfileSession(profileKey: string): boolean {
   if (sessionKey === profileKey) return sessionReady;
   sessionKey = profileKey;
   sessionReady = false;
   restoredSession = false;
-  sessionStartedAt = null;
+  mainPageScanned = false;
   autoScanEvidence = { ...EMPTY_PROFILE };
   void loadProfileSession(profileKey).then((session) => {
     if (sessionKey !== profileKey || torndown) return;
     sessionReady = true;
-    sessionStartedAt = session?.createdAt ?? null;
     if (session?.evidence.extracted) {
       autoScanEvidence = session.evidence;
       restoredSession = true;
+      mainPageScanned = session.scannedSections.includes(MAIN_PAGE_SECTION);
       const current = getPanelProfileData();
       setPanelProfileData({
         profileKey,
@@ -335,16 +332,22 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
       ? current.profile
       : { ...EMPTY_PROFILE };
   const merged = mergeProfileEvidence(base, sectionProfile);
-  if (JSON.stringify(merged) === JSON.stringify(base)) return;
+  const scannedSection = detailsPageSection(currentUrl);
+  if (sameEvidence(merged, base)) {
+    if (!manualScan.validated) void updateProfileSession(profileKey, { scannedSection, validated: true });
+    manualScan.validated = true;
+    return;
+  }
 
+  manualScan.validated = true;
   autoScanEvidence = merged;
-  void persistSession(profileKey, { evidence: merged, scannedSection: detailsPageSection(currentUrl) });
+  void updateProfileSession(profileKey, { evidence: merged, scannedSection, validated: true });
   setPanelProfileData({
     profileKey,
     profile: merged,
     collection: { ...engine.getCollectionState(), status: "settled" },
     autoScanProgress: current.profileKey === profileKey ? (current.autoScanProgress ?? null) : null,
-    updatingSection: detailsPageSection(currentUrl),
+    updatingSection: scannedSection,
   });
 }
 
@@ -404,7 +407,7 @@ function tickAutoScanCrawl(): void {
     const session = startAutoScanSession(profileKey, currentUrl, discovered);
     autoScanSession = session;
     void saveAutoScanSession(session);
-    void persistSession(profileKey, { evidence: autoScanEvidence });
+    void updateProfileSession(profileKey, { evidence: autoScanEvidence });
     publishAutoScanState(profileKey);
     goToNextSectionOrFinish(session);
     return;
@@ -473,7 +476,7 @@ function tickAutoScanCrawl(): void {
   sectionHandledUrl = pending.normalizedUrl;
 
   void (async () => {
-    await persistSession(profileKey, { evidence: autoScanEvidence });
+    await updateProfileSession(profileKey, { evidence: autoScanEvidence });
     autoScanSession = markCurrentSectionDone(autoScanSession!);
     await saveAutoScanSession(autoScanSession);
     const verified = await loadAutoScanSession(profileKey);
@@ -525,7 +528,7 @@ function tick(): void {
     return;
   }
 
-  if (!shouldAttemptAutoScroll(mode, coverage) || restoredSession || !isPageScrollable()) return;
+  if (!shouldAttemptAutoScroll(mode, coverage) || mainPageScanned || !isPageScrollable()) return;
 
   const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
   if (autoScroll.shouldScrollNow(mode, profileKey, goalActive, isNearDocumentEnd())) {

@@ -7,6 +7,7 @@ export interface SectionScanState {
   steps: number;
   startTop: number;
   scrolled: boolean;
+  validated: boolean;
 }
 
 export interface ScrollBox {
@@ -18,7 +19,7 @@ export interface ScrollBox {
 export type SectionScanStep = "wait" | "scroll" | "finish-scroll" | "extract";
 
 export function startSectionScan(url: string, now: number, startTop: number): SectionScanState {
-  return { url, arrivedAt: now, steps: 0, startTop, scrolled: false };
+  return { url, arrivedAt: now, steps: 0, startTop, scrolled: false, validated: false };
 }
 
 export function nextSectionScanStep(state: SectionScanState, now: number, settleMs: number, box: ScrollBox): SectionScanStep {

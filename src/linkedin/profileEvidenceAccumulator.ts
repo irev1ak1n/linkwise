@@ -118,3 +118,21 @@ export function mergeProfileEvidence(accumulated: LinkedInProfile, incoming: Lin
     extracted: accumulated.extracted || incoming.extracted,
   };
 }
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, v]) => v !== undefined)
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([k, v]) => [k, canonical(v)]),
+    );
+  }
+  return value;
+}
+
+// Storage hands objects back with their keys reordered, so compare content, not key order.
+export function sameEvidence(a: LinkedInProfile, b: LinkedInProfile): boolean {
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}

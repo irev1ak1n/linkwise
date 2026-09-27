@@ -1,23 +1,30 @@
 import type { LinkedInProfile } from "../models/profile";
+import { sameEvidence } from "../linkedin/profileEvidenceAccumulator";
 import { safeStorageGet, safeStorageSet } from "./safeChromeStorage";
 
-export const PROFILE_SESSIONS_STORAGE_KEY = "finder.profileSessions.v1";
-export const PROFILE_SESSION_TTL_MS = 10 * 60 * 1000;
+export const PROFILE_SESSIONS_STORAGE_KEY = "finder.profileSessions.v2";
+export const PROFILE_SESSION_FRESH_MS = 10 * 60 * 1000;
+export const PROFILE_SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_SESSIONS = 20;
 
 export interface ProfileSession {
   profileKey: string;
   createdAt: number;
-  updatedAt: number;
+  lastValidatedAt: number;
+  lastEvidenceChangeAt: number;
   evidence: LinkedInProfile;
   scannedSections: string[];
 }
 
 type SessionMap = Record<string, ProfileSession>;
 
-// A fixed lifetime from creation, so browsing a profile never keeps its session alive forever.
-export function isProfileSessionFresh(session: Pick<ProfileSession, "createdAt">, now: number): boolean {
-  return now - session.createdAt < PROFILE_SESSION_TTL_MS;
+// Stale sessions are still shown, then checked against the page again.
+export function isProfileSessionFresh(session: Pick<ProfileSession, "lastValidatedAt">, now: number): boolean {
+  return now - session.lastValidatedAt < PROFILE_SESSION_FRESH_MS;
+}
+
+function isRetained(session: ProfileSession, now: number): boolean {
+  return typeof session.lastValidatedAt === "number" && now - session.lastValidatedAt < PROFILE_SESSION_RETENTION_MS;
 }
 
 async function readSessions(): Promise<SessionMap> {
@@ -27,34 +34,38 @@ async function readSessions(): Promise<SessionMap> {
 
 export async function loadProfileSession(profileKey: string, now = Date.now()): Promise<ProfileSession | null> {
   const session = (await readSessions())[profileKey];
-  return session && session.profileKey === profileKey && isProfileSessionFresh(session, now) ? session : null;
+  return session && session.profileKey === profileKey && isRetained(session, now) ? session : null;
 }
 
+// Freshness moves only when the page's evidence was actually checked, or changed.
 export async function updateProfileSession(
   profileKey: string,
-  update: { evidence?: LinkedInProfile; scannedSection?: string | null; startedAt?: number | null },
+  update: { evidence?: LinkedInProfile; scannedSection?: string | null; validated?: boolean },
   now = Date.now(),
 ): Promise<ProfileSession | null> {
   const sessions = await readSessions();
   const existing = sessions[profileKey];
-  const current = existing && isProfileSessionFresh(existing, now) ? existing : null;
+  const current = existing && isRetained(existing, now) ? existing : null;
   if (!current && !update.evidence) return null;
-  const createdAt = current?.createdAt ?? update.startedAt ?? now;
-  if (!isProfileSessionFresh({ createdAt }, now)) return null;
 
-  const scanned = new Set(current?.scannedSections ?? []);
-  if (update.scannedSection) scanned.add(update.scannedSection);
+  const evidence = update.evidence ?? current!.evidence;
+  const evidenceChanged = !current || !sameEvidence(evidence, current.evidence);
+  const sections = current?.scannedSections ?? [];
+  const newSection = !!update.scannedSection && !sections.includes(update.scannedSection);
+  if (current && !evidenceChanged && !newSection && !update.validated) return current;
+
   const next: ProfileSession = {
     profileKey,
-    createdAt,
-    updatedAt: now,
-    evidence: update.evidence ?? current!.evidence,
-    scannedSections: [...scanned],
+    createdAt: current?.createdAt ?? now,
+    lastValidatedAt: evidenceChanged || update.validated ? now : current!.lastValidatedAt,
+    lastEvidenceChangeAt: evidenceChanged ? now : current!.lastEvidenceChangeAt,
+    evidence,
+    scannedSections: newSection ? [...sections, update.scannedSection!] : sections,
   };
 
   const kept = Object.values(sessions)
-    .filter((s) => s.profileKey !== profileKey && isProfileSessionFresh(s, now))
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .filter((s) => s.profileKey !== profileKey && isRetained(s, now))
+    .sort((a, b) => b.lastValidatedAt - a.lastValidatedAt)
     .slice(0, MAX_SESSIONS - 1);
   await safeStorageSet({ [PROFILE_SESSIONS_STORAGE_KEY]: Object.fromEntries([...kept, next].map((s) => [s.profileKey, s])) });
   return next;
