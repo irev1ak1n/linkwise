@@ -93,6 +93,30 @@ function storedSession(profileKey: string, evidence: object, validatedAt: number
   return { profileKey, createdAt: validatedAt, lastValidatedAt: validatedAt, lastEvidenceChangeAt: validatedAt, evidence, scannedSections: [] as string[] };
 }
 
+// A tall page whose scroll position really moves, recording every programmatic change.
+function stubScrollingPage(height = 5000) {
+  const tops = new WeakMap<object, number>();
+  const writes: number[] = [];
+  Object.defineProperty(HTMLElement.prototype, "scrollHeight", { configurable: true, get: () => height });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 800 });
+  Object.defineProperty(HTMLElement.prototype, "scrollTop", {
+    configurable: true,
+    get(this: object) {
+      return tops.get(this) ?? 0;
+    },
+    set(this: object, value: number) {
+      writes.push(value - (tops.get(this) ?? 0));
+      tops.set(this, Math.max(0, Math.min(value, height - 800)));
+    },
+  });
+  return {
+    writes,
+    restore() {
+      for (const name of ["scrollHeight", "clientHeight", "scrollTop"]) delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+    },
+  };
+}
+
 function stubRenderedPageHeight(): () => void {
   const props = { scrollHeight: 3000, clientHeight: 800, scrollTop: 2200 };
   for (const [name, value] of Object.entries(props)) {
@@ -312,7 +336,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
     expect(clicked).toBe(true);
   });
 
-  it("Auto scan moves down one screen at a time so lazily rendered sections load", async () => {
+  it("Auto scan reads down the page in small steps instead of jumping a screen at a time", async () => {
     vi.stubGlobal("chrome", {
       runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
@@ -322,20 +346,15 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
     });
     stubProfileUrl("irev1ak1n");
     setProfilePageWithSafeSeeMore();
-    const sizes = { scrollHeight: 5000, clientHeight: 800, scrollTop: 0 };
-    for (const [name, value] of Object.entries(sizes)) Object.defineProperty(HTMLElement.prototype, name, { configurable: true, get: () => value, set: () => {} });
-    const scrollBy = vi.fn();
-    const scrollTo = vi.fn();
-    Element.prototype.scrollBy = scrollBy;
-    Element.prototype.scrollTo = scrollTo;
-
+    const page = stubScrollingPage();
     try {
       await import("./content");
-      await vi.advanceTimersByTimeAsync(3000);
-      expect(scrollBy).toHaveBeenCalledWith({ top: 800, behavior: "smooth" });
-      expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ top: 5000 }));
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(page.writes.length).toBeGreaterThan(50);
+      expect(Math.max(...page.writes)).toBeLessThan(20);
+      expect(page.writes.reduce((a, b) => a + b, 0)).toBeGreaterThan(200);
     } finally {
-      for (const name of Object.keys(sizes)) delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+      page.restore();
     }
   });
 
@@ -1164,25 +1183,22 @@ describe("content.ts bootstrap - profile sessions", () => {
       }),
     });
     setMainPage();
-    const sizes = { scrollHeight: 5000, clientHeight: 800, scrollTop: 0 };
-    for (const [name, value] of Object.entries(sizes)) Object.defineProperty(HTMLElement.prototype, name, { configurable: true, get: () => value, set: () => {} });
-    const scrollBy = vi.fn();
-    Element.prototype.scrollBy = scrollBy;
+    const page = stubScrollingPage();
     try {
       await import("./content");
       await vi.advanceTimersByTimeAsync(4000);
     } finally {
-      for (const name of Object.keys(sizes)) delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+      page.restore();
     }
-    return scrollBy;
+    return page.writes.length;
   }
 
   it("never auto-scrolls a restored profile whose main page was already scanned", async () => {
-    expect(await reloadTallMain(["main", "education"])).not.toHaveBeenCalled();
+    expect(await reloadTallMain(["main", "education"])).toBe(0);
   });
 
   it("still scans the main page when the session only came from detail pages", async () => {
-    expect(await reloadTallMain(["education"])).toHaveBeenCalled();
+    expect(await reloadTallMain(["education"])).toBeGreaterThan(0);
   });
 
   it("ignores a session that has not been validated for over a day", async () => {
@@ -1254,23 +1270,30 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     expect(data.collection?.status).toBe("settled"); // the single-page scan still finishes on its own
   });
 
-  it("does not settle Auto scan while the page has not rendered enough to scroll", async () => {
+  it("gives a first result from the sections found so far while the read-through continues", async () => {
     restoreHeight();
     stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
       runtime: { id: "test", reload: vi.fn() },
-      storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto" }),
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.goals.v1": [{ id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Anything", importance: "PREFERRED" }] }],
+      }),
     });
     setMainProfilePage();
-
-    await import("./content");
-    await vi.advanceTimersByTimeAsync(20000);
-    const { getPanelProfileData } = await import("./panel/panelStore");
-    expect(getPanelProfileData().collection?.status).not.toBe("settled");
-
-    restoreHeight = stubRenderedPageHeight();
-    await vi.advanceTimersByTimeAsync(6000);
-    expect(getPanelProfileData().collection?.status).toBe("settled");
+    document.querySelector("main")!.insertAdjacentHTML("beforeend", "<section><h2>About</h2><p>Builds websites for student clubs.</p></section>");
+    const page = stubScrollingPage(20000);
+    try {
+      await import("./content");
+      await vi.advanceTimersByTimeAsync(8000);
+      const { getPanelProfileData } = await import("./panel/panelStore");
+      const { autoScroller } = await import("./autoScroller");
+      expect(getPanelProfileData().collection?.status).toBe("settled");
+      expect(autoScroller.getState().status).toBe("running");
+    } finally {
+      page.restore();
+      restoreHeight = stubRenderedPageHeight();
+    }
   });
 
   it("turning Enhanced analysis on after the main page already settled starts the crawler without discarding its evidence", async () => {
@@ -1369,6 +1392,153 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     expect(assign).not.toHaveBeenCalledWith("/in/irev1ak1n/details/education/");
     expect(progress?.status).toBe("complete");
     expect(getPanelProfileData().profile?.extracted).toBe(true); // evidence collected so far wasn't thrown away
+  });
+});
+
+describe("content.ts bootstrap - hands-free Auto scan", () => {
+  let page: ReturnType<typeof stubScrollingPage>;
+  const sendMessage = vi.fn();
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    page = stubScrollingPage();
+    sendMessage.mockReset();
+  });
+
+  afterEach(() => {
+    page.restore();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+    Object.defineProperty(document, "URL", { value: "http://localhost/", configurable: true });
+  });
+
+  const goals = [{ id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Anything", importance: "PREFERRED" }] }];
+
+  async function startMain(extra: Record<string, unknown> = {}) {
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.goals.v1": goals, ...extra });
+    // Requests to the background worker never answer, like a very slow OpenAI call.
+    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn(), sendMessage }, storage });
+    document.body.innerHTML = `
+      <div id="app-root"><main role="main">
+        <section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section>
+        <section><h2>About</h2><p>Builds websites for student clubs and led a 5-student team.</p></section>
+      </main></div>
+    `;
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+    const { autoScroller } = await import("./autoScroller");
+    const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
+    return { autoScroller, storage, getPanelProfileData, subscribePanelProfileData, main: document.querySelector("main")! };
+  }
+
+  it("pauses when the user scrolls with the wheel, but never because of its own scrolling", async () => {
+    const { autoScroller, main } = await startMain();
+    expect(autoScroller.getState().status).toBe("running");
+    main.dispatchEvent(new Event("scroll", { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(autoScroller.getState().status).toBe("running");
+
+    main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
+    const at = main.scrollTop;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(autoScroller.getState().status).toBe("paused");
+    expect(main.scrollTop).toBe(at);
+  });
+
+  it("pauses on Page Down and ignores clicks inside the LinkWise panel", async () => {
+    const { autoScroller, main } = await startMain();
+    const host = document.createElement("div");
+    host.id = "finder-linkwise-panel-host";
+    document.body.append(host);
+    host.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+    host.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    expect(autoScroller.getState().status).toBe("running");
+    main.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }));
+    expect(autoScroller.getState().status).toBe("paused");
+  });
+
+  it("keeps the result and session while paused, then resumes from the same place", async () => {
+    const { autoScroller, storage, getPanelProfileData, main } = await startMain();
+    await vi.advanceTimersByTimeAsync(4000);
+    autoScroller.pause();
+    const at = main.scrollTop;
+    const before = getPanelProfileData();
+    const session = (await storage.local.get("finder.profileSessions.v2"))["finder.profileSessions.v2"];
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(main.scrollTop).toBe(at);
+    expect(getPanelProfileData().profile).toBe(before.profile);
+    expect(getPanelProfileData().collection?.status).toBe("settled");
+    expect((await storage.local.get("finder.profileSessions.v2"))["finder.profileSessions.v2"]).toEqual(session);
+
+    autoScroller.resume();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(main.scrollTop).toBeGreaterThan(at);
+    expect(main.scrollTop - at).toBeLessThan(200);
+  });
+
+  it("does not publish new evidence on every scroll frame", async () => {
+    const { subscribePanelProfileData } = await startMain();
+    await vi.advanceTimersByTimeAsync(4000);
+    const listener = vi.fn();
+    subscribePanelProfileData(listener);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(page.writes.length).toBeGreaterThan(500);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("keeps scrolling while signal analysis is still waiting for an answer", async () => {
+    const { autoScroller, main } = await startMain({ "finder.signalMode.v1": true });
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(sendMessage).toHaveBeenCalled();
+    const at = main.scrollTop;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(autoScroller.getState().status).toBe("running");
+    expect(main.scrollTop).toBeGreaterThan(at + 200);
+  });
+
+  it("stops at the bottom once and never scrolls back up", async () => {
+    page.restore();
+    page = stubScrollingPage(1400);
+    const { autoScroller, main } = await startMain();
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(autoScroller.getState().status).toBe("complete");
+    const bottom = main.scrollTop;
+    expect(bottom).toBeGreaterThanOrEqual(599);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(main.scrollTop).toBe(bottom);
+    expect(page.writes.every((delta) => delta >= 0)).toBe(true);
+  });
+
+  it("reads an opened section with the same scroller and publishes once more when it finishes", async () => {
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
+    const evidence = { ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] }, name: "Illia Reviakin", about: "Builds websites.", extracted: true };
+    const storage = installFakeChromeStorage({
+      "finder.scanMode.v1": "auto",
+      "finder.profileSessions.v2": { irev1ak1n: storedSession("irev1ak1n", evidence, Date.now()) },
+    });
+    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn(), sendMessage }, storage });
+    document.body.innerHTML = `<div id="app-root"><main role="main"><section><h2>Education</h2><ul><li><p>State University</p><p>BS Computer Science</p></li></ul></section></main></div>`;
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(3000);
+    const { autoScroller } = await import("./autoScroller");
+    const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
+    expect(autoScroller.getState()).toEqual({ status: "running", target: "https://www.linkedin.com/in/irev1ak1n/details/education/" });
+    expect(getPanelProfileData().profile?.education.map((e) => e.school)).toEqual(["State University"]);
+    expect(getPanelProfileData().profile?.about).toBe("Builds websites.");
+
+    const listener = vi.fn();
+    subscribePanelProfileData(listener);
+    document.querySelector("li")!.insertAdjacentHTML("beforeend", "<p>Robotics club captain</p>");
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(listener).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(autoScroller.getState().status).toBe("complete");
+    expect(listener).toHaveBeenCalled();
+    expect(JSON.stringify(getPanelProfileData().profile?.education)).toContain("Robotics club captain");
   });
 });
 

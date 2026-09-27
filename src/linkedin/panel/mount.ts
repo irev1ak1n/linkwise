@@ -8,7 +8,7 @@ import { getPanelStyles } from "./panelStyles";
 import { setOpenerOffset } from "../opener";
 import { setPanelVisible } from "./panelVisibilityStore";
 
-const HOST_ID = "finder-linkwise-panel-host";
+export const PANEL_HOST_ID = "finder-linkwise-panel-host";
 export const PANEL_WIDTH_PX = 360;
 
 let hostElement: HTMLDivElement | null = null;
@@ -18,7 +18,7 @@ function ensureHost(): HTMLDivElement {
   if (hostElement && document.body.contains(hostElement)) return hostElement;
 
   const host = document.createElement("div");
-  host.id = HOST_ID;
+  host.id = PANEL_HOST_ID;
   Object.assign(host.style, {
     position: "fixed",
     top: "0",

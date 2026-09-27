@@ -8,15 +8,14 @@
 //
 // Two scanning modes, user-selectable (see panel/scanModeStore.ts): "scroll" (default) never
 // moves the page, it only ever reacts to sections the user reveals by scrolling manually.
-// "auto" is the only mode allowed to scroll the page itself (see autoScroll.ts), so lazy-loaded
-// sections load without the user scrolling, then the original scroll position is restored once
-// the scan completes.
+// "auto" is the only mode allowed to scroll the page itself (see autoScrollController.ts): a
+// hands-free, speed-adjustable read-through that lets lazy-loaded sections render and stops at
+// the bottom.
 //
 // Whether to attempt auto-scroll is decided in exactly one place, scanCoverage.ts's
 // shouldAttemptAutoScroll(mode, coverage). A Match % existing is not the same as the profile
 // being fully covered (see scanCoverage.ts), so that decision reads collection state, never the
-// analysis result. autoScroll.ts also refuses to scroll unless mode is "auto", as a second,
-// independent gate in case some future caller skips the check above.
+// analysis result.
 //
 // Once the main page is fully covered, "auto" mode also visits this person's own
 // "/details/{section}/" pages one at a time — but only when Enhanced analysis is on (see
@@ -50,16 +49,18 @@ import { loadAutoScanSession, saveAutoScanSession } from "../storage/autoScanSes
 import { loadProfileSession, updateProfileSession } from "../storage/profileSessionRepository";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
 import { getPanelProfileData, setPanelProfileData, type AutoScanProgress } from "./panel/panelStore";
-import { destroyPanel, openPanel, togglePanel, wasPanelOpen } from "./panel/mount";
+import { PANEL_HOST_ID, destroyPanel, openPanel, togglePanel, wasPanelOpen } from "./panel/mount";
 import { installDevTooling } from "./devTools";
-import { createAutoScrollDriver } from "./autoScroll";
+import { isUserScrollIntent } from "./autoScrollController";
+import { autoScroller } from "./autoScroller";
+import { autoScrollSpeedPreference } from "./panel/autoScrollSpeedPreference";
 import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
 import { getScanModeState, initScanModeStore, subscribeScanModeStore, type ScanMode } from "./panel/scanModeStore";
 import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsStore } from "./panel/expandDetailsStore";
 import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedAnalysisStore } from "./panel/enhancedAnalysisStore";
 import { getManualSectionsState, initManualSectionsStore } from "./panel/manualSectionsStore";
 import { autoExpandPreference } from "./panel/autoExpandPreference";
-import { SECTION_SCROLL_STEP_PX, nextSectionScanStep, startSectionScan, type SectionScanState } from "./sectionScan";
+import { startSectionScan, type SectionScanState } from "./sectionScan";
 import { hydrateAnalysisCache } from "../ai/aiAnalysisCache";
 import { hydrateSignalCache } from "../ai/signalAnalysisController";
 import { expandSeeMoreToggles } from "./expandContent";
@@ -76,7 +77,6 @@ const DOCUMENT_END_MARGIN_PX = 600;
 const MUTATION_DEBOUNCE_MS = 900;
 const TICK_INTERVAL_MS = 2500;
 const SETTLED_TICK_INTERVAL_MS = 6000;
-const AUTO_SCROLL_MAX_DURATION_MS = 15000;
 
 // How long a detail page gets before its extraction is trusted, and how long before giving up
 // on it entirely. Generous: LinkedIn's own detail pages can be slow to render.
@@ -127,43 +127,31 @@ function isNearDocumentEnd(): boolean {
   return el.scrollTop + el.clientHeight >= el.scrollHeight - DOCUMENT_END_MARGIN_PX;
 }
 
-const autoScroll = createAutoScrollDriver({ now: () => Date.now(), maxDurationMs: AUTO_SCROLL_MAX_DURATION_MS });
-
 // A page that can't scroll yet hasn't rendered its sections, so it isn't at its end.
 function isPageScrollable(): boolean {
   const el = findScrollContainer();
   return el.scrollHeight - el.clientHeight > 40;
 }
 
-function isNearDocumentEndOrTimedOut(): boolean {
-  return isPageScrollable() && (isNearDocumentEnd() || autoScroll.hasTimedOut(engine.getProfileKey()));
+function isNearDocumentEndOrScanned(): boolean {
+  return isPageScrollable() && (isNearDocumentEnd() || autoScroller.getState().status === "complete");
 }
 
 function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
   if (restoredSession && profile.extracted) return true;
-  return getScanModeState().mode === "scroll" && profile.extracted && foundSections(profile).length > 0;
+  return profile.extracted && foundSections(profile).length > 0;
 }
 
-const savedScrollPositions = new Map<string, number>();
-const restoredProfileKeys = new Set<string>();
-const autoScannedProfileKeys = new Set<string>();
-
-function maybeRestoreScrollPosition(profileKey: string): void {
-  if (restoredProfileKeys.has(profileKey)) return;
-  restoredProfileKeys.add(profileKey);
-  const savedTop = savedScrollPositions.get(profileKey);
-  if (savedTop === undefined) return;
-  const container = findScrollContainer();
-  if (Math.abs(container.scrollTop - savedTop) < 2) return;
-  container.scrollTo({ top: savedTop, behavior: "smooth" });
-}
+// After the first result, only quiet-period batches reach the panel, so analysis updates per
+// meaningful chunk of new evidence rather than per extraction tick.
+let publishedSettledKey: string | null = null;
 
 const engine = createCollectionEngine({
   now: () => Date.now(),
   extractProfile: () => extractLinkedInProfile(document),
   detectSections: () => detectProfileSections(document),
   getProfileKey: () => profileIdentityKey(location.href),
-  isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? isNearDocumentEndOrTimedOut() : isNearDocumentEnd()),
+  isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? isNearDocumentEndOrScanned() : isNearDocumentEnd()),
   hasEnoughEvidence: hasEnoughEvidenceToSettle,
   onUpdate: (profileKey, profile, collection) => {
     const merged = withAccumulatedEvidence(profileKey, profile);
@@ -173,6 +161,8 @@ const engine = createCollectionEngine({
       const scannedToEnd = collection.status === "settled" && collection.reachedDocumentEnd;
       void updateProfileSession(profileKey, { evidence: merged, validated: collection.status === "settled", scannedSection: scannedToEnd ? MAIN_PAGE_SECTION : null });
     }
+    if (!settled && publishedSettledKey === profileKey) return;
+    if (settled) publishedSettledKey = profileKey;
     setPanelProfileData({
       profileKey,
       profile: merged,
@@ -181,7 +171,6 @@ const engine = createCollectionEngine({
     });
   },
   onReset: (profileKey) => {
-    savedScrollPositions.set(profileKey, findScrollContainer().scrollTop);
     const current = getPanelProfileData();
     if (current.profileKey === profileKey) return; // same person arriving from one of their detail pages
     setPanelProfileData({ profileKey, profile: null, collection: null, autoScanProgress: null });
@@ -298,30 +287,23 @@ function scheduleSectionStep(): void {
   }, SECTION_STEP_MS);
 }
 
+// An opened section is read through at the chosen speed. Its evidence is published once when it
+// first renders and again when the read-through stops, not on every tick in between.
 function tickManualSection(profileKey: string, currentUrl: string): void {
   const preference = getManualSectionsState();
   if (!preference.loaded || !preference.enabled || !/\/details\//.test(currentUrl)) return;
-  const container = findScrollContainer();
   if (manualScan?.url !== currentUrl) {
-    manualScan = startSectionScan(currentUrl, Date.now(), container.scrollTop);
+    manualScan = startSectionScan(currentUrl, Date.now());
     scheduleSectionStep();
     return;
   }
-
-  const step = nextSectionScanStep(manualScan, Date.now(), SECTION_SETTLE_MS, container);
-  if (step !== "extract") scheduleSectionStep();
-  if (step === "wait") return;
+  if (Date.now() - manualScan.arrivedAt < SECTION_SETTLE_MS) {
+    scheduleSectionStep();
+    return;
+  }
   if (autoExpandPreference.getState().value) expandSeeMoreToggles(document, { restrictToViewport: false });
-  if (step === "scroll") {
-    manualScan.steps++;
-    container.scrollBy({ top: SECTION_SCROLL_STEP_PX, behavior: "smooth" });
-    return;
-  }
-  if (step === "finish-scroll") {
-    manualScan.scrolled = true;
-    if (manualScan.steps > 0) container.scrollTo({ top: manualScan.startTop, behavior: "smooth" });
-    return;
-  }
+  if (isPageScrollable()) autoScroller.start(currentUrl, findScrollContainer);
+  const reading = autoScroller.getState().status === "running";
 
   const sectionProfile = extractDetailsPageProfile(document);
   if (!sectionProfile.extracted) return;
@@ -334,12 +316,14 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
   const merged = mergeProfileEvidence(base, sectionProfile);
   const scannedSection = detailsPageSection(currentUrl);
   if (sameEvidence(merged, base)) {
-    if (!manualScan.validated) void updateProfileSession(profileKey, { scannedSection, validated: true });
-    manualScan.validated = true;
+    if (!reading && !manualScan.validated) void updateProfileSession(profileKey, { scannedSection, validated: true });
+    if (!reading) manualScan.validated = true;
     return;
   }
+  if (reading && manualScan.published) return;
 
-  manualScan.validated = true;
+  manualScan.published = true;
+  if (!reading) manualScan.validated = true;
   autoScanEvidence = merged;
   void updateProfileSession(profileKey, { evidence: merged, scannedSection, validated: true });
   setPanelProfileData({
@@ -498,6 +482,8 @@ function tickSignals(): void {
 
 function tick(): void {
   if (torndown) return;
+  const scrolling = autoScroller.getState();
+  if (scrolling.target !== null && (scrolling.target !== location.href || getScanModeState().mode !== "auto")) autoScroller.reset();
   ensureLinkWiseOpener(togglePanel);
   runJobsTick(location.href, getJobsSettingsState().settings);
   tickSignals();
@@ -523,20 +509,13 @@ function tick(): void {
   const coverage = deriveScanCoverage(engine.getCollectionState());
 
   if (coverage === "complete") {
-    if (autoScannedProfileKeys.has(profileKey)) maybeRestoreScrollPosition(profileKey);
     if (mode === "auto") tickAutoScanCrawl();
     return;
   }
 
   if (!shouldAttemptAutoScroll(mode, coverage) || mainPageScanned || !isPageScrollable()) return;
-
-  const goalActive = selectActiveGoal(getGoalStoreState()) !== null;
-  if (autoScroll.shouldScrollNow(mode, profileKey, goalActive, isNearDocumentEnd())) {
-    autoScannedProfileKeys.add(profileKey);
-    const container = findScrollContainer();
-    // One screen at a time: LinkedIn only renders a lazy section once it enters the viewport.
-    container.scrollBy({ top: container.clientHeight, behavior: "smooth" });
-  }
+  if (selectActiveGoal(getGoalStoreState()) === null) return;
+  autoScroller.start(location.href, findScrollContainer);
 }
 
 function watchForChanges(): void {
@@ -586,6 +565,18 @@ function watchForChanges(): void {
     }
   }
 }
+
+function pauseOnUserScroll(event: Event): void {
+  if (autoScroller.getState().status !== "running") return;
+  if (isUserScrollIntent(event, document.getElementById(PANEL_HOST_ID), findScrollContainer())) autoScroller.pause();
+}
+for (const type of ["wheel", "touchmove", "keydown", "mousedown"]) {
+  window.addEventListener(type, pauseOnUserScroll, { capture: true, passive: true });
+  registerCleanup(() => window.removeEventListener(type, pauseOnUserScroll, { capture: true }));
+}
+registerCleanup(() => autoScroller.reset());
+registerCleanup(autoScroller.subscribe(() => tick()));
+autoScrollSpeedPreference.init();
 
 initGoalStore();
 registerCleanup(subscribeGoalStore(tick));

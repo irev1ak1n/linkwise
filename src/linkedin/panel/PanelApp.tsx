@@ -17,6 +17,9 @@ import { autoExpandPreference } from "./autoExpandPreference";
 import { useStoredPreference } from "./useStoredPreference";
 import { JobsSettingsSection } from "./JobsSettingsSection";
 import { SignalModeSection } from "./SignalModeSection";
+import { AutoScrollControls } from "./AutoScrollControls";
+import { autoScrollSpeedPreference } from "./autoScrollSpeedPreference";
+import { useAutoScroll } from "./useAutoScroll";
 import { ScanningView } from "./ScanningView";
 import { LoadingView } from "./LoadingView";
 import { AnalysisView } from "./AnalysisView";
@@ -40,6 +43,8 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { enabled: enhancedAnalysisEnabled, setEnhancedAnalysisPreference } = useEnhancedAnalysisPreference();
   const { enabled: manualSectionsEnabled, setManualSectionsPreference } = useManualSectionsPreference();
   const { value: autoExpandEnabled } = useStoredPreference(autoExpandPreference);
+  const { value: scrollSpeed } = useStoredPreference(autoScrollSpeedPreference);
+  const { state: autoScroll, pause: pauseAutoScroll, resume: resumeAutoScroll } = useAutoScroll();
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
@@ -115,6 +120,15 @@ export function PanelApp({ onClose }: PanelAppProps) {
             {profileKey !== null && <ScanModeToggle mode={scanMode} onChange={setScanMode} />}
             {profileKey !== null && scanMode === "scroll" && (
               <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />
+            )}
+            {profileKey !== null && scanMode === "auto" && (
+              <AutoScrollControls
+                speed={scrollSpeed}
+                status={autoScroll.status}
+                onSpeedChange={autoScrollSpeedPreference.set}
+                onPause={pauseAutoScroll}
+                onResume={resumeAutoScroll}
+              />
             )}
             {profileKey !== null && scanMode === "auto" && (
               <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />

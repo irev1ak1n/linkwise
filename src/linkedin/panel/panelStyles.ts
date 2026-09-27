@@ -198,6 +198,48 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a949c;
   }
 
+  /* Hands-free reading speed and state, under the Auto scan options. */
+  .lw-autoscroll {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lw-autoscroll__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: #56687a;
+  }
+  .lw-autoscroll__row input {
+    flex: 1;
+    margin: 0;
+    accent-color: #0a66c2;
+  }
+  .lw-autoscroll__speed {
+    min-width: 34px;
+    text-align: right;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  .lw-autoscroll__status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #8a949c;
+  }
+  .lw-autoscroll__button {
+    border: 1px solid #0a66c2;
+    border-radius: 12px;
+    background: #fff;
+    color: #0a66c2;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 10px;
+    cursor: pointer;
+  }
+
   /* Scanning state */
   .lw-scanning__title {
     font-weight: 600;
