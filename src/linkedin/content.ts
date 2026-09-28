@@ -46,7 +46,7 @@ import {
   type AutoScanSession,
 } from "./autoScanSession";
 import { loadAutoScanSession, saveAutoScanSession } from "../storage/autoScanSessionRepository";
-import { loadProfileSession, updateProfileSession } from "../storage/profileSessionRepository";
+import { isProfileSessionFresh, loadProfileSession, updateProfileSession } from "../storage/profileSessionRepository";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
 import { getPanelProfileData, setPanelProfileData, type AutoScanProgress } from "./panel/panelStore";
 import { PANEL_HOST_ID, destroyPanel, openPanel, togglePanel, wasPanelOpen } from "./panel/mount";
@@ -195,7 +195,7 @@ let sessionKey: string | null = null;
 let sessionReady = false;
 let restoredSession = false;
 let mainPageScanned = false;
-// Marks a session whose main page was already scanned to the end, so it is never auto-scrolled again.
+// Marks a session whose main page was scanned to the end. A fresh one is not scanned again.
 const MAIN_PAGE_SECTION = "main";
 
 function ensureProfileSession(profileKey: string): boolean {
@@ -211,7 +211,7 @@ function ensureProfileSession(profileKey: string): boolean {
     if (session?.evidence.extracted) {
       autoScanEvidence = session.evidence;
       restoredSession = true;
-      mainPageScanned = session.scannedSections.includes(MAIN_PAGE_SECTION);
+      mainPageScanned = session.scannedSections.includes(MAIN_PAGE_SECTION) && isProfileSessionFresh(session, Date.now());
       const current = getPanelProfileData();
       setPanelProfileData({
         profileKey,

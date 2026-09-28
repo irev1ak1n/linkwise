@@ -1171,9 +1171,9 @@ describe("content.ts bootstrap - profile sessions", () => {
     expect(data.collection?.status).toBe("settled");
   });
 
-  async function reloadTallMain(scannedSections: string[]) {
+  async function reloadTallMain(scannedSections: string[], ageMs = 20 * 60 * 1000) {
     stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
-    const stored = { irev1ak1n: { ...storedSession("irev1ak1n", savedEvidence, Date.now() - 20 * 60 * 1000), scannedSections } };
+    const stored = { irev1ak1n: { ...storedSession("irev1ak1n", savedEvidence, Date.now() - ageMs), scannedSections } };
     vi.stubGlobal("chrome", {
       runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
@@ -1193,8 +1193,12 @@ describe("content.ts bootstrap - profile sessions", () => {
     return page.writes.length;
   }
 
-  it("never auto-scrolls a restored profile whose main page was already scanned", async () => {
-    expect(await reloadTallMain(["main", "education"])).toBe(0);
+  it("never auto-scrolls a fresh restored profile whose main page was already scanned", async () => {
+    expect(await reloadTallMain(["main", "education"], 60 * 1000)).toBe(0);
+  });
+
+  it("scans a stale profile again after reload even though its main page was scanned before", async () => {
+    expect(await reloadTallMain(["main", "education"])).toBeGreaterThan(0);
   });
 
   it("still scans the main page when the session only came from detail pages", async () => {
