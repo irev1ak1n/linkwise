@@ -38,8 +38,10 @@ export function ScanningView({ profileName, goalName, collection, scanMode, auto
       {goalName && <p className="lw-scanning__for">For: {goalName}</p>}
       <p className="lw-scanning__hint">
         {scanMode === "auto"
-          ? "LinkWise is reading the full profile automatically, no need to scroll."
-          : "Keep scrolling and LinkWise will analyze sections as they load."}
+          ? "Scanning the full profile, no need to scroll."
+          : scanMode === "autoScroll"
+            ? "Reading through the profile with you. The match is analyzed once the read-through ends."
+            : "Keep scrolling and LinkWise will analyze sections as they load."}
       </p>
 
       {total > 0 ? (

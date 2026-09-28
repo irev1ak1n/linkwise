@@ -4,8 +4,8 @@ import { AutoScrollControls } from "./AutoScrollControls";
 import type { AutoScrollStatus } from "../autoScrollController";
 import type { AutoScrollSpeed } from "./autoScrollSpeedPreference";
 
-function render(status: AutoScrollStatus, speed: AutoScrollSpeed = 1): string {
-  return renderToStaticMarkup(<AutoScrollControls speed={speed} status={status} onSpeedChange={() => {}} onPause={() => {}} onResume={() => {}} />);
+function render(status: AutoScrollStatus, speed: AutoScrollSpeed = 1, analyzing = false): string {
+  return renderToStaticMarkup(<AutoScrollControls speed={speed} status={status} analyzing={analyzing} onSpeedChange={() => {}} onPause={() => {}} onResume={() => {}} />);
 }
 
 describe("AutoScrollControls", () => {
@@ -22,9 +22,10 @@ describe("AutoScrollControls", () => {
     expect(render("paused")).toContain("Resume");
   });
 
-  it("says when the scan is complete", () => {
+  it("shows Analyzing while the final analysis runs, then Complete", () => {
+    expect(render("complete", 1, true)).toContain("Analyzing…");
     const html = render("complete");
-    expect(html).toContain("Scan complete");
+    expect(html).toContain("Complete");
     expect(html).not.toContain("<button");
   });
 });

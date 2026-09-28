@@ -7,7 +7,7 @@ export type { ScanMode };
 export const SCAN_MODE_STORAGE_KEY = "finder.scanMode.v1";
 
 function isScanMode(value: unknown): value is ScanMode {
-  return value === "scroll" || value === "auto";
+  return value === "scroll" || value === "auto" || value === "autoScroll";
 }
 
 export async function loadScanMode(): Promise<ScanMode> {

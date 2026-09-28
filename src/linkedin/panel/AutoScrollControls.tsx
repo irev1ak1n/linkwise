@@ -4,6 +4,7 @@ import type { AutoScrollStatus } from "../autoScrollController";
 interface AutoScrollControlsProps {
   speed: AutoScrollSpeed;
   status: AutoScrollStatus;
+  analyzing: boolean;
   onSpeedChange: (speed: AutoScrollSpeed) => void;
   onPause: () => void;
   onResume: () => void;
@@ -13,11 +14,12 @@ const STATUS_TEXT: Record<AutoScrollStatus, string | null> = {
   idle: null,
   running: "Auto scrolling",
   paused: "Paused",
-  complete: "Scan complete",
+  complete: "Complete",
 };
 
-export function AutoScrollControls({ speed, status, onSpeedChange, onPause, onResume }: AutoScrollControlsProps) {
+export function AutoScrollControls({ speed, status, analyzing, onSpeedChange, onPause, onResume }: AutoScrollControlsProps) {
   const index = Math.max(0, AUTO_SCROLL_SPEEDS.indexOf(speed));
+  const text = status === "complete" && analyzing ? "Analyzing…" : STATUS_TEXT[status];
   return (
     <div className="lw-autoscroll">
       <label className="lw-autoscroll__row">
@@ -34,9 +36,9 @@ export function AutoScrollControls({ speed, status, onSpeedChange, onPause, onRe
         />
         <span className="lw-autoscroll__speed">{speed}x</span>
       </label>
-      {STATUS_TEXT[status] && (
+      {text && (
         <div className="lw-autoscroll__status">
-          <span>{STATUS_TEXT[status]}</span>
+          <span>{text}</span>
           {status === "running" && (
             <button type="button" className="lw-autoscroll__button" onClick={onPause}>
               Pause

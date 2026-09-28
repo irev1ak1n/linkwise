@@ -2,7 +2,7 @@
 // so it's fully unit-testable. A score existing is not the same as the profile being fully
 // covered, this file is what tells those two apart.
 import type { CollectionState } from "../models/collection";
-import type { ScanMode } from "../models/scanMode";
+import { isAutomaticScan, type ScanMode } from "../models/scanMode";
 
 export type ScanCoverage = "untouched" | "partial" | "complete";
 
@@ -20,5 +20,5 @@ export function deriveScanCoverage(collection: CollectionState | null): ScanCove
  * page no matter what else is true, and a fully-covered profile has nothing left to gain from
  * scrolling further. */
 export function shouldAttemptAutoScroll(mode: ScanMode, coverage: ScanCoverage): boolean {
-  return mode === "auto" && coverage !== "complete";
+  return isAutomaticScan(mode) && coverage !== "complete";
 }

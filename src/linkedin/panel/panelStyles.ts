@@ -146,9 +146,10 @@ export function getPanelStyles(widthPx: number): string {
   .lw-scan-mode__option {
     flex: 1;
     font: inherit;
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 6px 8px;
+    line-height: 1.25;
+    padding: 5px 6px;
     border: none;
     background: #fff;
     color: #56687a;

@@ -24,6 +24,7 @@ import { ScanningView } from "./ScanningView";
 import { LoadingView } from "./LoadingView";
 import { AnalysisView } from "./AnalysisView";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
+import { isAutomaticScan } from "../../models/scanMode";
 
 interface PanelAppProps {
   onClose: () => void;
@@ -121,22 +122,23 @@ export function PanelApp({ onClose }: PanelAppProps) {
             {profileKey !== null && scanMode === "scroll" && (
               <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />
             )}
-            {profileKey !== null && scanMode === "auto" && (
+            {profileKey !== null && scanMode === "autoScroll" && (
               <AutoScrollControls
                 speed={scrollSpeed}
                 status={autoScroll.status}
+                analyzing={aiState.status === "loading" || (aiState.status === "ready" && !!aiState.updating)}
                 onSpeedChange={autoScrollSpeedPreference.set}
                 onPause={pauseAutoScroll}
                 onResume={resumeAutoScroll}
               />
             )}
-            {profileKey !== null && scanMode === "auto" && (
+            {profileKey !== null && isAutomaticScan(scanMode) && (
               <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />
             )}
             {profileKey !== null && scanMode === "auto" && (
               <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />
             )}
-            {profileKey !== null && scanMode === "auto" && (
+            {profileKey !== null && isAutomaticScan(scanMode) && (
               <ManualSectionsCheckbox enabled={manualSectionsEnabled} onChange={setManualSectionsPreference} />
             )}
             {renderProfileSection()}

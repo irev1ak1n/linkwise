@@ -1,11 +1,14 @@
-// Hands-free scrolling for Auto scan: a gentle, speed-adjustable read-through of whichever page
-// is open, main profile or a section. Only moves the page; extraction and analysis stay on their
-// own debounced ticks.
+// Moves whichever page is open, main profile or a section, for the automatic scan modes. Only
+// moves the page; extraction and analysis stay on their own debounced ticks.
+//   steps:  Auto scan, most of a screen at a time with a pause for lazy content to load
+//   smooth: Auto scroll, a slow constant read-through at the chosen speed
 export type AutoScrollStatus = "idle" | "running" | "paused" | "complete";
+export type ScrollStrategy = "steps" | "smooth";
 
 export interface AutoScrollState {
   status: AutoScrollStatus;
   target: string | null;
+  strategy: ScrollStrategy | null;
 }
 
 export interface ScrollContainer {
@@ -22,14 +25,17 @@ export interface AutoScrollDeps {
   getSpeed: () => number;
 }
 
-export const BASE_SCROLL_PX_PER_SECOND = 80;
+export const BASE_SCROLL_PX_PER_SECOND = 50;
+export const STEP_FRACTION = 0.85;
+export const STEP_INTERVAL_MS = 900;
 // LinkedIn keeps loading content near the bottom, so the end only counts once it stops growing.
 export const END_WAIT_MS = 2000;
 // Movement follows elapsed time, so throttled frames in a covered window keep the same speed.
 const MAX_FRAME_GAP_MS = 500;
 
 export function createAutoScrollController(deps: AutoScrollDeps) {
-  let state: AutoScrollState = { status: "idle", target: null };
+  let state: AutoScrollState = { status: "idle", target: null, strategy: null };
+  let lastStepAt: number | null = null;
   const listeners = new Set<() => void>();
   let getContainer: () => ScrollContainer = () => ({ scrollTop: 0, scrollHeight: 0, clientHeight: 0 });
   let frame: unknown = null;
@@ -38,10 +44,13 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
   let atEndSince: number | null = null;
   let anchored: { el: ScrollContainer; previous: string } | null = null;
 
-  // Scroll anchoring would jump the view past sections LinkedIn renders above its anchor.
+  // Scroll anchoring would jump the view past sections LinkedIn renders above its anchor. LinkedIn
+  // can also replace the scrolling element mid-scan, so this follows whichever one is current.
   function holdAnchoring(): void {
     const el = getContainer();
-    if (anchored || !el.style) return;
+    if (anchored?.el === el) return;
+    releaseAnchoring();
+    if (!el.style) return;
     anchored = { el, previous: el.style.overflowAnchor };
     el.style.overflowAnchor = "none";
   }
@@ -52,7 +61,7 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
   }
 
   function setState(next: AutoScrollState): void {
-    if (next.status === state.status && next.target === state.target) return;
+    if (next.status === state.status && next.target === state.target && next.strategy === state.strategy) return;
     state = next;
     listeners.forEach((listener) => listener());
   }
@@ -73,6 +82,7 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
   function step(): void {
     frame = null;
     if (state.status !== "running") return;
+    holdAnchoring();
     const el = getContainer();
     const now = deps.now();
     const elapsed = lastTime === null ? 0 : Math.min(now - lastTime, MAX_FRAME_GAP_MS);
@@ -84,6 +94,12 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
         stopFrames();
         setState({ ...state, status: "complete" });
         return;
+      }
+    } else if (state.strategy === "steps") {
+      atEndSince = null;
+      if (lastStepAt === null || now - lastStepAt >= STEP_INTERVAL_MS) {
+        lastStepAt = now;
+        el.scrollTop += Math.round(el.clientHeight * STEP_FRACTION);
       }
     } else {
       atEndSince = null;
@@ -103,13 +119,14 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    /** Starts reading through `target` once; later calls for the same target never restart it. */
-    start(target: string, container: () => ScrollContainer): void {
-      if (state.target === target && state.status !== "idle") return;
+    /** Scans `target` once; later calls for the same target and strategy never restart it. */
+    start(target: string, container: () => ScrollContainer, strategy: ScrollStrategy): void {
+      if (state.target === target && state.strategy === strategy && state.status !== "idle") return;
       stopFrames();
       getContainer = container;
       carry = 0;
-      setState({ status: "running", target });
+      lastStepAt = null;
+      setState({ status: "running", target, strategy });
       schedule();
     },
     pause(): void {
@@ -124,7 +141,7 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
     },
     reset(): void {
       stopFrames();
-      setState({ status: "idle", target: null });
+      setState({ status: "idle", target: null, strategy: null });
     },
   };
 }

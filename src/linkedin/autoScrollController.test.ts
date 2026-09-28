@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { BASE_SCROLL_PX_PER_SECOND, END_WAIT_MS, createAutoScrollController, isUserScrollIntent } from "./autoScrollController";
+import { BASE_SCROLL_PX_PER_SECOND, END_WAIT_MS, STEP_FRACTION, STEP_INTERVAL_MS, createAutoScrollController, isUserScrollIntent } from "./autoScrollController";
 
 function harness(speed = 1, height = 5000) {
   let now = 0;
@@ -32,7 +32,7 @@ function harness(speed = 1, height = 5000) {
 describe("createAutoScrollController", () => {
   it("moves the page gradually at the base speed", () => {
     const { controller, container, run } = harness();
-    controller.start("page", () => container);
+    controller.start("page", () => container, "smooth");
     run(1000);
     expect(container.scrollTop).toBeGreaterThan(BASE_SCROLL_PX_PER_SECOND * 0.9);
     expect(container.scrollTop).toBeLessThanOrEqual(BASE_SCROLL_PX_PER_SECOND);
@@ -41,7 +41,7 @@ describe("createAutoScrollController", () => {
   it("scales movement with the chosen speed", () => {
     const distances = [0.5, 1, 2].map((speed) => {
       const { controller, container, run } = harness(speed);
-      controller.start("page", () => container);
+      controller.start("page", () => container, "smooth");
       run(2000);
       return container.scrollTop;
     });
@@ -51,7 +51,7 @@ describe("createAutoScrollController", () => {
 
   it("applies a new speed mid-scan without restarting or jumping", () => {
     const { controller, container, settings, run } = harness(1);
-    controller.start("page", () => container);
+    controller.start("page", () => container, "smooth");
     run(1000);
     const before = container.scrollTop;
     settings.speed = 2;
@@ -59,12 +59,12 @@ describe("createAutoScrollController", () => {
     expect(container.scrollTop - before).toBeLessThan(10);
     run(1000);
     expect(container.scrollTop - before).toBeGreaterThan(BASE_SCROLL_PX_PER_SECOND * 1.8);
-    expect(controller.getState()).toEqual({ status: "running", target: "page" });
+    expect(controller.getState()).toEqual({ status: "running", target: "page", strategy: "smooth" });
   });
 
   it("stops moving when paused and continues from the same place on resume", () => {
     const { controller, container, run, framesPending } = harness();
-    controller.start("page", () => container);
+    controller.start("page", () => container, "smooth");
     run(1000);
     controller.pause();
     const at = container.scrollTop;
@@ -81,16 +81,16 @@ describe("createAutoScrollController", () => {
 
   it("never restarts a page it is already reading", () => {
     const { controller, container, run } = harness();
-    controller.start("page", () => container);
+    controller.start("page", () => container, "smooth");
     run(1000);
     controller.pause();
-    controller.start("page", () => container);
+    controller.start("page", () => container, "smooth");
     expect(controller.getState().status).toBe("paused");
   });
 
   it("completes once the bottom stops growing, and stays there", () => {
     const { controller, container, run, framesPending } = harness(2, 1000);
-    controller.start("page", () => container);
+    controller.start("page", () => container, "smooth");
     run(3000);
     const bottom = container.scrollTop;
     expect(bottom).toBeGreaterThanOrEqual(199);
@@ -104,7 +104,7 @@ describe("createAutoScrollController", () => {
 
   it("keeps going when more content loads at the bottom", () => {
     const { controller, container, run } = harness(2, 1000);
-    controller.start("page", () => container);
+    controller.start("page", () => container, "smooth");
     run(3000);
     container.scrollHeight = 2000;
     run(END_WAIT_MS);
@@ -114,11 +114,50 @@ describe("createAutoScrollController", () => {
 
   it("starts fresh for a different page", () => {
     const { controller, container, run } = harness();
-    controller.start("main", () => container);
+    controller.start("main", () => container, "smooth");
     run(500);
     controller.pause();
-    controller.start("details", () => container);
-    expect(controller.getState()).toEqual({ status: "running", target: "details" });
+    controller.start("details", () => container, "smooth");
+    expect(controller.getState()).toEqual({ status: "running", target: "details", strategy: "smooth" });
+  });
+});
+
+describe("createAutoScrollController - fast steps", () => {
+  it("moves most of a screen at a time, pausing between steps for lazy content", () => {
+    const { controller, container, run } = harness();
+    controller.start("page", () => container, "steps");
+    run(16);
+    const step = Math.round(800 * STEP_FRACTION);
+    expect(container.scrollTop).toBe(step);
+    run(STEP_INTERVAL_MS - 100);
+    expect(container.scrollTop).toBe(step);
+    run(200);
+    expect(container.scrollTop).toBe(step * 2);
+  });
+
+  it("ignores the reading speed", () => {
+    const distances = [0.5, 2].map((speed) => {
+      const { controller, container, run } = harness(speed);
+      controller.start("page", () => container, "steps");
+      run(3000);
+      return container.scrollTop;
+    });
+    expect(distances[0]).toBe(distances[1]);
+  });
+
+  it("reaches the end of a long page quickly and completes", () => {
+    const { controller, container, run } = harness(1, 5000);
+    controller.start("page", () => container, "steps");
+    run(10000);
+    expect(container.scrollTop).toBeGreaterThanOrEqual(4199);
+    expect(controller.getState().status).toBe("complete");
+  });
+
+  it("switching strategy on the same page starts over with the new one", () => {
+    const { controller, container } = harness();
+    controller.start("page", () => container, "steps");
+    controller.start("page", () => container, "smooth");
+    expect(controller.getState()).toEqual({ status: "running", target: "page", strategy: "smooth" });
   });
 });
 
@@ -126,7 +165,7 @@ describe("createAutoScrollController - scroll anchoring", () => {
   it("turns anchoring off only while reading, and restores it after", () => {
     const { controller, container, run } = harness();
     const el = Object.assign(container, { style: { overflowAnchor: "auto" } });
-    controller.start("page", () => el);
+    controller.start("page", () => el, "smooth");
     run(100);
     expect(el.style.overflowAnchor).toBe("none");
     controller.pause();
@@ -135,6 +174,19 @@ describe("createAutoScrollController - scroll anchoring", () => {
     expect(el.style.overflowAnchor).toBe("none");
     controller.reset();
     expect(el.style.overflowAnchor).toBe("auto");
+  });
+
+  it("keeps anchoring off on a scrolling element that replaced the original mid-scan", () => {
+    const { controller, container, run } = harness();
+    const first = Object.assign({ ...container }, { style: { overflowAnchor: "auto" } });
+    const second = Object.assign({ ...container }, { style: { overflowAnchor: "auto" } });
+    let current = first;
+    controller.start("page", () => current, "steps");
+    run(100);
+    current = second;
+    run(100);
+    expect(second.style.overflowAnchor).toBe("none");
+    expect(first.style.overflowAnchor).toBe("auto");
   });
 });
 

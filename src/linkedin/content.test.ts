@@ -336,11 +336,12 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
     expect(clicked).toBe(true);
   });
 
-  it("Auto scan reads down the page in small steps instead of jumping a screen at a time", async () => {
+  async function scanWithMode(mode: string, ms: number) {
     vi.stubGlobal("chrome", {
       runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
-        "finder.scanMode.v1": "auto",
+        "finder.scanMode.v1": mode,
+        "finder.autoScrollSpeed.v1": 0.5,
         "finder.goals.v1": [{ id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Anything", importance: "PREFERRED" }] }],
       }),
     });
@@ -349,13 +350,26 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
     const page = stubScrollingPage();
     try {
       await import("./content");
-      await vi.advanceTimersByTimeAsync(5000);
-      expect(page.writes.length).toBeGreaterThan(50);
-      expect(Math.max(...page.writes)).toBeLessThan(20);
-      expect(page.writes.reduce((a, b) => a + b, 0)).toBeGreaterThan(200);
+      await vi.advanceTimersByTimeAsync(ms);
     } finally {
       page.restore();
     }
+    return page.writes;
+  }
+
+  it("Auto scan starts on its own and steps most of a screen at a time", async () => {
+    const writes = await scanWithMode("auto", 5000);
+    expect(writes.length).toBeGreaterThanOrEqual(3);
+    expect(writes.every((delta) => delta === 680)).toBe(true);
+  });
+
+  it("Auto scroll starts on its own and reads down in small steps at the chosen speed", async () => {
+    const writes = await scanWithMode("autoScroll", 5000);
+    expect(writes.length).toBeGreaterThan(50);
+    expect(Math.max(...writes)).toBeLessThan(20);
+    const total = writes.reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(80);
+    expect(total).toBeLessThan(160);
   });
 
   it("Analyze as I scroll, checkbox ON or OFF, never auto-scrolls the page either way", async () => {
@@ -1274,7 +1288,7 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     expect(data.collection?.status).toBe("settled"); // the single-page scan still finishes on its own
   });
 
-  it("gives a first result from the sections found so far while the read-through continues", async () => {
+  it("Auto scan analyzes once, after reaching the end, not while it is still scanning", async () => {
     restoreHeight();
     stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
@@ -1286,14 +1300,22 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     });
     setMainProfilePage();
     document.querySelector("main")!.insertAdjacentHTML("beforeend", "<section><h2>About</h2><p>Builds websites for student clubs.</p></section>");
-    const page = stubScrollingPage(20000);
+    const page = stubScrollingPage(8000);
     try {
       await import("./content");
-      await vi.advanceTimersByTimeAsync(8000);
-      const { getPanelProfileData } = await import("./panel/panelStore");
+      const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
       const { autoScroller } = await import("./autoScroller");
-      expect(getPanelProfileData().collection?.status).toBe("settled");
+      const settledPublishes: unknown[] = [];
+      subscribePanelProfileData(() => {
+        if (getPanelProfileData().collection?.status === "settled") settledPublishes.push(getPanelProfileData().profile);
+      });
+      await vi.advanceTimersByTimeAsync(6000);
       expect(autoScroller.getState().status).toBe("running");
+      expect(getPanelProfileData().collection?.status).not.toBe("settled");
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(autoScroller.getState().status).toBe("complete");
+      expect(getPanelProfileData().collection?.status).toBe("settled");
+      expect(new Set(settledPublishes).size).toBe(1);
     } finally {
       page.restore();
       restoreHeight = stubRenderedPageHeight();
@@ -1399,7 +1421,7 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
   });
 });
 
-describe("content.ts bootstrap - hands-free Auto scan", () => {
+describe("content.ts bootstrap - Auto scroll profile", () => {
   let page: ReturnType<typeof stubScrollingPage>;
   const sendMessage = vi.fn();
 
@@ -1422,7 +1444,7 @@ describe("content.ts bootstrap - hands-free Auto scan", () => {
 
   async function startMain(extra: Record<string, unknown> = {}) {
     stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
-    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "auto", "finder.goals.v1": goals, ...extra });
+    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "autoScroll", "finder.goals.v1": goals, ...extra });
     // Requests to the background worker never answer, like a very slow OpenAI call.
     vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn(), sendMessage }, storage });
     document.body.innerHTML = `
@@ -1452,6 +1474,12 @@ describe("content.ts bootstrap - hands-free Auto scan", () => {
     expect(main.scrollTop).toBe(at);
   });
 
+  it("Auto scan finishes on its own even if the user scrolls", async () => {
+    const { autoScroller, main } = await startMain({ "finder.scanMode.v1": "auto" });
+    main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
+    expect(autoScroller.getState()).toMatchObject({ status: "running", strategy: "steps" });
+  });
+
   it("pauses on Page Down and ignores clicks inside the LinkWise panel", async () => {
     const { autoScroller, main } = await startMain();
     const host = document.createElement("div");
@@ -1465,7 +1493,8 @@ describe("content.ts bootstrap - hands-free Auto scan", () => {
   });
 
   it("keeps the result and session while paused, then resumes from the same place", async () => {
-    const { autoScroller, storage, getPanelProfileData, main } = await startMain();
+    const evidence = { ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] }, name: "Illia Reviakin", about: "Builds websites for student clubs and led a 5-student team.", extracted: true };
+    const { autoScroller, storage, getPanelProfileData, main } = await startMain({ "finder.profileSessions.v2": { irev1ak1n: storedSession("irev1ak1n", evidence, Date.now() - 20 * 60 * 1000) } });
     await vi.advanceTimersByTimeAsync(4000);
     autoScroller.pause();
     const at = main.scrollTop;
@@ -1474,7 +1503,7 @@ describe("content.ts bootstrap - hands-free Auto scan", () => {
     await vi.advanceTimersByTimeAsync(10000);
     expect(main.scrollTop).toBe(at);
     expect(getPanelProfileData().profile).toBe(before.profile);
-    expect(getPanelProfileData().collection?.status).toBe("settled");
+    expect(getPanelProfileData().collection?.status).toBe(before.collection?.status);
     expect((await storage.local.get("finder.profileSessions.v2"))["finder.profileSessions.v2"]).toEqual(session);
 
     autoScroller.resume();
@@ -1483,19 +1512,53 @@ describe("content.ts bootstrap - hands-free Auto scan", () => {
     expect(main.scrollTop - at).toBeLessThan(200);
   });
 
-  it("does not publish new evidence on every scroll frame", async () => {
-    const { subscribePanelProfileData } = await startMain();
+  it("rescans a stale profile without analyzing its old evidence first when no result is cached", async () => {
+    page.restore();
+    page = stubScrollingPage(2400);
+    const evidence = { ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] }, name: "Illia Reviakin", about: "Old about text.", extracted: true };
+    const { autoScroller, getPanelProfileData } = await startMain({ "finder.profileSessions.v2": { irev1ak1n: storedSession("irev1ak1n", evidence, Date.now() - 20 * 60 * 1000) } });
+    expect(autoScroller.getState().status).toBe("running");
+    expect(getPanelProfileData().collection?.status).not.toBe("settled");
+    await vi.advanceTimersByTimeAsync(50000);
+    expect(autoScroller.getState().status).toBe("complete");
+    expect(getPanelProfileData().collection?.status).toBe("settled");
+    expect(getPanelProfileData().profile?.about).toContain("Builds websites");
+  });
+
+  it("runs the final match analysis only after the read-through ends, never on scroll frames", async () => {
+    page.restore();
+    page = stubScrollingPage(2400);
+    const { autoScroller, getPanelProfileData, subscribePanelProfileData } = await startMain();
+    const settled: unknown[] = [];
+    subscribePanelProfileData(() => {
+      if (getPanelProfileData().collection?.status === "settled") settled.push(getPanelProfileData().profile);
+    });
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(page.writes.length).toBeGreaterThan(300);
+    expect(settled).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(40000);
+    expect(autoScroller.getState().status).toBe("complete");
+    expect(new Set(settled).size).toBe(1);
+  });
+
+  it("switching from Auto scroll to Auto scan keeps the evidence and scans on from the same place", async () => {
+    const { autoScroller, getPanelProfileData, main } = await startMain();
     await vi.advanceTimersByTimeAsync(4000);
-    const listener = vi.fn();
-    subscribePanelProfileData(listener);
+    const at = main.scrollTop;
+    const { setScanMode } = await import("./panel/scanModeStore");
+    setScanMode("auto");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(autoScroller.getState().strategy).toBe("steps");
+    expect(main.scrollTop).toBeGreaterThanOrEqual(at);
     await vi.advanceTimersByTimeAsync(20000);
-    expect(page.writes.length).toBeGreaterThan(500);
-    expect(listener).not.toHaveBeenCalled();
+    expect(getPanelProfileData().profile?.about).toContain("Builds websites");
   });
 
   it("keeps scrolling while signal analysis is still waiting for an answer", async () => {
     const { autoScroller, main } = await startMain({ "finder.signalMode.v1": true });
     await vi.advanceTimersByTimeAsync(10000);
+    expect(sendMessage).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(25000);
     expect(sendMessage).toHaveBeenCalled();
     const at = main.scrollTop;
     await vi.advanceTimersByTimeAsync(5000);
@@ -1520,7 +1583,7 @@ describe("content.ts bootstrap - hands-free Auto scan", () => {
     stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
     const evidence = { ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] }, name: "Illia Reviakin", about: "Builds websites.", extracted: true };
     const storage = installFakeChromeStorage({
-      "finder.scanMode.v1": "auto",
+      "finder.scanMode.v1": "autoScroll",
       "finder.profileSessions.v2": { irev1ak1n: storedSession("irev1ak1n", evidence, Date.now()) },
     });
     vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn(), sendMessage }, storage });
@@ -1529,7 +1592,7 @@ describe("content.ts bootstrap - hands-free Auto scan", () => {
     await vi.advanceTimersByTimeAsync(3000);
     const { autoScroller } = await import("./autoScroller");
     const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
-    expect(autoScroller.getState()).toEqual({ status: "running", target: "https://www.linkedin.com/in/irev1ak1n/details/education/" });
+    expect(autoScroller.getState()).toEqual({ status: "running", target: "https://www.linkedin.com/in/irev1ak1n/details/education/", strategy: "smooth" });
     expect(getPanelProfileData().profile?.education.map((e) => e.school)).toEqual(["State University"]);
     expect(getPanelProfileData().profile?.about).toBe("Builds websites.");
 
@@ -1539,7 +1602,7 @@ describe("content.ts bootstrap - hands-free Auto scan", () => {
     await vi.advanceTimersByTimeAsync(10000);
     expect(listener).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(60000);
+    await vi.advanceTimersByTimeAsync(90000);
     expect(autoScroller.getState().status).toBe("complete");
     expect(listener).toHaveBeenCalled();
     expect(JSON.stringify(getPanelProfileData().profile?.education)).toContain("Robotics club captain");
