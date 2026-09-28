@@ -4,11 +4,14 @@
 //   smooth: Auto scroll, a slow constant read-through at the chosen speed
 export type AutoScrollStatus = "idle" | "running" | "paused" | "complete";
 export type ScrollStrategy = "steps" | "smooth";
+// "user" is a manual takeover: the reader scrolled themselves, so LinkWise follows along instead.
+export type PauseReason = "button" | "user";
 
 export interface AutoScrollState {
   status: AutoScrollStatus;
   target: string | null;
   strategy: ScrollStrategy | null;
+  pausedBy: PauseReason | null;
 }
 
 export interface ScrollContainer {
@@ -34,7 +37,7 @@ export const END_WAIT_MS = 2000;
 const MAX_FRAME_GAP_MS = 500;
 
 export function createAutoScrollController(deps: AutoScrollDeps) {
-  let state: AutoScrollState = { status: "idle", target: null, strategy: null };
+  let state: AutoScrollState = { status: "idle", target: null, strategy: null, pausedBy: null };
   let lastStepAt: number | null = null;
   const listeners = new Set<() => void>();
   let getContainer: () => ScrollContainer = () => ({ scrollTop: 0, scrollHeight: 0, clientHeight: 0 });
@@ -61,7 +64,7 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
   }
 
   function setState(next: AutoScrollState): void {
-    if (next.status === state.status && next.target === state.target && next.strategy === state.strategy) return;
+    if (next.status === state.status && next.target === state.target && next.strategy === state.strategy && next.pausedBy === state.pausedBy) return;
     state = next;
     listeners.forEach((listener) => listener());
   }
@@ -92,7 +95,7 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
       atEndSince ??= now;
       if (now - atEndSince >= END_WAIT_MS) {
         stopFrames();
-        setState({ ...state, status: "complete" });
+        setState({ ...state, status: "complete", pausedBy: null });
         return;
       }
     } else if (state.strategy === "steps") {
@@ -126,22 +129,22 @@ export function createAutoScrollController(deps: AutoScrollDeps) {
       getContainer = container;
       carry = 0;
       lastStepAt = null;
-      setState({ status: "running", target, strategy });
+      setState({ status: "running", target, strategy, pausedBy: null });
       schedule();
     },
-    pause(): void {
+    pause(reason: PauseReason = "button"): void {
       if (state.status !== "running") return;
       stopFrames();
-      setState({ ...state, status: "paused" });
+      setState({ ...state, status: "paused", pausedBy: reason });
     },
     resume(): void {
       if (state.status !== "paused") return;
-      setState({ ...state, status: "running" });
+      setState({ ...state, status: "running", pausedBy: null });
       schedule();
     },
     reset(): void {
       stopFrames();
-      setState({ status: "idle", target: null, strategy: null });
+      setState({ status: "idle", target: null, strategy: null, pausedBy: null });
     },
   };
 }

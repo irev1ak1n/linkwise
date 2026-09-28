@@ -145,9 +145,30 @@ function strategyFor(mode: ScanMode): ScrollStrategy {
   return mode === "autoScroll" ? "smooth" : "steps";
 }
 
+// A manual takeover is not an active scan: the reader is browsing, so evidence settles as it
+// does in "Analyze as I scroll". Only the Pause button holds analysis back.
 function scanIsActive(): boolean {
-  const { status, target } = autoScroller.getState();
-  return (status === "running" || status === "paused") && target === pageTarget();
+  const { status, target, pausedBy } = autoScroller.getState();
+  return (status === "running" || (status === "paused" && pausedBy === "button")) && target === pageTarget();
+}
+
+function manualTakeover(): boolean {
+  const { status, target, pausedBy } = autoScroller.getState();
+  return status === "paused" && pausedBy === "user" && target === pageTarget();
+}
+
+// A takeover analyzes once the reader has stopped scrolling for a moment, not mid-scroll.
+const TAKEOVER_IDLE_MS = 1500;
+let lastUserScrollAt = 0;
+let takeoverIdleHandle: ReturnType<typeof setTimeout> | null = null;
+
+function noteUserScroll(): void {
+  lastUserScrollAt = Date.now();
+  if (takeoverIdleHandle) clearTimeout(takeoverIdleHandle);
+  takeoverIdleHandle = setTimeout(() => {
+    takeoverIdleHandle = null;
+    tick();
+  }, TAKEOVER_IDLE_MS + 50);
 }
 
 function reachedEndOfScan(): boolean {
@@ -164,6 +185,7 @@ function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
   if (restoredSession && !rescanExpected && !scanIsActive()) return true;
   if (foundSections(profile).length === 0) return false;
   if (!isAutomaticScan(getScanModeState().mode)) return true;
+  if (manualTakeover()) return Date.now() - lastUserScrollAt >= TAKEOVER_IDLE_MS;
   if (scanIsActive()) return false;
   const stalled = !isPageScrollable() && pageSeen !== null && Date.now() - pageSeen.at >= UNSCROLLABLE_GRACE_MS;
   return selectActiveGoal(getGoalStoreState()) === null || stalled;
@@ -644,13 +666,18 @@ function watchForChanges(): void {
 // Only the slow read-through yields to the user; the fast scan finishes on its own.
 function pauseOnUserScroll(event: Event): void {
   const { status, strategy } = autoScroller.getState();
-  if (status !== "running" || strategy !== "smooth") return;
-  if (isUserScrollIntent(event, document.getElementById(PANEL_HOST_ID), findScrollContainer())) autoScroller.pause();
+  const intent = (status === "running" && strategy === "smooth") || manualTakeover();
+  if (!intent || !isUserScrollIntent(event, document.getElementById(PANEL_HOST_ID), findScrollContainer())) return;
+  noteUserScroll();
+  if (status === "running") autoScroller.pause("user");
 }
 for (const type of ["wheel", "touchmove", "keydown", "mousedown"]) {
   window.addEventListener(type, pauseOnUserScroll, { capture: true, passive: true });
   registerCleanup(() => window.removeEventListener(type, pauseOnUserScroll, { capture: true }));
 }
+registerCleanup(() => {
+  if (takeoverIdleHandle) clearTimeout(takeoverIdleHandle);
+});
 registerCleanup(() => autoScroller.reset());
 registerCleanup(autoScroller.subscribe(() => tick()));
 autoScrollSpeedPreference.init();

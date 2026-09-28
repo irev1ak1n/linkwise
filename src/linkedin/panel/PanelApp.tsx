@@ -99,7 +99,10 @@ export function PanelApp({ onClose }: PanelAppProps) {
 
     // Settled, but AI hasn't resolved yet, show only a loading state.
     if (aiState.status === "idle") return <LoadingView label="Preparing results…" />;
-    if (aiState.status === "loading") return <LoadingView label="Analyzing match…" />;
+    if (aiState.status === "loading") {
+      const partial = scanMode === "autoScroll" && autoScroll.pausedBy === "user";
+      return <LoadingView label={partial ? "Analyzing collected profile information…" : "Analyzing match…"} />;
+    }
 
     return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} />;
   }
@@ -126,6 +129,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
               <AutoScrollControls
                 speed={scrollSpeed}
                 status={autoScroll.status}
+                pausedByUser={autoScroll.pausedBy === "user"}
                 analyzing={aiState.status === "loading" || (aiState.status === "ready" && !!aiState.updating)}
                 onSpeedChange={autoScrollSpeedPreference.set}
                 onPause={pauseAutoScroll}

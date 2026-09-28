@@ -59,7 +59,7 @@ describe("createAutoScrollController", () => {
     expect(container.scrollTop - before).toBeLessThan(10);
     run(1000);
     expect(container.scrollTop - before).toBeGreaterThan(BASE_SCROLL_PX_PER_SECOND * 1.8);
-    expect(controller.getState()).toEqual({ status: "running", target: "page", strategy: "smooth" });
+    expect(controller.getState()).toEqual({ status: "running", target: "page", strategy: "smooth", pausedBy: null });
   });
 
   it("stops moving when paused and continues from the same place on resume", () => {
@@ -77,6 +77,17 @@ describe("createAutoScrollController", () => {
     run(500);
     expect(container.scrollTop).toBeGreaterThan(at);
     expect(container.scrollTop - at).toBeLessThan(BASE_SCROLL_PX_PER_SECOND);
+  });
+
+  it("remembers whether the reader or the Pause button stopped it, and forgets on resume", () => {
+    const { controller, container } = harness();
+    controller.start("page", () => container, "smooth");
+    controller.pause("user");
+    expect(controller.getState()).toMatchObject({ status: "paused", pausedBy: "user" });
+    controller.resume();
+    expect(controller.getState()).toMatchObject({ status: "running", pausedBy: null });
+    controller.pause();
+    expect(controller.getState().pausedBy).toBe("button");
   });
 
   it("never restarts a page it is already reading", () => {
@@ -118,7 +129,7 @@ describe("createAutoScrollController", () => {
     run(500);
     controller.pause();
     controller.start("details", () => container, "smooth");
-    expect(controller.getState()).toEqual({ status: "running", target: "details", strategy: "smooth" });
+    expect(controller.getState()).toEqual({ status: "running", target: "details", strategy: "smooth", pausedBy: null });
   });
 });
 
@@ -157,7 +168,7 @@ describe("createAutoScrollController - fast steps", () => {
     const { controller, container } = harness();
     controller.start("page", () => container, "steps");
     controller.start("page", () => container, "smooth");
-    expect(controller.getState()).toEqual({ status: "running", target: "page", strategy: "smooth" });
+    expect(controller.getState()).toEqual({ status: "running", target: "page", strategy: "smooth", pausedBy: null });
   });
 });
 

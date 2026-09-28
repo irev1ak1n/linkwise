@@ -4,8 +4,8 @@ import { AutoScrollControls } from "./AutoScrollControls";
 import type { AutoScrollStatus } from "../autoScrollController";
 import type { AutoScrollSpeed } from "./autoScrollSpeedPreference";
 
-function render(status: AutoScrollStatus, speed: AutoScrollSpeed = 1, analyzing = false): string {
-  return renderToStaticMarkup(<AutoScrollControls speed={speed} status={status} analyzing={analyzing} onSpeedChange={() => {}} onPause={() => {}} onResume={() => {}} />);
+function render(status: AutoScrollStatus, speed: AutoScrollSpeed = 1, analyzing = false, pausedByUser = false): string {
+  return renderToStaticMarkup(<AutoScrollControls speed={speed} status={status} pausedByUser={pausedByUser} analyzing={analyzing} onSpeedChange={() => {}} onPause={() => {}} onResume={() => {}} />);
 }
 
 describe("AutoScrollControls", () => {
@@ -20,6 +20,9 @@ describe("AutoScrollControls", () => {
     expect(render("running")).toContain("Pause");
     expect(render("running")).toContain("Auto scrolling");
     expect(render("paused")).toContain("Resume");
+    expect(render("paused")).toContain("Paused");
+    expect(render("paused", 1, false, true)).toContain("Browsing manually");
+    expect(render("paused", 1, false, true)).toContain("Resume");
   });
 
   it("shows Analyzing while the final analysis runs, then Complete", () => {
