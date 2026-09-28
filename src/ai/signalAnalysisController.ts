@@ -156,7 +156,9 @@ export class SignalAnalysisController {
         if (outcome.status === "ok") {
           const ready: Ready = { status: "ready", profileKey: job.profileKey, signals: outcome.signals, facts: outcome.facts };
           this.cache.set(job.key, ready);
-          if (current) this.setState({ ...ready, updating: refreshing });
+          // Requests run one at a time on growing evidence, so a finished one is always newer than
+          // what is showing: show it now rather than waiting for the queued refresh.
+          this.setState({ ...ready, updating: refreshing });
         } else if (this.isShowing(job.profileKey)) {
           this.setState({ ...(this.state as Ready), updating: refreshing, updateError: refreshing ? undefined : outcome.reason });
         } else if (current) {

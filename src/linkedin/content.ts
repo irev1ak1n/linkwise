@@ -379,6 +379,7 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
       ? current.profile
       : { ...EMPTY_PROFILE };
   const merged = mergeProfileEvidence(base, sectionProfile);
+  liveEvidence = { profileKey, profile: merged };
   const scannedSection = detailsPageSection(currentUrl);
   if (sameEvidence(merged, base)) {
     if (!reading && !manualScan.validated) void updateProfileSession(profileKey, { scannedSection, validated: true });
@@ -539,26 +540,14 @@ function tickAutoScanCrawl(): void {
 const signalRuntime = createSignalRuntime({ highlighter: new SignalHighlighter(document), publish: publishSignalAnalysis });
 registerCleanup(() => signalRuntime.dispose());
 
-// While Auto scroll reads a profile, signals get the evidence read so far in occasional batches,
-// so highlights appear during the read without a request per movement.
-const SIGNAL_BATCH_MS = 30000;
-let signalBatch: { profileKey: string; profile: LinkedInProfile | null; at: number } | null = null;
-
+// While Auto scroll reads, or the reader takes over, signals follow the evidence as soon as it
+// renders, which LinkedIn does in scroll order, so what is about to be read is analyzed first.
 function signalData(): PanelProfileData {
   const data = getPanelProfileData();
-  const reading = autoScroller.getState().strategy === "smooth" && scanIsActive();
-  if (!reading || !liveEvidence || liveEvidence.profileKey !== data.profileKey) {
-    signalBatch = null;
-    return data;
-  }
-  const now = Date.now();
-  if (signalBatch?.profileKey !== liveEvidence.profileKey) {
-    signalBatch = { profileKey: liveEvidence.profileKey, profile: data.collection?.status === "settled" ? data.profile : null, at: now };
-  } else if (now - signalBatch.at >= SIGNAL_BATCH_MS && (!signalBatch.profile || !sameEvidence(signalBatch.profile, liveEvidence.profile))) {
-    signalBatch = { ...liveEvidence, at: now };
-  }
-  if (!signalBatch.profile) return data;
-  return { ...data, profile: signalBatch.profile, collection: { ...(data.collection ?? engine.getCollectionState()), status: "settled" } };
+  const following = autoScroller.getState().strategy === "smooth" && (scanIsActive() || manualTakeover());
+  if (!following || !liveEvidence || liveEvidence.profileKey !== data.profileKey) return data;
+  if (foundSections(liveEvidence.profile).length === 0) return data;
+  return { ...data, profile: liveEvidence.profile, collection: { ...(data.collection ?? engine.getCollectionState()), status: "settled" } };
 }
 
 let signalHref = "";
@@ -645,10 +634,15 @@ function watchForChanges(): void {
   observer.observe(document.body, { childList: true, subtree: true });
   registerCleanup(() => observer.disconnect());
 
-  window.addEventListener("scroll", scheduleTick, { passive: true });
-  registerCleanup(() => window.removeEventListener("scroll", scheduleTick));
-  document.addEventListener("scroll", scheduleTick, { passive: true, capture: true });
-  registerCleanup(() => document.removeEventListener("scroll", scheduleTick, true));
+  // The scroller's own movement fires scroll events every frame; letting them reset the debounce
+  // would hold back the tick that picks up a section LinkedIn just rendered.
+  const onScroll = () => {
+    if (autoScroller.getState().status !== "running") scheduleTick();
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  registerCleanup(() => window.removeEventListener("scroll", onScroll));
+  document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+  registerCleanup(() => document.removeEventListener("scroll", onScroll, true));
 
   let intervalHandle = setInterval(runIntervalTick, TICK_INTERVAL_MS);
   registerCleanup(() => clearInterval(intervalHandle));

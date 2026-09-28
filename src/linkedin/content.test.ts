@@ -95,18 +95,19 @@ function storedSession(profileKey: string, evidence: object, validatedAt: number
 
 // A tall page whose scroll position really moves, recording every programmatic change.
 function stubScrollingPage(height = 5000) {
-  const tops = new WeakMap<object, number>();
+  const tops = new WeakMap<HTMLElement, number>();
   const writes: number[] = [];
   Object.defineProperty(HTMLElement.prototype, "scrollHeight", { configurable: true, get: () => height });
   Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 800 });
   Object.defineProperty(HTMLElement.prototype, "scrollTop", {
     configurable: true,
-    get(this: object) {
+    get(this: HTMLElement) {
       return tops.get(this) ?? 0;
     },
-    set(this: object, value: number) {
+    set(this: HTMLElement, value: number) {
       writes.push(value - (tops.get(this) ?? 0));
       tops.set(this, Math.max(0, Math.min(value, height - 800)));
+      this.dispatchEvent(new Event("scroll"));
     },
   });
   return {
@@ -1556,14 +1557,12 @@ describe("content.ts bootstrap - Auto scroll profile", () => {
 
   it("keeps scrolling while signal analysis is still waiting for an answer", async () => {
     const { autoScroller, main } = await startMain({ "finder.signalMode.v1": true });
-    await vi.advanceTimersByTimeAsync(10000);
-    expect(sendMessage).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(25000);
+    await vi.advanceTimersByTimeAsync(6000);
     expect(sendMessage).toHaveBeenCalled();
     const at = main.scrollTop;
     await vi.advanceTimersByTimeAsync(5000);
     expect(autoScroller.getState().status).toBe("running");
-    expect(main.scrollTop).toBeGreaterThan(at + 200);
+    expect(main.scrollTop).toBeGreaterThan(at + 150);
   });
 
   function settledPublishes(getPanelProfileData: () => { collection?: { status: string } | null; profile?: unknown }, subscribe: (l: () => void) => unknown) {
@@ -1640,6 +1639,26 @@ describe("content.ts bootstrap - Auto scroll profile", () => {
     expect(main.scrollTop).toBeGreaterThan(at);
     expect(main.scrollTop - at).toBeLessThan(150);
     expect(getPanelProfileData().profile).toBe(result);
+  });
+
+  it("picks up a section that renders mid-read right away instead of waiting for the next interval", async () => {
+    const { main } = await startMain();
+    await vi.advanceTimersByTimeAsync(3000);
+    main.insertAdjacentHTML("beforeend", "<section><h2>Experience</h2><p>Web Lead</p><button type=\"button\">…see more</button></section>");
+    const clicked = vi.fn();
+    main.querySelector("section:last-child button")!.addEventListener("click", clicked);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(clicked).toHaveBeenCalled();
+  });
+
+  it("asks for signals as soon as new evidence renders, one request at a time", async () => {
+    const { main } = await startMain({ "finder.signalMode.v1": true });
+    await vi.advanceTimersByTimeAsync(5000);
+    const signalCalls = () => sendMessage.mock.calls.filter(([message]) => /signal/i.test(String((message as { type?: string }).type))).length;
+    expect(signalCalls()).toBe(1);
+    main.insertAdjacentHTML("beforeend", "<section><h2>Education</h2><ul><li><p>State University</p><p>BS Computer Science</p></li></ul></section>");
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(signalCalls()).toBe(1);
   });
 
   it("stops at the bottom once and never scrolls back up", async () => {

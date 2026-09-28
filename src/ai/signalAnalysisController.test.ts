@@ -182,6 +182,30 @@ describe("SignalAnalysisController - evidence growth during a request", () => {
     expect((request.mock.calls[1]![0] as AnalyzeSignalsRequestBody).profile.evidence.find((e) => e.section === "about")!.text).toContain("won");
   });
 
+  it("shows each finished result while a newer refresh is still queued", async () => {
+    let resolveFirst!: (o: SignalAnalysisOutcome) => void;
+    let resolveSecond!: (o: SignalAnalysisOutcome) => void;
+    const request = vi
+      .fn()
+      .mockReturnValueOnce({ requestId: "1", promise: new Promise<SignalAnalysisOutcome>((r) => (resolveFirst = r)), cancel: vi.fn() })
+      .mockReturnValueOnce({ requestId: "2", promise: new Promise<SignalAnalysisOutcome>((r) => (resolveSecond = r)), cancel: vi.fn() })
+      .mockReturnValue({ requestId: "3", promise: new Promise<SignalAnalysisOutcome>(() => {}), cancel: vi.fn() });
+    const states: SignalAnalysisState[] = [];
+    const controller = new SignalAnalysisController({ onChange: (s) => states.push(s), request, debounceMs: 100 });
+    const second: SignalAnalysisOutcome = { ...ok, facts: [{ text: "Volunteered 40 hours", evidenceId: "volunteering:0" }] } as SignalAnalysisOutcome;
+
+    controller.update({ profileKey: "jordan", profile: profile("Led a team") });
+    await vi.advanceTimersByTimeAsync(100);
+    resolveFirst(ok);
+    await vi.advanceTimersByTimeAsync(0);
+    controller.update({ profileKey: "jordan", profile: profile("Led a team of 5") });
+    await vi.advanceTimersByTimeAsync(100);
+    controller.update({ profileKey: "jordan", profile: profile("Led a team of 5 and won") });
+    resolveSecond(second);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(states.at(-1)).toMatchObject({ status: "ready", updating: true, facts: [{ text: "Volunteered 40 hours" }] });
+  });
+
   it("exits loading with a timeout", async () => {
     const cancel = vi.fn();
     const request = vi.fn(() => ({ requestId: "r", promise: new Promise<SignalAnalysisOutcome>(() => {}), cancel }));
