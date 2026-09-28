@@ -1,25 +1,30 @@
-# LinkWise
-LinkWise is a Chrome extension that helps you find relevant people and jobs on LinkedIn. Describe who you’re looking for to get profile match scores and insights, filter job listings by status or keywords, and highlight useful information automatically or manually as you browse.
+LinkWise is a Chrome extension that helps you find relevant people and jobs on LinkedIn. Describe who you're looking for to get profile match scores and insights, automatically scan profiles, highlight useful information, or review profiles hands-free with auto scroll.
 
-# What it can do: 
+# What it can do:
 
-1) Job Filtering 
+1. Job Filtering
 
-  - Hide/highlight applied jobs
-  - Hide/highlight viewed jobs
-  - Hide/highlight saved jobs
-  - Hide/highlight jobs by keywords
-  - Case-insensitive matching
+- Hide/highlight applied jobs
+- Hide/highlight viewed jobs
+- Hide/highlight saved jobs
+- Hide/highlight jobs by keywords
+- Case-insensitive matching
 
-2) Profile analyzer based on description of person you're looking for 
+2. Profile Analyzer
 
-For example, if you're looking for college students that are multilingual, have software development skills and have 100+ volunteer hours, analyzer will give you percent based of how much you match this description
+Describe the type of person you're looking for and LinkWise gives a Match % based on how well the profile fits your criteria.
 
-  - Auto analyze user's profile
-  - Auto analyze user's profile and every section on user's profile 
-  - Analyze as you scroll user's profile
-  - Auto expand profile details (when there's a big paragraph/text it automatically opens "see more" details)
+- Auto scan profiles
+- Enhanced analysis across profile sections
+- Analyze profiles as you scroll
+- Hands-free auto scroll with adjustable speed
+- Auto expand profile details
+- Match reasons, strengths, gaps and recommendations
+- Update analysis when new profile information is found
 
-3) Data highlighter
+3. Signal Mode
 
-  - Automatically highlights useful information/details on user's page 
+- Automatically highlights useful information on profiles
+- Shows important facts and evidence
+- Highlights things like achievements, leadership, skills and measurable impact
+- Works while manually browsing, auto scanning or auto scrolling
