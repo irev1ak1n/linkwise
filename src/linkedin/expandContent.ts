@@ -211,6 +211,18 @@ function findStableAnchor(button: HTMLButtonElement): Element {
 // both at once can still fight each other (a residual movement was confirmed live even with the
 // visibility gate alone), so it's disabled on the container for the duration of this one
 // expansion and restored immediately after.
+// LinkedIn focuses the text a toggle reveals, and the browser scrolls that focus into view in the
+// same call (confirmed live: a toggle far below the fold jumped the page ~1000px). The automatic
+// modes expand ahead of the reader, so the jump is undone before it paints.
+function clickKeepingViewport(button: HTMLButtonElement, doc: Document): void {
+  const container = findScrollContainer(doc);
+  const top = container.scrollTop;
+  button.click();
+  const focused = doc.activeElement;
+  if (focused instanceof HTMLElement && focused !== doc.body && container.contains(focused)) focused.blur();
+  if (container.scrollTop !== top) container.scrollTop = top;
+}
+
 function clickPreservingScroll(button: HTMLButtonElement, doc: Document): void {
   const container = findScrollContainer(doc) as HTMLElement;
   const anchor = findStableAnchor(button);
@@ -275,7 +287,7 @@ export function expandSeeMoreToggles(doc: Document = document, options: ExpandOp
     if (restrictToViewport) {
       clickPreservingScroll(button, doc);
     } else {
-      button.click();
+      clickKeepingViewport(button, doc);
     }
     expanded += 1;
   }

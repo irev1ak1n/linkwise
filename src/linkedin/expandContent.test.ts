@@ -422,6 +422,27 @@ describe("expandSeeMoreToggles - viewport restriction for 'Analyze as I scroll' 
     expect(expandSeeMoreToggles(document)).toBe(1);
   });
 
+  it("an automatic-mode expansion far below the fold never moves the page", () => {
+    setBody(`
+      <main role="main">
+        <section><h2>Experience</h2><p>Web Lead</p><span tabindex="-1" id="revealed">Full description</span><button type="button">…see more</button></section>
+      </main>
+    `);
+    const main = document.querySelector("main")!;
+    let top = 0;
+    Object.defineProperty(main, "scrollHeight", { configurable: true, get: () => 5000 });
+    Object.defineProperty(main, "clientHeight", { configurable: true, get: () => 800 });
+    Object.defineProperty(main, "scrollTop", { configurable: true, get: () => top, set: (v: number) => (top = v) });
+    const button = document.querySelector("button")!;
+    button.addEventListener("click", () => {
+      document.getElementById("revealed")!.focus();
+      top = 3000;
+    });
+    expect(expandSeeMoreToggles(document)).toBe(1);
+    expect(top).toBe(0);
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it("a scroll-restricted click never calls scrollIntoView, window.scrollTo, or window.scrollBy", () => {
     setBody(`
       <main role="main">
