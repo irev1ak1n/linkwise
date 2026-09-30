@@ -49,7 +49,7 @@ function stubDetailsPageUrl(slug: string, section: string): void {
 
 // A location stub whose assign() actually moves href (and document.URL, which expandContent.ts
 // reads separately), so the crawler's own real navigation calls are observable in a test.
-function stubNavigableLocation(initialHref: string): { assign: ReturnType<typeof vi.fn> } {
+function stubNavigableLocation(initialHref: string): { assign: (url: string) => void } {
   let href = initialHref;
   const assign = vi.fn((url: string) => {
     href = url;
@@ -2003,5 +2003,86 @@ describe("content.ts bootstrap - Jobs filtering", () => {
     await vi.advanceTimersByTimeAsync(1);
 
     expect(document.querySelector('[data-occludable-job-id="2"]')?.classList.contains("lw-job-hidden")).toBe(true);
+  });
+});
+
+describe("content.ts bootstrap - keyword highlights", () => {
+  const registry = new Map<string, { ranges: Range[] }>();
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    registry.clear();
+    vi.stubGlobal("CSS", { highlights: registry });
+    vi.stubGlobal(
+      "Highlight",
+      class {
+        ranges: Range[];
+        priority = 0;
+        constructor(...ranges: Range[]) {
+          this.ranges = ranges;
+        }
+      },
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+    Object.defineProperty(document, "URL", { value: "http://localhost/", configurable: true });
+  });
+
+  const keywordRanges = () => (registry.get("linkwise-keyword")?.ranges ?? []).map((r) => r.toString());
+
+  async function openProfile(stored: Record<string, unknown>) {
+    const nav = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    const sendMessage = vi.fn();
+    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn(), sendMessage }, storage: installFakeChromeStorage({ "finder.scanMode.v1": "scroll", ...stored }) });
+    document.body.innerHTML = `<div id="app-root"><nav><p>Python jobs</p></nav><main role="main">
+      <section><h1>Illia Reviakin</h1><p>TSA web developer</p></section>
+      <section><h2>About</h2><p>Completed 200+ hours of Python tutoring.</p></section>
+    </main></div>`;
+    await import("./content");
+    await vi.advanceTimersByTimeAsync(200);
+    const { highlightKeywordsPreference } = await import("./panel/keywordPreference");
+    return { sendMessage, nav, highlightKeywordsPreference, main: document.querySelector("main")! };
+  }
+
+  it("highlights the saved keywords in profile content only, with no backend request", async () => {
+    const { sendMessage } = await openProfile({ "finder.highlightKeywords.v1": "python, TSA\nHigher National Diploma" });
+    expect(keywordRanges()).toEqual(["Python", "TSA"]);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("follows new content and new keywords right away, and clears only its own highlight", async () => {
+    const { highlightKeywordsPreference, main, sendMessage } = await openProfile({ "finder.highlightKeywords.v1": "tutoring" });
+    registry.set("linkwise-signal", { ranges: [] });
+    main.insertAdjacentHTML("beforeend", "<section><h2>Volunteering</h2><p>Peer tutoring for 20+ students</p></section>");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(keywordRanges()).toEqual(["tutoring", "tutoring"]);
+
+    highlightKeywordsPreference.set("PYTHON, tutoring");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(keywordRanges()).toEqual(["Python", "tutoring", "tutoring"]);
+
+    highlightKeywordsPreference.set("");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(registry.has("linkwise-keyword")).toBe(false);
+    expect(registry.has("linkwise-signal")).toBe(true);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("moves to the next page after SPA navigation and clears off profile pages", async () => {
+    const { nav, main } = await openProfile({ "finder.highlightKeywords.v1": "Python" });
+    expect(keywordRanges()).toEqual(["Python"]);
+    nav.assign("https://www.linkedin.com/in/irev1ak1n/details/experience/");
+    main.innerHTML = `<div data-testid="profile_ExperienceDetailsSection_x"><p>Tutor</p><p>Taught Python and Python tooling</p></div>`;
+    await vi.advanceTimersByTimeAsync(200);
+    expect(keywordRanges()).toEqual(["Python", "Python"]);
+    nav.assign("https://www.linkedin.com/feed/");
+    main.innerHTML = `<p>Python post in the feed</p>`;
+    await vi.advanceTimersByTimeAsync(200);
+    expect(registry.has("linkwise-keyword")).toBe(false);
   });
 });

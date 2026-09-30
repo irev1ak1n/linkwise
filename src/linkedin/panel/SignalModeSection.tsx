@@ -1,12 +1,15 @@
 import type { SignalAnalysisState } from "../../ai/signalAnalysisController";
 import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
 import { sectionLabel } from "./sectionLabels";
+import { KeywordInput } from "./KeywordInput";
 
 interface SignalModeSectionProps {
   enabled: boolean;
   analysis: SignalAnalysisState;
   highlighted: number;
   onChange: (enabled: boolean) => void;
+  keywords: string;
+  onKeywordsChange: (keywords: string) => void;
   updatingSection?: string | null;
 }
 
@@ -41,7 +44,7 @@ function SignalStatus({ analysis, highlighted, updatingSection }: Pick<SignalMod
   );
 }
 
-export function SignalModeSection({ enabled, analysis, highlighted, onChange, updatingSection }: SignalModeSectionProps) {
+export function SignalModeSection({ enabled, analysis, highlighted, onChange, keywords, onKeywordsChange, updatingSection }: SignalModeSectionProps) {
   return (
     <div className="lw-signals">
       <label className="lw-signals__toggle">
@@ -51,6 +54,7 @@ export function SignalModeSection({ enabled, analysis, highlighted, onChange, up
         </span>
       </label>
       {enabled && <SignalStatus analysis={analysis} highlighted={highlighted} updatingSection={updatingSection} />}
+      <KeywordInput value={keywords} onChange={onKeywordsChange} />
     </div>
   );
 }

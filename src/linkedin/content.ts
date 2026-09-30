@@ -72,7 +72,9 @@ import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore
 import { runJobsTick } from "./jobs/jobsRuntime";
 import { JOB_CARD_SELECTOR } from "./jobs/jobCardDetector";
 import { claimRuntime } from "./runtimeTakeover";
-import { createSignalRuntime, signalTickInput } from "./signalRuntime";
+import { createSignalRuntime, isProfileSessionPage, signalTickInput } from "./signalRuntime";
+import { KeywordHighlighter, parseKeywords } from "./keywordHighlights";
+import { highlightKeywordsPreference } from "./panel/keywordPreference";
 import { SignalHighlighter } from "./signalHighlighter";
 import { getSignalModeState, initSignalModeStore, publishSignalAnalysis, subscribeSignalModeStore } from "./panel/signalModeStore";
 import { watchForContextInvalidation } from "./extensionContext";
@@ -550,6 +552,29 @@ function signalData(): PanelProfileData {
   return { ...data, profile: liveEvidence.profile, collection: { ...(data.collection ?? engine.getCollectionState()), status: "settled" } };
 }
 
+// Keyword highlights are local and cheap, so they follow every DOM change instead of the tick.
+const KEYWORD_PAINT_DELAY_MS = 50;
+const keywordHighlighter = new KeywordHighlighter(document);
+let keywordPaintHandle: ReturnType<typeof setTimeout> | null = null;
+let keywordsShown = false;
+
+function paintKeywords(): void {
+  keywordPaintHandle = null;
+  const keywords = isProfileSessionPage(location.href) ? parseKeywords(highlightKeywordsPreference.getState().value) : [];
+  if (keywords.length === 0 && !keywordsShown) return;
+  keywordsShown = keywords.length > 0;
+  keywordHighlighter.render(keywords);
+}
+
+function scheduleKeywordPaint(): void {
+  if (torndown || keywordPaintHandle) return;
+  keywordPaintHandle = setTimeout(paintKeywords, KEYWORD_PAINT_DELAY_MS);
+}
+registerCleanup(() => {
+  if (keywordPaintHandle) clearTimeout(keywordPaintHandle);
+  keywordHighlighter.clear();
+});
+
 let signalHref = "";
 function tickSignals(): void {
   signalHref = location.href;
@@ -568,6 +593,7 @@ function tick(): void {
   ensureLinkWiseOpener(togglePanel);
   runJobsTick(location.href, getJobsSettingsState().settings);
   tickSignals();
+  scheduleKeywordPaint();
   if (!getScanModeState().loaded) return;
   const urlProfileKey = profileIdentityKey(location.href);
   if (urlProfileKey !== null && !ensureProfileSession(urlProfileKey)) return;
@@ -629,6 +655,7 @@ function watchForChanges(): void {
     );
     if (touchesJobCard) runJobsTick(location.href, getJobsSettingsState().settings);
     if (location.href !== signalHref) tickSignals();
+    scheduleKeywordPaint();
     scheduleTick();
   });
   observer.observe(document.body, { childList: true, subtree: true });
@@ -694,6 +721,9 @@ registerCleanup(subscribeEnhancedAnalysisStore(tick));
 
 initJobsSettingsStore();
 registerCleanup(subscribeJobsSettingsStore(tick));
+
+highlightKeywordsPreference.init();
+registerCleanup(highlightKeywordsPreference.subscribe(scheduleKeywordPaint));
 
 initSignalModeStore();
 let signalModeEnabled = getSignalModeState().enabled;

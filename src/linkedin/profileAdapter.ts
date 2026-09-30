@@ -4,6 +4,7 @@
 //
 // Reads only what's already rendered. Never fetches another page or expands a section itself.
 import {
+  ALL_PROFILE_SECTIONS,
   EMPTY_PROFILE,
   foundSections,
   type LinkedInProfile,
@@ -479,6 +480,21 @@ function detailsEntryList(doc: Document): HTMLElement | null {
 export function findDetailsSectionRoot(doc: Document = document): HTMLElement | null {
   if (!detailsPageSection(doc.URL)) return null;
   return doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"]') ?? detailsEntryList(doc);
+}
+
+// The parts of a profile page that describe the person: the details list on a details page, or
+// the top card and profile sections on the main page. Never navigation, sidebars, or activity.
+export function findProfileContentRoots(doc: Document = document): HTMLElement[] {
+  if (detailsPageSection(doc.URL)) {
+    const root = findDetailsSectionRoot(doc);
+    return root ? [root] : [];
+  }
+  const main = findMain(doc);
+  const heading = findIdentityHeading(main);
+  const headings = Array.from(main.querySelectorAll<HTMLElement>("h2, h3"));
+  const roots = [heading ? findIdentityCardContainer(heading) : null, ...ALL_PROFILE_SECTIONS.map((name) => findHeadingSection(headings, name))];
+  const unique = [...new Set(roots.filter((root): root is HTMLElement => root !== null && root !== main))];
+  return unique.filter((root) => !unique.some((other) => other !== root && other.contains(root)));
 }
 
 // Newer "/details/{section}/" pages have no section heading, just a profile card listing

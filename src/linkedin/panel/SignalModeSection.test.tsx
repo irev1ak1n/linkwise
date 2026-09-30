@@ -4,7 +4,7 @@ import { SignalModeSection } from "./SignalModeSection";
 import type { SignalAnalysisState } from "../../ai/signalAnalysisController";
 
 function render(enabled: boolean, analysis: SignalAnalysisState, highlighted = 0): string {
-  return renderToStaticMarkup(<SignalModeSection enabled={enabled} analysis={analysis} highlighted={highlighted} onChange={() => {}} />);
+  return renderToStaticMarkup(<SignalModeSection enabled={enabled} analysis={analysis} highlighted={highlighted} onChange={() => {}} keywords="" onKeywordsChange={() => {}} />);
 }
 
 describe("SignalModeSection", () => {
@@ -40,6 +40,8 @@ describe("SignalModeSection", () => {
         analysis={{ status: "ready", profileKey: "jordan", highlights: [], facts: [{ text: "Led 4-person web team", evidenceId: "experience:0" }], updating: true }}
         highlighted={1}
         onChange={() => {}}
+        keywords=""
+        onKeywordsChange={() => {}}
         updatingSection="education"
       />,
     );
@@ -49,5 +51,15 @@ describe("SignalModeSection", () => {
 
   it("says so when a profile has no strong evidence", () => {
     expect(render(true, { status: "ready", profileKey: "sam", highlights: [], facts: [] })).toContain("No strong evidence found");
+  });
+
+  it("offers the keyword input whether or not Signal Mode is on, showing the saved list", () => {
+    for (const enabled of [false, true]) {
+      const html = renderToStaticMarkup(
+        <SignalModeSection enabled={enabled} analysis={{ status: "idle" }} highlighted={0} onChange={() => {}} keywords={"Python, TSA"} onKeywordsChange={() => {}} />,
+      );
+      expect(html).toContain("Highlight keywords");
+      expect(html).toContain("Python, TSA");
+    }
   });
 });

@@ -570,6 +570,31 @@ export function getPanelStyles(widthPx: number): string {
     font-size: 12px;
     line-height: 1.35;
   }
+  .lw-keywords {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .lw-keywords__label {
+    font-size: 11.5px;
+    color: #56687a;
+  }
+  .lw-keywords__input {
+    box-sizing: border-box;
+    width: 100%;
+    resize: vertical;
+    padding: 4px 6px;
+    border: 1px solid #c8cdd2;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: #fff;
+  }
+  .lw-keywords__input:focus {
+    outline: none;
+    border-color: #0a66c2;
+  }
 
   .lw-jobs-settings {
     display: flex;

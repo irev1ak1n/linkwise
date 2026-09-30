@@ -68,3 +68,25 @@ describe("autoScrollSpeedPreference", () => {
     expect(toAutoScrollSpeed(1.5)).toBe(1.5);
   });
 });
+
+describe("highlightKeywordsPreference", () => {
+  async function freshPreference() {
+    vi.resetModules();
+    const { highlightKeywordsPreference } = await import("./keywordPreference");
+    highlightKeywordsPreference.init();
+    await vi.waitFor(() => expect(highlightKeywordsPreference.getState().loaded).toBe(true));
+    return highlightKeywordsPreference;
+  }
+
+  it("starts empty and keeps the list exactly as typed for the next page", async () => {
+    expect((await freshPreference()).getState().value).toBe("");
+    (await freshPreference()).set("Python, TSA\nmachine learning");
+    await vi.waitFor(() => expect(data["finder.highlightKeywords.v1"]).toBe("Python, TSA\nmachine learning"));
+    expect((await freshPreference()).getState().value).toBe("Python, TSA\nmachine learning");
+  });
+
+  it("ignores a stored value that is not text", async () => {
+    data["finder.highlightKeywords.v1"] = ["Python"];
+    expect((await freshPreference()).getState().value).toBe("");
+  });
+});
