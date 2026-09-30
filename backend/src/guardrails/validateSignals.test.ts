@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findGroundedText, validateSignals, MAX_FACTS, MAX_SIGNALS, type EvidenceText } from "./validateSignals";
-import type { ProfileSignal } from "../openai/signalsSchema";
+import { extractMetrics, findGroundedText, isVagueFact, validateSignals, MAX_FACTS, MAX_HIGHLIGHTS, type EvidenceText } from "./validateSignals";
+import type { HighSignalFact, InlineHighlight, SignalAnalysisResponse } from "../openai/signalsSchema";
 
 const evidence: EvidenceText[] = [
   {
@@ -8,20 +8,35 @@ const evidence: EvidenceText[] = [
     section: "experience",
     text: "Web Lead — Robotics Club — Led a 4-person web team. Helped the project earn 3rd place at the State Conference and reached 300+ visitors.",
   },
-  { id: "about:0", section: "about", text: "I am passionate about technology and love learning new things every day." },
-  { id: "volunteering:0", section: "volunteering", text: "Tutor — Completed 60+ hours of tutoring in Java, supporting 15+ students" },
+  {
+    id: "about:0",
+    section: "about",
+    text:
+      "Driven by a love of puzzles, I joined Northfield Coding School at age 9. The school focused on building real products rather than theory. " +
+      "At age 14, I was accepted into the Advanced Engineering track (a track intended for students aged 17 and older) thanks to a first-place ranking on the school leaderboard. " +
+      "Over 6 years, I learned Java, Go, and SQL. In 2024, I earned an Advanced Diploma in Software Engineering. " +
+      "Outside of class I enjoy reading, hiking with friends, and trying new recipes, and I always look for ways to keep learning and growing as a person.",
+  },
+  { id: "volunteering:0", section: "volunteering", text: "Tutor — Math Center — Completed 60+ hours of tutoring in Java, supporting 15+ students" },
+  { id: "headline:0", section: "headline", text: "Student developer and tutor" },
 ];
 
-function signal(overrides: Partial<ProfileSignal> = {}): ProfileSignal {
+function highlight(overrides: Partial<InlineHighlight> = {}): InlineHighlight {
+  return { evidenceId: "experience:0", quote: "Led a 4-person web team", type: "leadership", importance: 0.9, ...overrides };
+}
+
+function fact(overrides: Partial<HighSignalFact> = {}): HighSignalFact {
   return {
-    evidenceId: "experience:0",
-    quote: "Led a 4-person web team",
-    type: "leadership",
-    strength: "strong",
+    text: "Led a 4-person web team",
+    kind: "leadership",
     importance: 0.9,
-    facts: [{ text: "Led 4-person web team", metric: "4-person" }],
+    support: [{ evidenceId: "experience:0", quote: "Led a 4-person web team" }],
     ...overrides,
   };
+}
+
+function run(response: Partial<SignalAnalysisResponse>) {
+  return validateSignals({ facts: [], highlights: [], ...response }, evidence);
 }
 
 describe("findGroundedText", () => {
@@ -34,163 +49,162 @@ describe("findGroundedText", () => {
   });
 });
 
-describe("validateSignals", () => {
-  it("keeps a grounded quantified signal with its metric and fact", () => {
-    const result = validateSignals({ signals: [signal()] }, evidence);
-    expect(result.signals).toHaveLength(1);
-    expect(result.signals[0]).toMatchObject({ section: "experience", quote: "Led a 4-person web team", metrics: ["4-person"] });
-    expect(result.facts).toEqual([{ text: "Led 4-person web team", evidenceId: "experience:0" }]);
+describe("extractMetrics", () => {
+  it("finds counts, rankings, ages, money, and durations with what they measure", () => {
+    expect(extractMetrics("Led a 4-person web team")).toEqual(["4-person"]);
+    expect(extractMetrics("earn 3rd place at the State Conference")).toEqual(["3rd place"]);
+    expect(extractMetrics("placed 2nd at the state olympiad")).toEqual(["2nd"]);
+    expect(extractMetrics("Completed 60+ hours of tutoring, supporting 15+ students")).toEqual(["60+ hours", "15+ students"]);
+    expect(extractMetrics("At age 14, I was accepted")).toEqual(["age 14"]);
+    expect(extractMetrics("raised $12k and grew signups 40%")).toEqual(["$12k", "40%"]);
+    expect(extractMetrics("Over 6 years")).toEqual(["6 years"]);
   });
 
-  it("keeps non-quantified leadership evidence without a metric", () => {
-    const result = validateSignals({ signals: [signal({ quote: "Web Lead", facts: [{ text: "Web Lead", metric: null }] })] }, evidence);
-    expect(result.signals[0]!.metrics).toEqual([]);
-    expect(result.facts[0]!.text).toBe("Web Lead");
+  it("ignores years, date ranges, and bare numbers", () => {
+    expect(extractMetrics("In 2024, I earned")).toEqual([]);
+    expect(extractMetrics("Sep 2021 - Jun 2025")).toEqual([]);
+    expect(extractMetrics("students aged 17 and older")).toEqual([]);
+  });
+});
+
+describe("high-signal facts", () => {
+  it("keeps the number in a grounded fact", () => {
+    expect(run({ facts: [fact()] }).facts).toEqual([{ text: "Led a 4-person web team", kind: "leadership", evidenceId: "experience:0", evidenceIds: ["experience:0"] }]);
   });
 
-  it("rejects a quote that does not exist in the evidence", () => {
-    const result = validateSignals({ signals: [signal({ quote: "Led a 12-person web team" })] }, evidence);
-    expect(result.signals).toHaveLength(0);
-  });
-
-  it("rejects an unknown evidence id", () => {
-    const result = validateSignals({ signals: [signal({ evidenceId: "experience:9" })] }, evidence);
-    expect(result.signals).toHaveLength(0);
-  });
-
-  it("rejects a quote from a different evidence item", () => {
-    const result = validateSignals({ signals: [signal({ evidenceId: "about:0" })] }, evidence);
-    expect(result.signals).toHaveLength(0);
-  });
-
-  it("rejects importance outside 0 to 1", () => {
-    expect(validateSignals({ signals: [signal({ importance: 1.4 })] }, evidence).signals).toHaveLength(0);
-    expect(validateSignals({ signals: [signal({ importance: -0.2 })] }, evidence).signals).toHaveLength(0);
-    expect(validateSignals({ signals: [signal({ importance: Number.NaN })] }, evidence).signals).toHaveLength(0);
-  });
-
-  it("excludes low-importance and claim-only signals", () => {
-    const lowSignal = signal({ evidenceId: "about:0", quote: "passionate about technology", importance: 0.2, facts: [] });
-    const claim = signal({ evidenceId: "about:0", quote: "love learning new things", strength: "claim", importance: 0.8, facts: [] });
-    expect(validateSignals({ signals: [lowSignal, claim] }, evidence).signals).toHaveLength(0);
-  });
-
-  it("drops a fact whose metric is not in the quote", () => {
-    const result = validateSignals({ signals: [signal({ facts: [{ text: "Led web team", metric: "10-person" }] })] }, evidence);
-    expect(result.signals[0]!.metrics).toEqual([]);
-    expect(result.facts).toEqual([]);
-  });
-
-  it("drops a fact that introduces a number absent from the quote", () => {
-    const result = validateSignals({ signals: [signal({ facts: [{ text: "Led 12-person team", metric: null }] })] }, evidence);
-    expect(result.facts).toEqual([]);
-  });
-
-  it("dedupes overlapping signals from the same evidence and merges metrics", () => {
-    const wide = signal({
-      quote: "Helped the project earn 3rd place at the State Conference and reached 300+ visitors",
-      type: "achievement",
-      importance: 0.95,
-      facts: [{ text: "3rd place at State Conference", metric: "3rd place" }],
+  it("keeps an unusual age and program comparison as a fact", () => {
+    const admission = fact({
+      text: "Accepted into a 17+ engineering track at age 14",
+      kind: "selective_admission",
+      support: [{ evidenceId: "about:0", quote: "At age 14, I was accepted into the Advanced Engineering track (a track intended for students aged 17 and older)" }],
     });
-    const narrow = signal({ quote: "reached 300+ visitors", type: "audience_scale", importance: 0.7, facts: [{ text: "300+ visitors", metric: "300+" }] });
-    const result = validateSignals({ signals: [narrow, wide] }, evidence);
-    expect(result.signals).toHaveLength(1);
-    expect(result.signals[0]!.type).toBe("achievement");
-    expect(result.signals[0]!.metrics).toEqual(["3rd place", "300+"]);
-    expect(result.facts.map((f) => f.text)).toEqual(["3rd place at State Conference", "300+ visitors"]);
+    expect(run({ facts: [admission] }).facts.map((f) => f.text)).toEqual(["Accepted into a 17+ engineering track at age 14"]);
   });
 
-  it("dedupes identical facts across signals", () => {
-    const a = signal({ evidenceId: "volunteering:0", quote: "Completed 60+ hours of tutoring in Java", facts: [{ text: "60+ tutoring hours", metric: "60+ hours" }] });
-    const b = signal({
-      evidenceId: "volunteering:0",
-      quote: "Completed 60+ hours of tutoring in Java, supporting 15+ students",
-      importance: 0.8,
-      facts: [{ text: "60+ Tutoring Hours", metric: "60+" }, { text: "15+ students supported", metric: "15+" }],
+  it("keeps a competitive ranking, reading spelled-out ordinals as numbers", () => {
+    const ranking = fact({ text: "Ranked 1st on the school leaderboard", kind: "competitive_result", support: [{ evidenceId: "about:0", quote: "first-place ranking on the school leaderboard" }] });
+    expect(run({ facts: [ranking] }).facts).toHaveLength(1);
+  });
+
+  it("rejects vague category labels in place of a fact", () => {
+    for (const text of ["Web team size", "State Conference result", "Tutoring hours delivered", "Programming experience", "Audience range"]) {
+      expect(isVagueFact(text)).toBe(true);
+      expect(run({ facts: [fact({ text })] }).facts).toEqual([]);
+    }
+    expect(isVagueFact("3rd place at the State Conference")).toBe(false);
+  });
+
+  it("ranks quantified facts above unquantified ones of similar importance", () => {
+    const facts = run({
+      facts: [
+        fact({ text: "Web Lead at Robotics Club", kind: "leadership", importance: 0.85, support: [{ evidenceId: "experience:0", quote: "Web Lead" }] }),
+        fact({ text: "3rd place at the State Conference", kind: "competitive_result", importance: 0.8, support: [{ evidenceId: "experience:0", quote: "earn 3rd place at the State Conference" }] }),
+      ],
+    }).facts;
+    expect(facts.map((f) => f.text)).toEqual(["3rd place at the State Conference", "Web Lead at Robotics Club"]);
+  });
+
+  it("rejects a fact with a number or a name the evidence never mentions", () => {
+    expect(run({ facts: [fact({ text: "Led a 40-person web team" })] }).facts).toEqual([]);
+    expect(run({ facts: [fact({ text: "Admitted to MIT at age 14", support: [{ evidenceId: "about:0", quote: "At age 14, I was accepted" }] })] }).facts).toEqual([]);
+  });
+
+  it("requires every supporting quote to exist in its own evidence", () => {
+    const mixed = fact({
+      text: "Tutored 15+ students and led a 4-person team",
+      support: [
+        { evidenceId: "volunteering:0", quote: "supporting 15+ students" },
+        { evidenceId: "experience:0", quote: "Led a 12-person web team" },
+      ],
     });
-    const result = validateSignals({ signals: [a, b] }, evidence);
-    expect(result.signals).toHaveLength(1);
-    expect(result.facts.map((f) => f.text)).toEqual(["60+ tutoring hours", "15+ students supported"]);
+    expect(run({ facts: [mixed] }).facts).toEqual([]);
+    const combined = fact({ ...mixed, support: [mixed.support[0]!, { evidenceId: "experience:0", quote: "Led a 4-person web team" }] });
+    expect(run({ facts: [combined] }).facts[0]!.evidenceIds).toEqual(["volunteering:0", "experience:0"]);
   });
 
-  it("returns the canonical profile text, not the model's wording", () => {
-    const result = validateSignals({ signals: [signal({ quote: "LED A 4‑PERSON WEB TEAM." })] }, evidence);
-    expect(result.signals[0]!.quote).toBe("Led a 4-person web team");
+  it("rejects unknown evidence, bad importance, and duplicates, and caps the count", () => {
+    expect(run({ facts: [fact({ support: [{ evidenceId: "experience:9", quote: "Led a 4-person web team" }] })] }).facts).toEqual([]);
+    expect(run({ facts: [fact({ importance: 1.4 })] }).facts).toEqual([]);
+    expect(run({ facts: [fact(), fact({ text: "led a 4-person web team." })] }).facts).toHaveLength(1);
+    const many = Array.from({ length: 15 }, (_, i) => fact({ text: `Led a 4-person web team, note ${String.fromCharCode(97 + i)}` }));
+    expect(run({ facts: many }).facts).toHaveLength(MAX_FACTS);
+  });
+});
+
+describe("inline highlights", () => {
+  it("can exist without any sidebar fact", () => {
+    const result = run({ highlights: [highlight()] });
+    expect(result.facts).toEqual([]);
+    expect(result.highlights).toEqual([
+      { evidenceId: "experience:0", section: "experience", quote: "Led a 4-person web team", type: "leadership", importance: 0.9, metrics: ["4-person"] },
+    ]);
   });
 
-  it("rejects a quote that spans the whole of a long evidence item", () => {
-    const long: EvidenceText = { id: "about:1", section: "about", text: "word ".repeat(100).trim() };
-    const result = validateSignals({ signals: [signal({ evidenceId: "about:1", quote: long.text, facts: [] })] }, [long]);
-    expect(result.signals).toHaveLength(0);
-  });
-
-  it("lists quantified facts before unquantified ones and keeps one unquantified fact per signal", () => {
-    const items: EvidenceText[] = Array.from({ length: MAX_FACTS + 2 }, (_, i) => ({
-      id: `experience:${i}`,
-      section: "experience",
-      text: `Role ${i} — Led the ${i}-member team and shipped the product`,
-    }));
-    const signals = items.map((item, i) =>
-      signal({
-        evidenceId: item.id,
-        quote: i === items.length - 1 ? `Led the ${i}-member team` : "shipped the product",
-        importance: 0.99 - i / 100,
-        facts:
-          i === items.length - 1
-            ? [{ text: `Led ${i}-member team`, metric: `${i}-member` }]
-            : [{ text: `Shipped product ${"x".repeat(i)}`, metric: null }, { text: `Owned delivery ${"y".repeat(i)}`, metric: null }],
-      }),
-    );
-    const facts = validateSignals({ signals }, items).facts.map((f) => f.text);
-    expect(facts[0]).toBe(`Led ${items.length - 1}-member team`);
-    expect(facts).toHaveLength(MAX_FACTS);
-    expect(facts.filter((f) => f.startsWith("Owned delivery"))).toEqual([]);
-  });
-
-  it("rejects a quote that is only a duration or number", () => {
-    const items: EvidenceText[] = [{ id: "experience:5", section: "experience", text: "Robotics Team — 1 yr 5 mos — 4 mos" }];
-    const bare = [
-      signal({ evidenceId: "experience:5", quote: "1 yr 5 mos", type: "duration", facts: [{ text: "1 yr 5 mos in role", metric: "1 yr 5 mos" }] }),
-      signal({ evidenceId: "experience:5", quote: "4 mos", type: "duration", facts: [] }),
+  it("keeps several concise phrases from one dense paragraph, as exact source text", () => {
+    const quotes = [
+      "joined Northfield Coding School at age 9",
+      "building real products rather than theory",
+      "at age 14, i was accepted into the advanced engineering track",
+      "a track intended for students aged 17 and older",
+      "Over 6 years",
+      "earned an Advanced Diploma in Software Engineering",
     ];
-    expect(validateSignals({ signals: bare }, items).signals).toHaveLength(0);
+    const result = run({ highlights: quotes.map((quote, i) => highlight({ evidenceId: "about:0", quote, type: "milestone", importance: 0.9 - i * 0.05 })) });
+    expect(result.highlights.map((h) => h.quote)).toEqual([
+      "joined Northfield Coding School at age 9",
+      "building real products rather than theory",
+      "At age 14, I was accepted into the Advanced Engineering track",
+      "a track intended for students aged 17 and older",
+      "Over 6 years",
+      "earned an Advanced Diploma in Software Engineering",
+    ]);
+    expect(result.highlights[0]!.metrics).toEqual(["age 9"]);
   });
 
-  it("keeps a duration quoted with what it measures, and a one-word skill", () => {
-    const items: EvidenceText[] = [
-      { id: "experience:6", section: "experience", text: "Seattle Robotics Club 5 yrs 1 mo" },
-      { id: "skills:0", section: "skills", text: "Python, Java" },
-    ];
-    const kept = validateSignals(
-      {
-        signals: [
-          signal({ evidenceId: "experience:6", quote: "Seattle Robotics Club 5 yrs 1 mo", type: "duration", facts: [{ text: "5 yrs 1 mo with Seattle Robotics Club", metric: "5 yrs 1 mo" }] }),
-          signal({ evidenceId: "skills:0", quote: "Python", type: "technical_skill", importance: 0.6, facts: [] }),
-        ],
-      },
-      items,
-    );
-    expect(kept.signals.map((s) => s.quote)).toEqual(["Seattle Robotics Club 5 yrs 1 mo", "Python"]);
+  it("keeps only the lead-in of a long list", () => {
+    const list = "Over 6 years, I learned Java, Go, and SQL";
+    const long = `${list}, Rust, Kotlin, Swift, Ruby, Perl, PHP, Scala, Haskell, Elixir, Dart, Lua, web development, robotics, game design, and database management`;
+    const source: EvidenceText = { id: "about:1", section: "about", text: `I started young and kept going for a long time. ${long}. I also enjoy teaching others what I learn.` };
+    const result = validateSignals({ facts: [], highlights: [highlight({ evidenceId: "about:1", quote: long })] }, [source]);
+    expect(result.highlights.map((h) => h.quote)).toEqual(["Over 6 years, I learned Java, Go, and SQL, Rust, Kotlin, Swift"]);
   });
 
-  it("never treats a bare year as a metric", () => {
-    const items: EvidenceText[] = [{ id: "education:0", section: "education", text: "In 2025, I graduated with a Higher National Diploma" }];
-    const result = validateSignals(
-      { signals: [signal({ evidenceId: "education:0", quote: "In 2025, I graduated with a Higher National Diploma", type: "credential", facts: [{ text: "Higher National Diploma in 2025", metric: "2025" }] })] },
-      items,
-    );
-    expect(result.signals[0]!.metrics).toEqual([]);
-    expect(result.facts.map((f) => f.text)).toEqual(["Higher National Diploma in 2025"]);
+  it("rejects paraphrased or invented phrases", () => {
+    expect(run({ highlights: [highlight({ quote: "Led a 12-person web team" })] }).highlights).toEqual([]);
+    expect(run({ highlights: [highlight({ evidenceId: "missing:1" })] }).highlights).toEqual([]);
   });
 
-  it("orders by importance and caps the signal count", () => {
-    const many = Array.from({ length: MAX_SIGNALS + 5 }, (_, i) =>
-      signal({ evidenceId: `skills:${i}`, quote: "Python", importance: 0.5 + i / 100, facts: [] }),
-    );
-    const items = many.map((s) => ({ id: s.evidenceId, section: "skills", text: "Python" }));
-    const result = validateSignals({ signals: many }, items);
-    expect(result.signals).toHaveLength(MAX_SIGNALS);
-    expect(result.signals[0]!.importance).toBeGreaterThan(result.signals[1]!.importance);
+  it("leaves generic filler unhighlighted when the model rates it low", () => {
+    const filler = highlight({ evidenceId: "about:0", quote: "Driven by a love of puzzles", type: "other_evidence", importance: 0.2 });
+    expect(run({ highlights: [filler] }).highlights).toEqual([]);
+  });
+
+  it("never highlights an entry title, organization, or the headline on its own", () => {
+    for (const quote of ["Web Lead", "Robotics Club"]) expect(run({ highlights: [highlight({ quote })] }).highlights).toEqual([]);
+    expect(run({ highlights: [highlight({ evidenceId: "headline:0", quote: "Student developer" })] }).highlights).toEqual([]);
+  });
+
+  it("rejects a bare number or duration, and whole paragraphs", () => {
+    expect(run({ highlights: [highlight({ evidenceId: "about:0", quote: "6 years" })] }).highlights).toEqual([]);
+    const paragraph = evidence[1]!.text.slice(0, 190);
+    expect(run({ highlights: [highlight({ evidenceId: "about:0", quote: paragraph })] }).highlights).toEqual([]);
+  });
+
+  it("keeps one of two nested phrases and never covers most of an item", () => {
+    const nested = run({ highlights: [highlight({ quote: "Led a 4-person web team" }), highlight({ quote: "4-person web team", importance: 0.8 })] });
+    expect(nested.highlights.map((h) => h.quote)).toEqual(["Led a 4-person web team"]);
+
+    const sentences = evidence[1]!.text.split(". ").map((s) => s.replace(/\.$/, ""));
+    const dense = run({ highlights: sentences.map((quote) => highlight({ evidenceId: "about:0", quote: quote.slice(0, 180) })) });
+    const covered = dense.highlights.reduce((sum, h) => sum + h.quote.length, 0);
+    expect(covered).toBeLessThanOrEqual(evidence[1]!.text.length * 0.6);
+  });
+
+  it("orders by importance and caps the count", () => {
+    const words = ["Java", "Go, and SQL", "SQL"];
+    const many = Array.from({ length: 60 }, (_, i) => highlight({ evidenceId: "about:0", quote: words[i % 3]!, importance: 0.5 + (i % 3) * 0.1 }));
+    const result = run({ highlights: many });
+    expect(result.highlights.map((h) => h.quote)).toEqual(["SQL", "Java"]);
+    expect(MAX_HIGHLIGHTS).toBeGreaterThan(result.highlights.length);
   });
 });

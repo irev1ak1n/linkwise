@@ -18,7 +18,7 @@ describe("SignalModeSection", () => {
     const html = render(true, {
       status: "ready",
       profileKey: "jordan",
-      signals: [],
+      highlights: [],
       facts: [
         { text: "Led 4-person web team", evidenceId: "experience:0" },
         { text: "300+ visitors reached", evidenceId: "experience:0" },
@@ -37,7 +37,7 @@ describe("SignalModeSection", () => {
     const html = renderToStaticMarkup(
       <SignalModeSection
         enabled
-        analysis={{ status: "ready", profileKey: "jordan", signals: [], facts: [{ text: "Led 4-person web team", evidenceId: "experience:0" }], updating: true }}
+        analysis={{ status: "ready", profileKey: "jordan", highlights: [], facts: [{ text: "Led 4-person web team", evidenceId: "experience:0" }], updating: true }}
         highlighted={1}
         onChange={() => {}}
         updatingSection="education"
@@ -48,6 +48,6 @@ describe("SignalModeSection", () => {
   });
 
   it("says so when a profile has no strong evidence", () => {
-    expect(render(true, { status: "ready", profileKey: "sam", signals: [], facts: [] })).toContain("No strong evidence found");
+    expect(render(true, { status: "ready", profileKey: "sam", highlights: [], facts: [] })).toContain("No strong evidence found");
   });
 });

@@ -10,7 +10,7 @@ function profile(about: string): LinkedInProfile {
 
 const ok: SignalAnalysisOutcome = {
   status: "ok",
-  signals: [{ evidenceId: "about:0", section: "about", quote: "Led a team", type: "leadership", strength: "strong", importance: 0.9, metrics: [] }],
+  highlights: [{ evidenceId: "about:0", section: "about", quote: "Led a team", type: "leadership", importance: 0.9, metrics: [] }],
   facts: [{ text: "Led a team", evidenceId: "about:0" }],
 };
 
@@ -50,7 +50,7 @@ describe("buildSignalsRequest", () => {
     const a = signalsCacheKey(buildSignalsRequest("jordan", profile("Led a team"))!);
     const b = signalsCacheKey(buildSignalsRequest("jordan", profile("Led a team of 5"))!);
     expect(a).not.toBe(b);
-    expect(a).toMatch(/^signals-v1:jordan:/);
+    expect(a).toMatch(/^signals-v2:jordan:/);
   });
 });
 

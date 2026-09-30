@@ -35,47 +35,36 @@ describe("POST /api/analyze-signals", () => {
   });
 
   it("rejects a malformed request as 400", async () => {
-    const res = await request(appWith(fakeClient({ signals: [] }))).post("/api/analyze-signals").send({ profile: { identity: "x" } });
+    const res = await request(appWith(fakeClient({ facts: [], highlights: [] }))).post("/api/analyze-signals").send({ profile: { identity: "x" } });
     expect(res.status).toBe(400);
   });
 
   it("sends only structured evidence text to the model", async () => {
     const prompts: string[] = [];
-    await request(appWith(fakeClient({ signals: [] }, prompts))).post("/api/analyze-signals").send(body);
+    await request(appWith(fakeClient({ facts: [], highlights: [] }, prompts))).post("/api/analyze-signals").send(body);
     expect(prompts[0]).toContain('"id": "experience:0"');
     expect(prompts[0]).not.toContain("<");
   });
 
-  it("returns only grounded signals and facts", async () => {
+  it("returns only grounded highlights and facts, as separate lists", async () => {
     const client = fakeClient({
-      signals: [
-        {
-          evidenceId: "experience:0",
-          quote: "Led a 4-person web team",
-          type: "leadership",
-          strength: "strong",
-          importance: 0.9,
-          facts: [{ text: "Led 4-person web team", metric: "4-person" }],
-        },
-        { evidenceId: "experience:0", quote: "Led a 40-person company", type: "leadership", strength: "strong", importance: 0.95, facts: [] },
-        { evidenceId: "missing:3", quote: "Web Lead", type: "role", strength: "strong", importance: 0.8, facts: [] },
+      facts: [
+        { text: "Led a 4-person web team", kind: "leadership", importance: 0.9, support: [{ evidenceId: "experience:0", quote: "Led a 4-person web team" }] },
+        { text: "Led a 40-person company", kind: "leadership", importance: 0.95, support: [{ evidenceId: "experience:0", quote: "Led a 4-person web team" }] },
+      ],
+      highlights: [
+        { evidenceId: "experience:0", quote: "reached 300+ visitors", type: "audience_scale", importance: 0.8 },
+        { evidenceId: "experience:0", quote: "Led a 40-person company", type: "leadership", importance: 0.95 },
+        { evidenceId: "missing:3", quote: "Web Lead", type: "leadership", importance: 0.8 },
       ],
     });
     const res = await request(appWith(client)).post("/api/analyze-signals").send(body);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("signals");
-    expect(res.body.signals).toEqual([
-      {
-        evidenceId: "experience:0",
-        section: "experience",
-        quote: "Led a 4-person web team",
-        type: "leadership",
-        strength: "strong",
-        importance: 0.9,
-        metrics: ["4-person"],
-      },
+    expect(res.body.highlights).toEqual([
+      { evidenceId: "experience:0", section: "experience", quote: "reached 300+ visitors", type: "audience_scale", importance: 0.8, metrics: ["300+ visitors"] },
     ]);
-    expect(res.body.facts).toEqual([{ text: "Led 4-person web team", evidenceId: "experience:0" }]);
+    expect(res.body.facts).toEqual([{ text: "Led a 4-person web team", kind: "leadership", evidenceId: "experience:0", evidenceIds: ["experience:0"] }]);
   });
 
   it("responds unavailable on timeout", async () => {

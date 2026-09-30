@@ -1,40 +1,63 @@
 import { z } from "zod";
 
-export const signalTypeSchema = z.enum([
-  "role",
-  "leadership",
+export const highlightTypeSchema = z.enum([
+  "milestone",
+  "duration",
+  "early_achievement",
+  "selective_admission",
+  "ranking",
+  "competitive_result",
   "quantified_impact",
-  "achievement",
+  "audience_scale",
+  "leadership",
+  "responsibility",
+  "credential",
   "technical_skill",
   "project_scope",
-  "duration",
-  "audience_scale",
-  "credential",
+  "methodology",
   "language",
   "other_evidence",
 ]);
 
-export const signalStrengthSchema = z.enum(["strong", "moderate", "claim"]);
+export const factKindSchema = z.enum([
+  "rare_achievement",
+  "measurable_impact",
+  "competitive_result",
+  "leadership",
+  "selective_admission",
+  "credential",
+  "scope",
+  "duration",
+  "technical_accomplishment",
+  "other",
+]);
 
-export const signalFactSchema = z.object({
-  text: z.string(),
-  metric: z.string().nullable(),
-});
-
-export const profileSignalSchema = z.object({
+export const factSupportSchema = z.object({
   evidenceId: z.string(),
   quote: z.string(),
-  type: signalTypeSchema,
-  strength: signalStrengthSchema,
-  importance: z.number().min(0).max(1),
-  facts: z.array(signalFactSchema),
+});
+
+export const highSignalFactSchema = z.object({
+  text: z.string(),
+  kind: factKindSchema,
+  importance: z.number(),
+  support: z.array(factSupportSchema),
+});
+
+export const inlineHighlightSchema = z.object({
+  evidenceId: z.string(),
+  quote: z.string(),
+  type: highlightTypeSchema,
+  importance: z.number(),
 });
 
 export const signalAnalysisResponseSchema = z.object({
-  signals: z.array(profileSignalSchema),
+  facts: z.array(highSignalFactSchema),
+  highlights: z.array(inlineHighlightSchema),
 });
 
-export type SignalType = z.infer<typeof signalTypeSchema>;
-export type SignalStrength = z.infer<typeof signalStrengthSchema>;
-export type ProfileSignal = z.infer<typeof profileSignalSchema>;
+export type HighlightType = z.infer<typeof highlightTypeSchema>;
+export type FactKind = z.infer<typeof factKindSchema>;
+export type HighSignalFact = z.infer<typeof highSignalFactSchema>;
+export type InlineHighlight = z.infer<typeof inlineHighlightSchema>;
 export type SignalAnalysisResponse = z.infer<typeof signalAnalysisResponseSchema>;

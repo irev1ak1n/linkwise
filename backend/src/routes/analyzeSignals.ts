@@ -39,10 +39,13 @@ export async function handleAnalyzeSignals(req: Request, res: Response, deps: An
   }
 
   try {
-    const { signals, facts } = validateSignals(aiResult.data, request.profile.evidence);
-    const rejected = aiResult.data.signals.length - signals.length;
-    if (rejected > 0) console.info(`[analyze-signals] kept ${signals.length}, dropped ${rejected} signals`);
-    res.status(200).json({ status: "signals", model: deps.config.openAiModel, signals, facts });
+    const { highlights, facts } = validateSignals(aiResult.data, request.profile.evidence);
+    const droppedHighlights = aiResult.data.highlights.length - highlights.length;
+    const droppedFacts = aiResult.data.facts.length - facts.length;
+    if (droppedHighlights + droppedFacts > 0) {
+      console.info(`[analyze-signals] kept ${highlights.length} highlights and ${facts.length} facts, dropped ${droppedHighlights} and ${droppedFacts}`);
+    }
+    res.status(200).json({ status: "signals", model: deps.config.openAiModel, highlights, facts });
   } catch (error) {
     console.error("[analyze-signals] Failed to process a valid OpenAI response:", error);
     res.status(200).json({ status: "unavailable", reason: "processing_error" });

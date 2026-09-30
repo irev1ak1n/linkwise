@@ -161,7 +161,7 @@ describe("installAiRelay - unrelated messages", () => {
 describe("installAiRelay - analyze-signals proxy", () => {
   it("fetches the signals endpoint and forwards its JSON response back", async () => {
     const fake = installFakeChromeRuntime();
-    const body = { status: "signals", model: "m", signals: [], facts: [] };
+    const body = { status: "signals", model: "m", highlights: [], facts: [] };
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(body) });
     installAiRelay(fetchImpl as unknown as typeof fetch);
 

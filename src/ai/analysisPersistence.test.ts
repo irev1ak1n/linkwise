@@ -63,7 +63,7 @@ describe("signal analysis across a full reload", () => {
   it("restores cached signals and facts without a new request", async () => {
     const signalOutcome = {
       status: "ok" as const,
-      signals: [{ evidenceId: "about:0", section: "about" as const, quote: "Led a team", type: "leadership" as const, strength: "strong" as const, importance: 0.9, metrics: [] }],
+      highlights: [{ evidenceId: "about:0", section: "about" as const, quote: "Led a team", type: "leadership" as const, importance: 0.9, metrics: [] }],
       facts: [{ text: "Led a team", evidenceId: "about:0" }],
     };
     const signalProfile = { ...EMPTY_PROFILE, name: "Jordan", about: "Led a team", extracted: true };
@@ -151,7 +151,7 @@ describe("a stale profile reloaded 20 minutes later", () => {
     const facts = [{ text: "Led a team", evidenceId: "about:0" }];
     const signalOutcome = {
       status: "ok" as const,
-      signals: [{ evidenceId: "about:0", section: "about" as const, quote: "Led a team", type: "leadership" as const, strength: "strong" as const, importance: 0.9, metrics: [] }],
+      highlights: [{ evidenceId: "about:0", section: "about" as const, quote: "Led a team", type: "leadership" as const, importance: 0.9, metrics: [] }],
       facts,
     };
     const signalProfile = { ...EMPTY_PROFILE, name: "Jordan", about: "Led a team", extracted: true };

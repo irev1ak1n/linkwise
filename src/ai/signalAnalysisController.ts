@@ -2,18 +2,18 @@ import type { LinkedInProfile } from "../models/profile";
 import { buildEvidencePayload } from "./evidencePayload";
 import { hashString } from "./aiAnalysisCache";
 import { requestSignalAnalysis as defaultRequest, type AnalyzeSignalsRequestBody, type PendingSignalRequest } from "./signalsClient";
-import type { ProfileSignalDTO, SignalAnalysisOutcome, SignalFactDTO } from "./signalTypes";
+import type { InlineHighlightDTO, SignalAnalysisOutcome, SignalFactDTO } from "./signalTypes";
 import { PROFILE_SESSION_RETENTION_MS } from "../storage/profileSessionRepository";
 import { createPersistentCache, type PersistentCache } from "./persistentCache";
 
-export const SIGNAL_ANALYSIS_VERSION = "signals-v1";
+export const SIGNAL_ANALYSIS_VERSION = "signals-v2";
 export const SIGNAL_DEBOUNCE_MS = 1500;
 export const SIGNAL_TIMEOUT_MS = 75000;
 
 export type SignalAnalysisState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; profileKey: string; signals: ProfileSignalDTO[]; facts: SignalFactDTO[]; updating?: boolean; updateError?: string }
+  | { status: "ready"; profileKey: string; highlights: InlineHighlightDTO[]; facts: SignalFactDTO[]; updating?: boolean; updateError?: string }
   | { status: "unavailable"; reason: string };
 
 type Ready = Extract<SignalAnalysisState, { status: "ready" }>;
@@ -154,7 +154,7 @@ export class SignalAnalysisController {
         const current = job.key === this.currentKey || !this.isShowing(job.profileKey);
         const refreshing = this.queued !== null && this.queued.key === this.currentKey;
         if (outcome.status === "ok") {
-          const ready: Ready = { status: "ready", profileKey: job.profileKey, signals: outcome.signals, facts: outcome.facts };
+          const ready: Ready = { status: "ready", profileKey: job.profileKey, highlights: outcome.highlights, facts: outcome.facts };
           this.cache.set(job.key, ready);
           // Requests run one at a time on growing evidence, so a finished one is always newer than
           // what is showing: show it now rather than waiting for the queued refresh.

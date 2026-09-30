@@ -12,7 +12,7 @@ export interface AnalyzeSignalsRequestBody {
 export type PendingSignalRequest = PendingRelayRequest<SignalAnalysisOutcome>;
 
 function toOutcome(response: AnalyzeSignalsApiResponse): SignalAnalysisOutcome {
-  if (response.status === "signals") return { status: "ok", signals: response.signals, facts: response.facts };
+  if (response.status === "signals") return { status: "ok", highlights: response.highlights, facts: response.facts };
   if (response.status === "unavailable") return { status: "unavailable", reason: response.reason };
   return { status: "unavailable", reason: response.status };
 }

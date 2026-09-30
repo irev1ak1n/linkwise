@@ -1,12 +1,12 @@
 import { SignalAnalysisController, type SignalAnalysisState } from "../ai/signalAnalysisController";
-import type { ProfileSignalDTO } from "../ai/signalTypes";
+import type { InlineHighlightDTO } from "../ai/signalTypes";
 import type { LinkedInProfile } from "../models/profile";
 import { SignalHighlighter } from "./signalHighlighter";
 import type { SignalTarget } from "./signalRanges";
 import { profileIdentityKey } from "./profileAdapter";
 import type { PanelProfileData } from "./panel/panelStore";
 
-export const INLINE_MIN_IMPORTANCE = 0.6;
+export const INLINE_MIN_IMPORTANCE = 0.5;
 
 export interface SignalTickInput {
   enabled: boolean;
@@ -37,8 +37,8 @@ export function signalTickInput(enabled: boolean, href: string, data: PanelProfi
   };
 }
 
-export function signalTargets(signals: ProfileSignalDTO[]): SignalTarget[] {
-  return signals
+export function signalTargets(highlights: InlineHighlightDTO[]): SignalTarget[] {
+  return highlights
     .filter((s) => s.importance >= INLINE_MIN_IMPORTANCE)
     .map((s, i) => ({ key: `${s.evidenceId}#${i}`, section: s.section, quote: s.quote, metrics: s.metrics }));
 }
@@ -57,7 +57,7 @@ export function createSignalRuntime(options: SignalRuntimeOptions) {
   function paint(): void {
     const state = controller.getState();
     const current = state.status === "ready" && state.profileKey === activeProfileKey;
-    const count = current ? highlighter.render(signalTargets(state.signals)) : 0;
+    const count = current ? highlighter.render(signalTargets(state.highlights)) : 0;
     if (!current) highlighter.clear();
     publish(activeProfileKey ? state : { status: "idle" }, count);
   }

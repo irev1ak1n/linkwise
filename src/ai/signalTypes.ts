@@ -1,24 +1,12 @@
 import type { ProfileSectionName } from "../models/profile";
 
-export type SignalType =
-  | "role"
-  | "leadership"
-  | "quantified_impact"
-  | "achievement"
-  | "technical_skill"
-  | "project_scope"
-  | "duration"
-  | "audience_scale"
-  | "credential"
-  | "language"
-  | "other_evidence";
-
-export interface ProfileSignalDTO {
+// An exact phrase worth reading in the profile text. Separate from facts: a phrase can be worth
+// highlighting without being one of the strongest facts, and a fact can combine several phrases.
+export interface InlineHighlightDTO {
   evidenceId: string;
   section: ProfileSectionName | "headline" | "location";
   quote: string;
-  type: SignalType;
-  strength: "strong" | "moderate";
+  type: string;
   importance: number;
   metrics: string[];
 }
@@ -29,11 +17,11 @@ export interface SignalFactDTO {
 }
 
 export type AnalyzeSignalsApiResponse =
-  | { status: "signals"; model: string; signals: ProfileSignalDTO[]; facts: SignalFactDTO[] }
+  | { status: "signals"; model: string; highlights: InlineHighlightDTO[]; facts: SignalFactDTO[] }
   | { status: "not_configured" }
   | { status: "unavailable"; reason: string }
   | { status: "invalid_request"; message: string };
 
 export type SignalAnalysisOutcome =
-  | { status: "ok"; signals: ProfileSignalDTO[]; facts: SignalFactDTO[] }
+  | { status: "ok"; highlights: InlineHighlightDTO[]; facts: SignalFactDTO[] }
   | { status: "unavailable"; reason: string };

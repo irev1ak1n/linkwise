@@ -20,7 +20,7 @@ function outcomeFor(body: AnalyzeSignalsRequestBody): SignalAnalysisOutcome {
   const quote = item.text.split(" — ")[1]!;
   return {
     status: "ok",
-    signals: [{ evidenceId: item.id, section: "experience", quote, type: "leadership", strength: "strong", importance: 0.9, metrics: [] }],
+    highlights: [{ evidenceId: item.id, section: "experience", quote, type: "leadership", importance: 0.9, metrics: [] }],
     facts: [{ text: quote, evidenceId: item.id }],
   };
 }
@@ -71,9 +71,9 @@ describe("isProfileSessionPage", () => {
 });
 
 describe("signalTargets", () => {
-  it("keeps only signals above the inline threshold", () => {
-    const base = { evidenceId: "about:0", section: "about" as const, type: "role" as const, strength: "moderate" as const, metrics: [] };
-    expect(signalTargets([{ ...base, quote: "a", importance: 0.55 }, { ...base, quote: "b", importance: 0.8 }]).map((t) => t.quote)).toEqual(["b"]);
+  it("keeps only highlights above the inline threshold", () => {
+    const base = { evidenceId: "about:0", section: "about" as const, type: "milestone", metrics: [] };
+    expect(signalTargets([{ ...base, quote: "a", importance: 0.4 }, { ...base, quote: "b", importance: 0.55 }]).map((t) => t.quote)).toEqual(["b"]);
   });
 });
 
@@ -173,9 +173,9 @@ describe("createSignalRuntime", () => {
       const item = body.profile.evidence.find((e) => e.section === "experience")!;
       return {
         status: "ok",
-        signals: [
-          { evidenceId: item.id, section: "experience", quote: "Web Lead", type: "role", strength: "strong", importance: 0.8, metrics: [] },
-          { evidenceId: item.id, section: "experience", quote: "Led a 4-person web team", type: "leadership", strength: "strong", importance: 0.9, metrics: [] },
+        highlights: [
+          { evidenceId: item.id, section: "experience", quote: "Web Lead", type: "role", importance: 0.8, metrics: [] },
+          { evidenceId: item.id, section: "experience", quote: "Led a 4-person web team", type: "leadership", importance: 0.9, metrics: [] },
         ],
         facts: [{ text: "Web Lead role", evidenceId: item.id }],
       };

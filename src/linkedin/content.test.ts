@@ -6,7 +6,7 @@ import type { LinkedInProfile } from "../models/profile";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The first test pays for compiling the whole content-script module graph.
-vi.setConfig({ testTimeout: 15000 });
+vi.setConfig({ testTimeout: 30000 });
 
 vi.mock("react-dom/client", () => ({
   createRoot: () => ({ render: vi.fn(), unmount: vi.fn() }),

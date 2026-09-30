@@ -22,9 +22,9 @@ beforeEach(() => {
 
 describe("requestSignalAnalysis", () => {
   it("resolves ok with signals and facts", async () => {
-    const sendMessage = installFakeChromeRuntime({ status: "signals", model: "m", signals: [], facts: [{ text: "Led a team", evidenceId: "about:0" }] });
+    const sendMessage = installFakeChromeRuntime({ status: "signals", model: "m", highlights: [], facts: [{ text: "Led a team", evidenceId: "about:0" }] });
     const outcome = await requestSignalAnalysis(payload).promise;
-    expect(outcome).toEqual({ status: "ok", signals: [], facts: [{ text: "Led a team", evidenceId: "about:0" }] });
+    expect(outcome).toEqual({ status: "ok", highlights: [], facts: [{ text: "Led a team", evidenceId: "about:0" }] });
     expect(sendMessage.mock.calls[0]![0]).toMatchObject({ type: LINKWISE_ANALYZE_SIGNALS, payload });
   });
 
