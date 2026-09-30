@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { METRIC_HIGHLIGHT, QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
 import type { SignalTarget } from "./signalRanges";
+import { HIGHLIGHT_SHADES } from "./highlightPalette";
 
 interface FakeHighlight {
   ranges: Range[];
@@ -79,6 +80,32 @@ describe("SignalHighlighter", () => {
     expect(highlighter.render(targets)).toBe(0);
     setPage();
     expect(highlighter.render(targets)).toBe(2);
+  });
+
+  it("recolors existing highlights in place, without locating or registering them again", () => {
+    const { registry, entries } = fakeRegistry();
+    const highlighter = new SignalHighlighter(document, registry, factory);
+    highlighter.render(targets);
+    const ranges = entries.get(QUOTE_HIGHLIGHT)!.ranges;
+    const before = document.querySelector("main")!.innerHTML;
+    const style = () => document.getElementById("lw-signal-style")!.textContent!;
+    expect(style()).toContain(HIGHLIGHT_SHADES.blue.fill);
+
+    highlighter.setColor("yellow");
+    expect(style()).toContain(HIGHLIGHT_SHADES.yellow.fill);
+    expect(style()).not.toContain(HIGHLIGHT_SHADES.blue.fill);
+    highlighter.render(targets);
+    expect(registry.set).toHaveBeenCalledTimes(2);
+    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges).toBe(ranges);
+    expect(document.querySelector("main")!.innerHTML).toBe(before);
+  });
+
+  it("uses the chosen color for highlights drawn after a color change", () => {
+    const { registry } = fakeRegistry();
+    const highlighter = new SignalHighlighter(document, registry, factory);
+    highlighter.setColor("green");
+    highlighter.render(targets);
+    expect(document.getElementById("lw-signal-style")!.textContent).toContain(HIGHLIGHT_SHADES.green.fill);
   });
 
   it("does nothing when the browser has no highlight registry", () => {

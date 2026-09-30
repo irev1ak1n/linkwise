@@ -75,6 +75,7 @@ import { claimRuntime } from "./runtimeTakeover";
 import { createSignalRuntime, isProfileSessionPage, signalTickInput } from "./signalRuntime";
 import { KeywordHighlighter, parseKeywords } from "./keywordHighlights";
 import { highlightKeywordsPreference } from "./panel/keywordPreference";
+import { highlightColorPreference } from "./panel/highlightColorPreference";
 import { SignalHighlighter } from "./signalHighlighter";
 import { getSignalModeState, initSignalModeStore, publishSignalAnalysis, subscribeSignalModeStore } from "./panel/signalModeStore";
 import { watchForContextInvalidation } from "./extensionContext";
@@ -539,7 +540,8 @@ function tickAutoScanCrawl(): void {
   })();
 }
 
-const signalRuntime = createSignalRuntime({ highlighter: new SignalHighlighter(document), publish: publishSignalAnalysis });
+const signalHighlighter = new SignalHighlighter(document);
+const signalRuntime = createSignalRuntime({ highlighter: signalHighlighter, publish: publishSignalAnalysis });
 registerCleanup(() => signalRuntime.dispose());
 
 // While Auto scroll reads, or the reader takes over, signals follow the evidence as soon as it
@@ -724,6 +726,9 @@ registerCleanup(subscribeJobsSettingsStore(tick));
 
 highlightKeywordsPreference.init();
 registerCleanup(highlightKeywordsPreference.subscribe(scheduleKeywordPaint));
+
+highlightColorPreference.init();
+registerCleanup(highlightColorPreference.subscribe(() => signalHighlighter.setColor(highlightColorPreference.getState().value)));
 
 initSignalModeStore();
 let signalModeEnabled = getSignalModeState().enabled;

@@ -90,3 +90,29 @@ describe("highlightKeywordsPreference", () => {
     expect((await freshPreference()).getState().value).toBe("");
   });
 });
+
+describe("highlightColorPreference", () => {
+  async function freshPreference() {
+    vi.resetModules();
+    const { highlightColorPreference } = await import("./highlightColorPreference");
+    highlightColorPreference.init();
+    await vi.waitFor(() => expect(highlightColorPreference.getState().loaded).toBe(true));
+    return highlightColorPreference;
+  }
+
+  it("defaults to the original blue and keeps the chosen color for the next profile", async () => {
+    expect((await freshPreference()).getState().value).toBe("blue");
+    (await freshPreference()).set("yellow");
+    await vi.waitFor(() => expect(data["finder.signalHighlightColor.v1"]).toBe("yellow"));
+    expect((await freshPreference()).getState().value).toBe("yellow");
+  });
+
+  it("falls back to the default for a color that is not in the palette", async () => {
+    data["finder.signalHighlightColor.v1"] = "hotpink";
+    expect((await freshPreference()).getState().value).toBe("blue");
+    const { HIGHLIGHT_COLORS, toHighlightColor } = await import("../highlightPalette");
+    expect(HIGHLIGHT_COLORS).toHaveLength(8);
+    expect(HIGHLIGHT_COLORS.every((color) => toHighlightColor(color) === color)).toBe(true);
+    expect(toHighlightColor(3)).toBeUndefined();
+  });
+});

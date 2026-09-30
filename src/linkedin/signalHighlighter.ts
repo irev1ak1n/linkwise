@@ -1,17 +1,22 @@
 import { compactText, locateSignals, type SignalTarget } from "./signalRanges";
+import { DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_SHADES, type HighlightColor } from "./highlightPalette";
 
 export const QUOTE_HIGHLIGHT = "linkwise-signal";
 export const METRIC_HIGHLIGHT = "linkwise-signal-metric";
 const STYLE_ID = "lw-signal-style";
 
-const STYLES = `
-  ::highlight(${QUOTE_HIGHLIGHT}) { background-color: rgba(10, 102, 194, 0.13); }
+// The metric layer sits on top of its phrase, so the same fill twice reads as a deeper shade.
+function stylesFor(color: HighlightColor): string {
+  const { fill, mark } = HIGHLIGHT_SHADES[color];
+  return `
+  ::highlight(${QUOTE_HIGHLIGHT}) { background-color: ${fill}; }
   ::highlight(${METRIC_HIGHLIGHT}) {
-    background-color: rgba(5, 118, 66, 0.2);
-    text-decoration: underline 2px rgba(5, 118, 66, 0.85);
+    background-color: ${fill};
+    text-decoration: underline 2px ${mark};
     text-underline-offset: 3px;
   }
 `;
+}
 
 export interface HighlightRegistryLike {
   set(name: string, highlight: Highlight): unknown;
@@ -39,6 +44,7 @@ interface Applied {
 
 export class SignalHighlighter {
   private applied: Applied | null = null;
+  private color: HighlightColor = DEFAULT_HIGHLIGHT_COLOR;
 
   constructor(
     private readonly doc: Document,
@@ -72,6 +78,14 @@ export class SignalHighlighter {
     return located.size;
   }
 
+  // Only restyles the existing highlights: nothing is located, requested, or re-rendered.
+  setColor(color: HighlightColor): void {
+    if (color === this.color) return;
+    this.color = color;
+    const style = this.doc.getElementById(STYLE_ID);
+    if (style) style.textContent = stylesFor(color);
+  }
+
   clear(): void {
     this.registry?.delete(QUOTE_HIGHLIGHT);
     this.registry?.delete(METRIC_HIGHLIGHT);
@@ -88,7 +102,7 @@ export class SignalHighlighter {
     if (this.doc.getElementById(STYLE_ID)) return;
     const style = this.doc.createElement("style");
     style.id = STYLE_ID;
-    style.textContent = STYLES;
+    style.textContent = stylesFor(this.color);
     this.doc.head.appendChild(style);
   }
 }

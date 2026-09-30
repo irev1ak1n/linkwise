@@ -2073,6 +2073,27 @@ describe("content.ts bootstrap - keyword highlights", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
+  it("recolors Signal highlights right away with no request, keeping keyword highlights and the color across pages", async () => {
+    const { nav, main, sendMessage } = await openProfile({ "finder.highlightKeywords.v1": "Python", "finder.signalHighlightColor.v1": "green" });
+    const { HIGHLIGHT_SHADES } = await import("./highlightPalette");
+    const { highlightColorPreference } = await import("./panel/highlightColorPreference");
+    await vi.waitFor(() => expect(highlightColorPreference.getState().value).toBe("green"));
+    document.head.insertAdjacentHTML("beforeend", '<style id="lw-signal-style"></style>');
+    highlightColorPreference.set("yellow");
+    highlightColorPreference.set("purple");
+    const style = () => document.getElementById("lw-signal-style")!.textContent!;
+    expect(style()).toContain(HIGHLIGHT_SHADES.purple.fill);
+    expect(keywordRanges()).toEqual(["Python"]);
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    nav.assign("https://www.linkedin.com/in/someone-else/");
+    main.innerHTML = `<section><h1>Someone Else</h1><p>Python mentor</p></section>`;
+    await vi.advanceTimersByTimeAsync(200);
+    expect(style()).toContain(HIGHLIGHT_SHADES.purple.fill);
+    expect(keywordRanges()).toEqual(["Python"]);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("moves to the next page after SPA navigation and clears off profile pages", async () => {
     const { nav, main } = await openProfile({ "finder.highlightKeywords.v1": "Python" });
     expect(keywordRanges()).toEqual(["Python"]);

@@ -570,6 +570,32 @@ export function getPanelStyles(widthPx: number): string {
     font-size: 12px;
     line-height: 1.35;
   }
+  .lw-colors {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lw-colors__label {
+    font-size: 11.5px;
+    color: #56687a;
+  }
+  .lw-colors__swatches {
+    display: flex;
+    gap: 5px;
+  }
+  .lw-colors__swatch {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .lw-colors__swatch--selected {
+    outline: 2px solid #1d2226;
+    outline-offset: 1px;
+  }
   .lw-keywords {
     display: flex;
     flex-direction: column;

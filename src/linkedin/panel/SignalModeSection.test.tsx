@@ -4,7 +4,7 @@ import { SignalModeSection } from "./SignalModeSection";
 import type { SignalAnalysisState } from "../../ai/signalAnalysisController";
 
 function render(enabled: boolean, analysis: SignalAnalysisState, highlighted = 0): string {
-  return renderToStaticMarkup(<SignalModeSection enabled={enabled} analysis={analysis} highlighted={highlighted} onChange={() => {}} keywords="" onKeywordsChange={() => {}} />);
+  return renderToStaticMarkup(<SignalModeSection enabled={enabled} analysis={analysis} highlighted={highlighted} onChange={() => {}} keywords="" onKeywordsChange={() => {}} color="blue" onColorChange={() => {}} />);
 }
 
 describe("SignalModeSection", () => {
@@ -42,6 +42,8 @@ describe("SignalModeSection", () => {
         onChange={() => {}}
         keywords=""
         onKeywordsChange={() => {}}
+        color="blue"
+        onColorChange={() => {}}
         updatingSection="education"
       />,
     );
@@ -56,10 +58,21 @@ describe("SignalModeSection", () => {
   it("offers the keyword input whether or not Signal Mode is on, showing the saved list", () => {
     for (const enabled of [false, true]) {
       const html = renderToStaticMarkup(
-        <SignalModeSection enabled={enabled} analysis={{ status: "idle" }} highlighted={0} onChange={() => {}} keywords={"Python, TSA"} onKeywordsChange={() => {}} />,
+        <SignalModeSection enabled={enabled} analysis={{ status: "idle" }} highlighted={0} onChange={() => {}} keywords={"Python, TSA"} onKeywordsChange={() => {}} color="blue" onColorChange={() => {}} />,
       );
       expect(html).toContain("Highlight keywords");
       expect(html).toContain("Python, TSA");
     }
+  });
+
+  it("offers the eight highlight colors with the chosen one marked, only while Signal Mode is on", () => {
+    const html = renderToStaticMarkup(
+      <SignalModeSection enabled analysis={{ status: "idle" }} highlighted={0} onChange={() => {}} keywords="" onKeywordsChange={() => {}} color="yellow" onColorChange={() => {}} />,
+    );
+    expect(html).toContain("Highlight color");
+    expect(html.match(/role="radio"/g)).toHaveLength(8);
+    expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-checked="true" aria-label="Yellow"/);
+    expect(render(false, { status: "idle" })).not.toContain("Highlight color");
   });
 });

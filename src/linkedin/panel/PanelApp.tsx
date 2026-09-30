@@ -20,6 +20,7 @@ import { SignalModeSection } from "./SignalModeSection";
 import { AutoScrollControls } from "./AutoScrollControls";
 import { autoScrollSpeedPreference } from "./autoScrollSpeedPreference";
 import { highlightKeywordsPreference } from "./keywordPreference";
+import { highlightColorPreference } from "./highlightColorPreference";
 import { useAutoScroll } from "./useAutoScroll";
 import { ScanningView } from "./ScanningView";
 import { LoadingView } from "./LoadingView";
@@ -47,6 +48,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { value: autoExpandEnabled } = useStoredPreference(autoExpandPreference);
   const { value: scrollSpeed } = useStoredPreference(autoScrollSpeedPreference);
   const { value: highlightKeywords } = useStoredPreference(highlightKeywordsPreference);
+  const { value: highlightColor } = useStoredPreference(highlightColorPreference);
   const { state: autoScroll, pause: pauseAutoScroll, resume: resumeAutoScroll } = useAutoScroll();
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
@@ -156,6 +158,8 @@ export function PanelApp({ onClose }: PanelAppProps) {
                 onChange={signalMode.setSignalModeEnabled}
                 keywords={highlightKeywords}
                 onKeywordsChange={highlightKeywordsPreference.set}
+                color={highlightColor}
+                onColorChange={highlightColorPreference.set}
                 updatingSection={updatingSection}
               />
             )}

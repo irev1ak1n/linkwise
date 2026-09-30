@@ -2,6 +2,8 @@ import type { SignalAnalysisState } from "../../ai/signalAnalysisController";
 import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
 import { sectionLabel } from "./sectionLabels";
 import { KeywordInput } from "./KeywordInput";
+import { HighlightColorPicker } from "./HighlightColorPicker";
+import type { HighlightColor } from "../highlightPalette";
 
 interface SignalModeSectionProps {
   enabled: boolean;
@@ -10,6 +12,8 @@ interface SignalModeSectionProps {
   onChange: (enabled: boolean) => void;
   keywords: string;
   onKeywordsChange: (keywords: string) => void;
+  color: HighlightColor;
+  onColorChange: (color: HighlightColor) => void;
   updatingSection?: string | null;
 }
 
@@ -44,7 +48,7 @@ function SignalStatus({ analysis, highlighted, updatingSection }: Pick<SignalMod
   );
 }
 
-export function SignalModeSection({ enabled, analysis, highlighted, onChange, keywords, onKeywordsChange, updatingSection }: SignalModeSectionProps) {
+export function SignalModeSection({ enabled, analysis, highlighted, onChange, keywords, onKeywordsChange, color, onColorChange, updatingSection }: SignalModeSectionProps) {
   return (
     <div className="lw-signals">
       <label className="lw-signals__toggle">
@@ -53,6 +57,7 @@ export function SignalModeSection({ enabled, analysis, highlighted, onChange, ke
           Signal Mode <span className="lw-signals__hint">Highlight useful evidence</span>
         </span>
       </label>
+      {enabled && <HighlightColorPicker color={color} onChange={onColorChange} />}
       {enabled && <SignalStatus analysis={analysis} highlighted={highlighted} updatingSection={updatingSection} />}
       <KeywordInput value={keywords} onChange={onKeywordsChange} />
     </div>

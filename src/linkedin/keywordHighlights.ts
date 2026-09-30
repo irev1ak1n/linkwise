@@ -5,8 +5,13 @@ import { findProfileContentRoots } from "./profileAdapter";
 
 export const KEYWORD_HIGHLIGHT = "linkwise-keyword";
 const STYLE_ID = "lw-keyword-style";
-const STYLES = `::highlight(${KEYWORD_HIGHLIGHT}) { background-color: rgba(240, 180, 20, 0.32); }`;
-const SKIPPED_ANCESTORS = "button, svg, script, style, .visually-hidden, [data-lw-ignore]";
+// A fixed amber with a dotted underline, so keywords stay distinct from any Signal color.
+const STYLES = `::highlight(${KEYWORD_HIGHLIGHT}) {
+  background-color: rgba(240, 180, 20, 0.32);
+  text-decoration: underline dotted 2px rgba(150, 90, 0, 0.9);
+  text-underline-offset: 3px;
+}`;
+const SKIPPED_ANCESTORS = "button, svg, script, style, nav, header, aside, footer, .visually-hidden, [data-lw-ignore]";
 
 export function parseKeywords(input: string): string[] {
   const seen = new Set<string>();
