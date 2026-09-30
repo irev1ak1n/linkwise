@@ -50,7 +50,7 @@ describe("buildSignalsRequest", () => {
     const a = signalsCacheKey(buildSignalsRequest("jordan", profile("Led a team"))!);
     const b = signalsCacheKey(buildSignalsRequest("jordan", profile("Led a team of 5"))!);
     expect(a).not.toBe(b);
-    expect(a).toMatch(/^signals-v2:jordan:/);
+    expect(a).toMatch(/^signals-v3:jordan:/);
   });
 });
 

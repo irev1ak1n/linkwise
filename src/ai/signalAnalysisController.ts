@@ -6,7 +6,7 @@ import type { InlineHighlightDTO, SignalAnalysisOutcome, SignalFactDTO } from ".
 import { PROFILE_SESSION_RETENTION_MS } from "../storage/profileSessionRepository";
 import { createPersistentCache, type PersistentCache } from "./persistentCache";
 
-export const SIGNAL_ANALYSIS_VERSION = "signals-v2";
+export const SIGNAL_ANALYSIS_VERSION = "signals-v3";
 export const SIGNAL_DEBOUNCE_MS = 1500;
 export const SIGNAL_TIMEOUT_MS = 75000;
 

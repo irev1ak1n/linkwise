@@ -19,6 +19,8 @@ export function createOpenAiSignalClient(config: BackendConfig): SignalAnalysisC
       const response = await client.responses.parse(
         {
           model: config.openAiModel,
+          // Picking exact phrases needs little deliberation; low effort halves the wait while reading.
+          reasoning: { effort: "low" },
           input: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },

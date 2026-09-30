@@ -1,17 +1,19 @@
-import type { FactKind, HighSignalFact, HighlightType, InlineHighlight, SignalAnalysisResponse } from "../openai/signalsSchema";
+import type { EntryHighlights, FactKind, HighSignalFact, HighlightRole, SignalAnalysisResponse } from "../openai/signalsSchema";
 
-export const MIN_HIGHLIGHT_IMPORTANCE = 0.5;
 export const MIN_FACT_IMPORTANCE = 0.4;
-export const MAX_HIGHLIGHTS = 40;
+// Only a safety net: coverage is decided per entry, and this is filled evenly across entries.
+export const MAX_HIGHLIGHTS = 80;
 export const MAX_FACTS = 12;
 const MIN_QUOTE_LENGTH = 3;
 const MAX_HIGHLIGHT_LENGTH = 200;
 const MAX_HIGHLIGHT_WORDS = 24;
-const LIST_LEAD_WORDS = 12;
+const LIST_MAX_WORDS = 14;
+const LIST_LEAD_WORDS = 10;
 const MAX_FACT_LENGTH = 90;
 // Highlights may cover at most this share of an evidence item, so a paragraph stays readable.
-const MAX_HIGHLIGHT_SHARE = 0.6;
-const MIN_HIGHLIGHT_ALLOWANCE = 120;
+const MAX_HIGHLIGHT_SHARE = 0.5;
+const MIN_HIGHLIGHT_ALLOWANCE = 80;
+const ROLE_IMPORTANCE: Record<HighlightRole, number> = { primary: 0.9, secondary: 0.6 };
 const QUANTIFIED_FACT_BONUS = 0.15;
 
 export interface EvidenceText {
@@ -24,7 +26,7 @@ export interface ValidatedHighlight {
   evidenceId: string;
   section: string;
   quote: string;
-  type: HighlightType;
+  type: HighlightRole;
   importance: number;
   metrics: string[];
 }
@@ -78,8 +80,14 @@ function trimQuote(quote: string): string {
   return quote.trim().replace(/^["'“‘…]+|["'”’…]+$/g, "").replace(/[.,;:]+$/, "").trim();
 }
 
-// Returns the exact original substring of haystack matching needle, or null.
-export function findGroundedText(haystack: string, needle: string): string | null {
+interface Span {
+  text: string;
+  start: number;
+  end: number;
+}
+
+// Where needle appears in haystack, as the exact original text and its position.
+function groundedSpan(haystack: string, needle: string): Span | null {
   const target = normalizeText(trimQuote(needle));
   if (target.length === 0) return null;
   const source = normalizeWithMap(haystack);
@@ -87,7 +95,12 @@ export function findGroundedText(haystack: string, needle: string): string | nul
   if (index === -1) return null;
   const start = source.map[index]!;
   const end = source.map[index + target.length - 1]! + 1;
-  return haystack.slice(start, end);
+  return { text: haystack.slice(start, end), start, end };
+}
+
+// Returns the exact original substring of haystack matching needle, or null.
+export function findGroundedText(haystack: string, needle: string): string | null {
+  return groundedSpan(haystack, needle)?.text ?? null;
 }
 
 function isBareYear(value: string): boolean {
@@ -123,27 +136,35 @@ export function extractMetrics(quote: string): string[] {
   return metrics;
 }
 
-// A number is only evidence alongside some context, so "4 mos" alone is rejected but "Over 6 years" is kept.
+const DATE_WORDS = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|present|issued|credential|id)\b/gi;
+
+// A number is only evidence alongside some context, so "4 mos", "Mar 2026 - Present", or a
+// credential ID alone is rejected but "Over 6 years" is kept.
 function isBareNumber(quote: string): boolean {
   if (!/\d/.test(quote)) return false;
-  const rest = quote.replace(/\d[\d.,+%]*\s*(?:yrs?|years?|mos?|months?|hours?|hrs?)?/gi, " ");
+  const rest = quote
+    .replace(DATE_WORDS, " ")
+    .replace(/\p{L}+-?\d[\p{L}\d-]*/gu, " ")
+    .replace(/\d[\d.,+%]*\s*(?:yrs?|years?|mos?|months?|hours?|hrs?)?/gi, " ");
   return (rest.match(/\p{L}{2,}/gu) ?? []).length === 0;
 }
 
-// Titles, organizations, and names on their own belong to the entry's heading, not its evidence.
+// Titles, organizations, and names belong to the entry's heading, not its evidence: never any part
+// of the title, nor the whole organization.
 function isEntryHeading(quote: string, source: EvidenceText): boolean {
   const parts = source.text.split(" — ");
   if (parts.length < 2) return false;
   const target = normalizeText(quote);
-  return parts.slice(0, 2).some((part) => normalizeText(part) === target);
+  return normalizeText(parts[0]!).includes(target) || normalizeText(parts[1]!) === target;
 }
 
 const wordCount = (text: string) => text.trim().split(/\s+/).length;
 
 // A long list keeps its lead-in and first few items, cut at a comma so it stays exact source text.
 function shortenList(quote: string): string | null {
-  if (wordCount(quote) <= MAX_HIGHLIGHT_WORDS) return quote;
-  if ((quote.match(/,/g) ?? []).length < 4) return null;
+  const isList = (quote.match(/,/g) ?? []).length >= 3;
+  if (wordCount(quote) <= (isList ? LIST_MAX_WORDS : MAX_HIGHLIGHT_WORDS)) return quote;
+  if (!isList) return null;
   let best: string | null = null;
   for (let i = quote.indexOf(","); i !== -1; i = quote.indexOf(",", i + 1)) {
     const lead = quote.slice(0, i);
@@ -153,42 +174,65 @@ function shortenList(quote: string): string | null {
   return best;
 }
 
-function toHighlight(raw: InlineHighlight, evidence: Map<string, EvidenceText>): ValidatedHighlight | null {
-  const source = evidence.get(raw.evidenceId);
-  if (!source || source.section === "headline" || source.section === "location") return null;
-  if (!Number.isFinite(raw.importance) || raw.importance < MIN_HIGHLIGHT_IMPORTANCE || raw.importance > 1) return null;
-  const grounded = findGroundedText(source.text, raw.quote);
-  const quote = grounded && shortenList(grounded);
-  if (!quote || quote.length < MIN_QUOTE_LENGTH || quote.length > MAX_HIGHLIGHT_LENGTH || quote.includes(" — ")) return null;
-  if (isEntryHeading(quote, source) || isBareNumber(quote)) return null;
-  return { evidenceId: source.id, section: source.section, quote, type: raw.type, importance: raw.importance, metrics: extractMetrics(quote) };
+// How many highlights an item can hold: a couple for a short text, more for a dense paragraph.
+function entryLimit(text: string): number {
+  const words = wordCount(text);
+  if (words <= 30) return 2;
+  if (words <= 80) return 3;
+  if (words <= 150) return 5;
+  return 6;
 }
 
-function selectHighlights(raw: InlineHighlight[], evidence: Map<string, EvidenceText>): ValidatedHighlight[] {
-  const candidates = raw
-    .map((h) => toHighlight(h, evidence))
-    .filter((h): h is ValidatedHighlight => h !== null)
-    .sort((a, b) => b.importance - a.importance);
+interface Candidate extends ValidatedHighlight {
+  start: number;
+  end: number;
+}
 
-  const kept: ValidatedHighlight[] = [];
-  const used = new Map<string, number>();
-  for (const candidate of candidates) {
-    if (kept.length >= MAX_HIGHLIGHTS) break;
-    const text = normalizeText(candidate.quote);
-    const overlapping = kept.some((k) => {
-      if (k.evidenceId !== candidate.evidenceId) return false;
-      const other = normalizeText(k.quote);
-      return other.includes(text) || text.includes(other);
-    });
-    if (overlapping) continue;
-    const source = evidence.get(candidate.evidenceId)!;
-    const allowance = Math.max(MIN_HIGHLIGHT_ALLOWANCE, source.text.length * MAX_HIGHLIGHT_SHARE);
-    const covered = (used.get(candidate.evidenceId) ?? 0) + candidate.quote.length;
-    if (covered > allowance) continue;
-    used.set(candidate.evidenceId, covered);
+function toHighlight(quote: string, role: HighlightRole, source: EvidenceText): Candidate | null {
+  const found = groundedSpan(source.text, quote);
+  const text = found && shortenList(found.text);
+  if (!found || !text || text.length < MIN_QUOTE_LENGTH || text.length > MAX_HIGHLIGHT_LENGTH || text.includes(" — ")) return null;
+  if (isEntryHeading(text, source) || isBareNumber(text)) return null;
+  const importance = ROLE_IMPORTANCE[role];
+  return { evidenceId: source.id, section: source.section, quote: text, type: role, importance, metrics: extractMetrics(text), start: found.start, end: found.start + text.length };
+}
+
+// Each item is judged on its own: strongest first, no overlaps, and within its own count and share.
+function selectForEntry(entry: EntryHighlights, source: EvidenceText): ValidatedHighlight[] {
+  const ordered = [...entry.highlights].sort((a, b) => ROLE_IMPORTANCE[b.role] - ROLE_IMPORTANCE[a.role]);
+  const allowance = Math.max(MIN_HIGHLIGHT_ALLOWANCE, source.text.length * MAX_HIGHLIGHT_SHARE);
+  const limit = entryLimit(source.text);
+  const kept: Candidate[] = [];
+  let covered = 0;
+  for (const raw of ordered) {
+    if (kept.length >= limit) break;
+    const candidate = toHighlight(raw.quote, raw.role, source);
+    if (!candidate || kept.some((k) => candidate.start < k.end && k.start < candidate.end)) continue;
+    if (covered + candidate.quote.length > allowance) continue;
+    covered += candidate.quote.length;
     kept.push(candidate);
   }
-  return kept;
+  return kept.sort((a, b) => a.start - b.start).map(({ start: _start, end: _end, ...highlight }) => highlight);
+}
+
+function selectHighlights(entries: EntryHighlights[], evidence: Map<string, EvidenceText>): ValidatedHighlight[] {
+  const merged = new Map<string, EntryHighlights>();
+  for (const entry of entries) {
+    const source = evidence.get(entry.evidenceId);
+    if (!source || source.section === "headline" || source.section === "location") continue;
+    const existing = merged.get(source.id);
+    merged.set(source.id, { evidenceId: source.id, highlights: [...(existing?.highlights ?? []), ...entry.highlights] });
+  }
+  const perEntry = [...merged.values()].map((entry) => selectForEntry(entry, evidence.get(entry.evidenceId)!));
+
+  // Round-robin, so if the safety cap is ever reached no single entry takes the whole budget.
+  const highlights: ValidatedHighlight[] = [];
+  for (let round = 0; highlights.length < MAX_HIGHLIGHTS; round++) {
+    const next = perEntry.map((list) => list[round]).filter((h): h is ValidatedHighlight => h !== undefined);
+    if (next.length === 0) break;
+    highlights.push(...next.slice(0, MAX_HIGHLIGHTS - highlights.length));
+  }
+  return highlights;
 }
 
 // A category name standing in for a fact, like "Team size" or "Conference result".
@@ -256,5 +300,5 @@ function selectFacts(raw: HighSignalFact[], evidence: Map<string, EvidenceText>)
 
 export function validateSignals(response: SignalAnalysisResponse, evidenceItems: EvidenceText[]): ValidatedSignals {
   const evidence = new Map(evidenceItems.map((item) => [item.id, item]));
-  return { highlights: selectHighlights(response.highlights, evidence), facts: selectFacts(response.facts, evidence) };
+  return { highlights: selectHighlights(response.entries, evidence), facts: selectFacts(response.facts, evidence) };
 }

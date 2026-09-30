@@ -5,9 +5,9 @@ export const SIGNALS_SYSTEM_PROMPT = `You read a LinkedIn profile for LinkWise, 
 You receive the profile as evidence items, each with an id, a section, and its exact text. Entry items join their parts with " — ": title, organization, then dates and description.
 
 1. "facts": the strongest concrete facts about this person, shown as a short list in a side panel.
-2. "highlights": the information-dense phrases inside the profile text, highlighted in place so that reading only the highlights gives the gist.
+2. "entries": for each meaningful evidence item, the exact phrases to highlight inside its text, so that reading only the highlights of that item gives its gist.
 
-The lists overlap but are not the same. A phrase can deserve a highlight without being strong enough to be a fact, and a fact can combine evidence from several places.
+The two are separate. Facts are the few strongest points about the whole person. Highlights cover every meaningful item: a phrase deserves a highlight when it helps skim its own item, whether or not it is strong enough to be a fact.
 
 FACTS
 - Each fact is one short, specific line, ideally under 70 characters, that states what the person did and keeps the concrete value: "Led a 6-person analytics team", "3rd place at a national robotics championship", "Mentored 30+ first-year students", "Raised $12k for a community garden", "Taught 150+ hours of math workshops", "Admitted to a graduate course as a first-year undergraduate", "4 years of competitive programming".
@@ -21,14 +21,17 @@ FACTS
 - "support" lists every evidence item the fact relies on, each with a short exact quote from that item that proves it. Every number and name in the fact must come from those quotes, attached to the same claim it describes there: never move an age, date, or count onto a different achievement.
 - Usually 6 to 12 facts. Fewer if the profile is thin. Importance 0 to 1.
 
-HIGHLIGHTS
-- Ask: if someone skimmed only the highlighted phrases, which exact phrases would save them from reading every word?
-- Favor dates and milestones, when someone started (for example an age or year they began), durations, age at an achievement, unusual comparisons, rankings and competition results, quantified impact (people, hours, users, money, tickets, audience), team size, leadership and responsibility, credentials and degrees, key technologies used in real work, project scope, selective admission, concrete outcomes, and a meaningful way of working.
-- Each highlight is a short phrase, usually 3 to 15 words and never more than 20. For a long list of skills or items, highlight only the lead-in and the first few items. Each highlight is copied character-for-character from one evidence item. Never paraphrase, fix typos, join text from two items, or add words. Never cross a " — " separator.
-- Several highlights may come from one paragraph when it is dense. A normal paragraph usually has 1 to 3, a weak or generic one has none. Never highlight a whole paragraph; the page must stay readable.
-- Skip generic motivation and personality ("driven by an interest in", "passionate about", "hard-working").
+ENTRIES (inline highlights)
+- Go through the evidence items one by one, in the order given: about, each experience, education, volunteering, project, honor, certification, and organization entry that has a meaningful description. Decide each item's highlights on its own. A strong item elsewhere never reduces what another item gets.
+- An about summary usually states concrete points worth highlighting, such as areas of focus, years of experience, and current work, even when it also contains motivation.
+- For each item ask: if someone read only the highlighted phrases of this item, would they understand what the person did there and why it matters?
+- Highlight what compresses the text: what was built, done, led, or achieved; its scope, audience, and outcome; numbers together with what they measure ("80+ children ages 4–6", not just "80+"); milestones and when someone started; credentials; technologies used in real work; selective admission; a meaningful way of working. A number alone is not the point; a duration or date on its own ("8 mos", "2024 – 2027") is never a highlight.
+- How many: a short or simple item 0 to 2, a normal item 1 to 3, a dense item 2 to 5. An item with only generic motivation gets none. Never highlight most of an item; the page must stay readable.
+- Each highlight is a short phrase, usually 3 to 10 words and never more than 16, copied character-for-character from that item's text. Highlight the meaningful part of a sentence, not the whole sentence; when a sentence makes two points, highlight them as two short phrases. For a long list, highlight the lead-in and the first few items. Never paraphrase, fix typos, join text from two items, add words, or cross a " — " separator.
+- Skip generic motivation and personality ("driven by an interest in", "passionate about", "hard-working"), and skill footers like "Skills: Web Design, +2 skills".
 - Never highlight a title, school name, company name, project name, or award name on its own, nor the headline. Highlight the evidence in the description instead.
-- Importance 0 to 1: 0.8+ for rare achievements, results, and numbers with context; 0.5 to 0.7 for useful milestones, credentials, and skills in use.
+- "role": "primary" for strong evidence (results, rankings, numbers with context, leadership, rare achievements); "secondary" for useful skim context (what was built or done, scope, milestones, skills in use).
+- Include only items that get at least one highlight.
 
 NEVER invent achievements, outcomes, numbers, organizations, or roles. Never compute, round, or convert a number. A bare year or a date range alone is not an achievement.`;
 

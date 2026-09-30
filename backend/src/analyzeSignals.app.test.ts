@@ -35,13 +35,13 @@ describe("POST /api/analyze-signals", () => {
   });
 
   it("rejects a malformed request as 400", async () => {
-    const res = await request(appWith(fakeClient({ facts: [], highlights: [] }))).post("/api/analyze-signals").send({ profile: { identity: "x" } });
+    const res = await request(appWith(fakeClient({ facts: [], entries: [] }))).post("/api/analyze-signals").send({ profile: { identity: "x" } });
     expect(res.status).toBe(400);
   });
 
   it("sends only structured evidence text to the model", async () => {
     const prompts: string[] = [];
-    await request(appWith(fakeClient({ facts: [], highlights: [] }, prompts))).post("/api/analyze-signals").send(body);
+    await request(appWith(fakeClient({ facts: [], entries: [] }, prompts))).post("/api/analyze-signals").send(body);
     expect(prompts[0]).toContain('"id": "experience:0"');
     expect(prompts[0]).not.toContain("<");
   });
@@ -52,17 +52,16 @@ describe("POST /api/analyze-signals", () => {
         { text: "Led a 4-person web team", kind: "leadership", importance: 0.9, support: [{ evidenceId: "experience:0", quote: "Led a 4-person web team" }] },
         { text: "Led a 40-person company", kind: "leadership", importance: 0.95, support: [{ evidenceId: "experience:0", quote: "Led a 4-person web team" }] },
       ],
-      highlights: [
-        { evidenceId: "experience:0", quote: "reached 300+ visitors", type: "audience_scale", importance: 0.8 },
-        { evidenceId: "experience:0", quote: "Led a 40-person company", type: "leadership", importance: 0.95 },
-        { evidenceId: "missing:3", quote: "Web Lead", type: "leadership", importance: 0.8 },
+      entries: [
+        { evidenceId: "experience:0", highlights: [{ quote: "reached 300+ visitors", role: "primary" }, { quote: "Led a 40-person company", role: "primary" }] },
+        { evidenceId: "missing:3", highlights: [{ quote: "Web Lead", role: "primary" }] },
       ],
     });
     const res = await request(appWith(client)).post("/api/analyze-signals").send(body);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("signals");
     expect(res.body.highlights).toEqual([
-      { evidenceId: "experience:0", section: "experience", quote: "reached 300+ visitors", type: "audience_scale", importance: 0.8, metrics: ["300+ visitors"] },
+      { evidenceId: "experience:0", section: "experience", quote: "reached 300+ visitors", type: "primary", importance: 0.9, metrics: ["300+ visitors"] },
     ]);
     expect(res.body.facts).toEqual([{ text: "Led a 4-person web team", kind: "leadership", evidenceId: "experience:0", evidenceIds: ["experience:0"] }]);
   });

@@ -40,7 +40,7 @@ export async function handleAnalyzeSignals(req: Request, res: Response, deps: An
 
   try {
     const { highlights, facts } = validateSignals(aiResult.data, request.profile.evidence);
-    const droppedHighlights = aiResult.data.highlights.length - highlights.length;
+    const droppedHighlights = aiResult.data.entries.reduce((sum, entry) => sum + entry.highlights.length, 0) - highlights.length;
     const droppedFacts = aiResult.data.facts.length - facts.length;
     if (droppedHighlights + droppedFacts > 0) {
       console.info(`[analyze-signals] kept ${highlights.length} highlights and ${facts.length} facts, dropped ${droppedHighlights} and ${droppedFacts}`);

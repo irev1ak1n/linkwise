@@ -1,23 +1,7 @@
 import { z } from "zod";
 
-export const highlightTypeSchema = z.enum([
-  "milestone",
-  "duration",
-  "early_achievement",
-  "selective_admission",
-  "ranking",
-  "competitive_result",
-  "quantified_impact",
-  "audience_scale",
-  "leadership",
-  "responsibility",
-  "credential",
-  "technical_skill",
-  "project_scope",
-  "methodology",
-  "language",
-  "other_evidence",
-]);
+// "primary" is strong, impressive evidence; "secondary" is useful context for skimming.
+export const highlightRoleSchema = z.enum(["primary", "secondary"]);
 
 export const factKindSchema = z.enum([
   "rare_achievement",
@@ -45,19 +29,24 @@ export const highSignalFactSchema = z.object({
 });
 
 export const inlineHighlightSchema = z.object({
-  evidenceId: z.string(),
   quote: z.string(),
-  type: highlightTypeSchema,
-  importance: z.number(),
+  role: highlightRoleSchema,
+});
+
+// Highlights are chosen per evidence item, so every meaningful entry is considered on its own.
+export const entryHighlightsSchema = z.object({
+  evidenceId: z.string(),
+  highlights: z.array(inlineHighlightSchema),
 });
 
 export const signalAnalysisResponseSchema = z.object({
   facts: z.array(highSignalFactSchema),
-  highlights: z.array(inlineHighlightSchema),
+  entries: z.array(entryHighlightsSchema),
 });
 
-export type HighlightType = z.infer<typeof highlightTypeSchema>;
+export type HighlightRole = z.infer<typeof highlightRoleSchema>;
 export type FactKind = z.infer<typeof factKindSchema>;
 export type HighSignalFact = z.infer<typeof highSignalFactSchema>;
 export type InlineHighlight = z.infer<typeof inlineHighlightSchema>;
+export type EntryHighlights = z.infer<typeof entryHighlightsSchema>;
 export type SignalAnalysisResponse = z.infer<typeof signalAnalysisResponseSchema>;
