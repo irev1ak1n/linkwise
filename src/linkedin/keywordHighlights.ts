@@ -2,15 +2,19 @@
 // match titles and organization names too, since the user asked for them by name.
 import type { HighlightRegistryLike } from "./signalHighlighter";
 import { findProfileContentRoots } from "./profileAdapter";
+import { DEFAULT_KEYWORD_HIGHLIGHT_COLOR, HIGHLIGHT_SHADES, type HighlightColor } from "./highlightPalette";
 
 export const KEYWORD_HIGHLIGHT = "linkwise-keyword";
 const STYLE_ID = "lw-keyword-style";
-// A fixed amber with a dotted underline, so keywords stay distinct from any Signal color.
-const STYLES = `::highlight(${KEYWORD_HIGHLIGHT}) {
-  background-color: rgba(240, 180, 20, 0.32);
-  text-decoration: underline dotted 2px rgba(150, 90, 0, 0.9);
+// The dotted underline keeps keywords distinct from Signal highlights even in the same color.
+function stylesFor(color: HighlightColor): string {
+  const { fill, mark } = HIGHLIGHT_SHADES[color];
+  return `::highlight(${KEYWORD_HIGHLIGHT}) {
+  background-color: ${fill};
+  text-decoration: underline dotted 2px ${mark};
   text-underline-offset: 3px;
 }`;
+}
 const SKIPPED_ANCESTORS = "button, svg, script, style, nav, header, aside, footer, .visually-hidden, [data-lw-ignore]";
 
 export function parseKeywords(input: string): string[] {
@@ -109,6 +113,8 @@ function defaultFactory(ranges: Range[]): Highlight {
 // Uses the CSS Custom Highlight API like Signal Mode, so overlapping highlights layer on the same
 // text without wrapping or changing any of LinkedIn's markup.
 export class KeywordHighlighter {
+  private color: HighlightColor = DEFAULT_KEYWORD_HIGHLIGHT_COLOR;
+
   constructor(
     private readonly doc: Document,
     private readonly registry: HighlightRegistryLike | null = defaultRegistry(),
@@ -131,11 +137,19 @@ export class KeywordHighlighter {
     this.registry?.delete(KEYWORD_HIGHLIGHT);
   }
 
+  // Restyles existing matches in place; nothing is located again.
+  setColor(color: HighlightColor): void {
+    if (color === this.color) return;
+    this.color = color;
+    const style = this.doc.getElementById(STYLE_ID);
+    if (style) style.textContent = stylesFor(color);
+  }
+
   private ensureStyles(): void {
     if (this.doc.getElementById(STYLE_ID)) return;
     const style = this.doc.createElement("style");
     style.id = STYLE_ID;
-    style.textContent = STYLES;
+    style.textContent = stylesFor(this.color);
     this.doc.head.appendChild(style);
   }
 }

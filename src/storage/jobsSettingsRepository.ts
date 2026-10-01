@@ -1,4 +1,5 @@
 import { DEFAULT_JOBS_SETTINGS, type JobCardAction, type JobsSettings } from "../models/jobsSettings";
+import { toHighlightColor } from "../linkedin/highlightPalette";
 
 export const JOBS_SETTINGS_STORAGE_KEY = "finder.jobsSettings.v1";
 
@@ -22,6 +23,10 @@ export async function loadJobsSettings(): Promise<JobsSettings> {
     keywordsText: typeof value.keywordsText === "string" ? value.keywordsText : DEFAULT_JOBS_SETTINGS.keywordsText,
     keywordAction: isJobCardAction(value.keywordAction) ? value.keywordAction : DEFAULT_JOBS_SETTINGS.keywordAction,
     caseInsensitive: typeof value.caseInsensitive === "boolean" ? value.caseInsensitive : DEFAULT_JOBS_SETTINGS.caseInsensitive,
+    appliedColor: toHighlightColor(value.appliedColor) ?? DEFAULT_JOBS_SETTINGS.appliedColor,
+    viewedColor: toHighlightColor(value.viewedColor) ?? DEFAULT_JOBS_SETTINGS.viewedColor,
+    savedColor: toHighlightColor(value.savedColor) ?? DEFAULT_JOBS_SETTINGS.savedColor,
+    keywordColor: toHighlightColor(value.keywordColor) ?? DEFAULT_JOBS_SETTINGS.keywordColor,
   };
 }
 

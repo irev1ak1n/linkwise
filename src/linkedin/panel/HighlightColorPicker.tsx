@@ -3,12 +3,13 @@ import { HIGHLIGHT_COLORS, HIGHLIGHT_SHADES, type HighlightColor } from "../high
 interface HighlightColorPickerProps {
   color: HighlightColor;
   onChange: (color: HighlightColor) => void;
+  label?: string;
 }
 
-export function HighlightColorPicker({ color, onChange }: HighlightColorPickerProps) {
+export function HighlightColorPicker({ color, onChange, label = "Highlight color" }: HighlightColorPickerProps) {
   return (
-    <div className="lw-colors" role="radiogroup" aria-label="Highlight color">
-      <span className="lw-colors__label">Highlight color</span>
+    <div className="lw-colors" role="radiogroup" aria-label={label}>
+      <span className="lw-colors__label">{label}</span>
       <span className="lw-colors__swatches">
         {HIGHLIGHT_COLORS.map((option) => (
           <button

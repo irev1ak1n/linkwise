@@ -1,3 +1,5 @@
+import { DEFAULT_HIGHLIGHT_COLOR, type HighlightColor } from "../linkedin/highlightPalette";
+
 export type JobCardAction = "none" | "hide" | "highlight";
 
 export interface JobsSettings {
@@ -7,6 +9,10 @@ export interface JobsSettings {
   keywordsText: string;
   keywordAction: JobCardAction;
   caseInsensitive: boolean;
+  appliedColor: HighlightColor;
+  viewedColor: HighlightColor;
+  savedColor: HighlightColor;
+  keywordColor: HighlightColor;
 }
 
 export const DEFAULT_JOBS_SETTINGS: JobsSettings = {
@@ -16,4 +22,8 @@ export const DEFAULT_JOBS_SETTINGS: JobsSettings = {
   keywordsText: "",
   keywordAction: "none",
   caseInsensitive: true,
+  appliedColor: DEFAULT_HIGHLIGHT_COLOR,
+  viewedColor: DEFAULT_HIGHLIGHT_COLOR,
+  savedColor: DEFAULT_HIGHLIGHT_COLOR,
+  keywordColor: DEFAULT_HIGHLIGHT_COLOR,
 };

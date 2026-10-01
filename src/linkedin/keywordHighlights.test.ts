@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KEYWORD_HIGHLIGHT, KeywordHighlighter, locateKeywords, parseKeywords } from "./keywordHighlights";
 import { QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
+import { HIGHLIGHT_SHADES } from "./highlightPalette";
 
 function fakeRegistry() {
   const entries = new Map<string, { ranges: Range[] }>();
@@ -116,5 +117,20 @@ describe("KeywordHighlighter", () => {
     expect(document.querySelectorAll("main section")[1]!.textContent).toBe(aboutText);
     expect(document.body.innerHTML).toBe(before);
     expect(document.head.querySelectorAll("style")).toHaveLength(2);
+  });
+
+  it("keeps the original amber by default and recolors matches in place", () => {
+    const { registry, entries } = fakeRegistry();
+    const keywords = new KeywordHighlighter(document, registry, factory);
+    keywords.render(["tsa"]);
+    const style = () => document.getElementById("lw-keyword-style")!.textContent!;
+    expect(style()).toContain("rgba(240, 180, 20, 0.32)");
+    const ranges = entries.get(KEYWORD_HIGHLIGHT)!.ranges;
+    const before = document.body.innerHTML;
+    keywords.setColor("green");
+    expect(style()).toContain(HIGHLIGHT_SHADES.green.fill);
+    expect(style()).toContain("dotted");
+    expect(entries.get(KEYWORD_HIGHLIGHT)!.ranges).toBe(ranges);
+    expect(document.body.innerHTML).toBe(before);
   });
 });

@@ -76,6 +76,7 @@ import { createSignalRuntime, isProfileSessionPage, signalTickInput } from "./si
 import { KeywordHighlighter, parseKeywords } from "./keywordHighlights";
 import { highlightKeywordsPreference } from "./panel/keywordPreference";
 import { highlightColorPreference } from "./panel/highlightColorPreference";
+import { keywordColorPreference } from "./panel/keywordColorPreference";
 import { SignalHighlighter } from "./signalHighlighter";
 import { getSignalModeState, initSignalModeStore, publishSignalAnalysis, subscribeSignalModeStore } from "./panel/signalModeStore";
 import { watchForContextInvalidation } from "./extensionContext";
@@ -776,6 +777,9 @@ registerCleanup(subscribeJobsSettingsStore(tick));
 
 highlightKeywordsPreference.init();
 registerCleanup(highlightKeywordsPreference.subscribe(scheduleKeywordPaint));
+
+keywordColorPreference.init();
+registerCleanup(keywordColorPreference.subscribe(() => keywordHighlighter.setColor(keywordColorPreference.getState().value)));
 
 highlightColorPreference.init();
 registerCleanup(highlightColorPreference.subscribe(() => signalHighlighter.setColor(highlightColorPreference.getState().value)));

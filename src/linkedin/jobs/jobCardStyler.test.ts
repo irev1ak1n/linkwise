@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { applyCardAction, ensureJobStylesInjected, getCardCurrentAction, restoreCard } from "./jobCardStyler";
+import { applyCardAction, ensureJobStylesInjected, getCardCurrentAction, getCardHighlightColor, restoreCard } from "./jobCardStyler";
 
 function freshCard(): HTMLElement {
   const li = document.createElement("li");
@@ -79,5 +79,29 @@ describe("ensureJobStylesInjected", () => {
     ensureJobStylesInjected(document);
     ensureJobStylesInjected(document);
     expect(document.querySelectorAll("#lw-jobs-style")).toHaveLength(1);
+  });
+});
+
+describe("highlight colors", () => {
+  it("marks a highlighted card with its color and clears it when no longer highlighted", () => {
+    const card = freshCard();
+    applyCardAction(card, "highlight", "coral");
+    expect(getCardHighlightColor(card)).toBe("coral");
+    applyCardAction(card, "highlight");
+    expect(getCardHighlightColor(card)).toBe("blue");
+    applyCardAction(card, "hide");
+    expect(getCardHighlightColor(card)).toBeNull();
+    applyCardAction(card, "highlight", "green");
+    restoreCard(card);
+    expect(card.hasAttribute("data-lw-highlight")).toBe(false);
+  });
+
+  it("styles every palette color with a readable outline and light background", () => {
+    document.getElementById("lw-jobs-style")?.remove();
+    ensureJobStylesInjected(document);
+    const css = document.getElementById("lw-jobs-style")!.textContent!;
+    for (const color of ["green", "mint", "purple", "violet", "blue", "coral", "orange", "yellow"]) {
+      expect(css).toContain(`.lw-job-highlight[data-lw-highlight="${color}"]`);
+    }
   });
 });

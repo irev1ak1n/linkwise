@@ -124,6 +124,41 @@ describe("processJobCards", () => {
   });
 });
 
+describe("processJobCards - highlight colors", () => {
+  beforeEach(() => {
+    document.head.innerHTML = "";
+  });
+
+  const color = (id: string) => document.querySelector(`[data-occludable-job-id="${id}"]`)?.getAttribute("data-lw-highlight");
+
+  it("gives applied, viewed, saved, and keyword matches their own colors", () => {
+    setBody(`<ul>${appliedCard("1", "A")}${stateCard("2", "B", "Viewed")}${stateCard("3", "C", "Saved")}${plainCard("4", "Senior D")}</ul>`);
+    processJobCards(
+      document,
+      settings({
+        appliedAction: "highlight",
+        viewedAction: "highlight",
+        savedAction: "highlight",
+        keywordsText: "Senior",
+        keywordAction: "highlight",
+        appliedColor: "coral",
+        viewedColor: "green",
+        savedColor: "violet",
+        keywordColor: "yellow",
+      }),
+    );
+    expect([color("1"), color("2"), color("3"), color("4")]).toEqual(["coral", "green", "violet", "yellow"]);
+  });
+
+  it("recolors an already highlighted card when its color changes", () => {
+    setBody(`<ul>${appliedCard("1", "Engineer")}</ul>`);
+    processJobCards(document, settings({ appliedAction: "highlight" }));
+    expect(color("1")).toBe("blue");
+    processJobCards(document, settings({ appliedAction: "highlight", appliedColor: "mint" }));
+    expect(color("1")).toBe("mint");
+  });
+});
+
 describe("restoreAllJobCards", () => {
   it("clears every LinkWise class from every card", () => {
     setBody(`<ul>${appliedCard("1", "A")}${plainCard("2", "B")}</ul>`);

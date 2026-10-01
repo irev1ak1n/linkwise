@@ -3,6 +3,7 @@
 // both on first run and when re-injected into a page with an orphaned instance already
 // running. React is mocked out since this is about DOM bootstrapping, not panel rendering.
 import type { LinkedInProfile } from "../models/profile";
+import { DEFAULT_JOBS_SETTINGS } from "../models/jobsSettings";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The first test pays for compiling the whole content-script module graph.
@@ -1897,12 +1898,18 @@ describe("content.ts bootstrap - Jobs filtering", () => {
     expect(document.querySelector('[data-occludable-job-id="1"]')?.classList.contains("lw-job-hidden")).toBe(true);
 
     const { setJobsSettings } = await import("./panel/jobsSettingsStore");
-    setJobsSettings({ appliedAction: "highlight", viewedAction: "none", savedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true });
+    setJobsSettings({ ...DEFAULT_JOBS_SETTINGS, appliedAction: "highlight" });
     await vi.advanceTimersByTimeAsync(3000);
 
     const card = document.querySelector('[data-occludable-job-id="1"]');
     expect(card?.classList.contains("lw-job-hidden")).toBe(false);
     expect(card?.classList.contains("lw-job-highlight")).toBe(true);
+    expect(card?.getAttribute("data-lw-highlight")).toBe("blue");
+
+    setJobsSettings({ ...DEFAULT_JOBS_SETTINGS, appliedAction: "highlight", appliedColor: "green" });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(card?.getAttribute("data-lw-highlight")).toBe("green");
+    expect(document.getElementById("lw-jobs-style")?.textContent).toContain('[data-lw-highlight="green"]');
   });
 
   it("do nothing restores normal appearance", async () => {
@@ -1917,7 +1924,7 @@ describe("content.ts bootstrap - Jobs filtering", () => {
     await vi.advanceTimersByTimeAsync(3000);
 
     const { setJobsSettings } = await import("./panel/jobsSettingsStore");
-    setJobsSettings({ appliedAction: "none", viewedAction: "none", savedAction: "none", keywordsText: "", keywordAction: "none", caseInsensitive: true });
+    setJobsSettings(DEFAULT_JOBS_SETTINGS);
     await vi.advanceTimersByTimeAsync(3000);
 
     expect(document.querySelector('[data-occludable-job-id="1"]')?.className).toBe("");
@@ -2193,6 +2200,19 @@ describe("content.ts bootstrap - keyword highlights", () => {
     main.innerHTML = `<section><h1>Someone Else</h1><p>Python mentor</p></section>`;
     await vi.advanceTimersByTimeAsync(200);
     expect(style()).toContain(HIGHLIGHT_SHADES.purple.fill);
+    expect(keywordRanges()).toEqual(["Python"]);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("uses the saved keyword color and recolors when it changes, with no request", async () => {
+    const { sendMessage } = await openProfile({ "finder.highlightKeywords.v1": "Python", "finder.keywordHighlightColor.v1": "coral" });
+    const { HIGHLIGHT_SHADES } = await import("./highlightPalette");
+    const style = () => document.getElementById("lw-keyword-style")?.textContent ?? "";
+    await vi.advanceTimersByTimeAsync(200);
+    expect(style()).toContain(HIGHLIGHT_SHADES.coral.fill);
+    const { keywordColorPreference } = await import("./panel/keywordColorPreference");
+    keywordColorPreference.set("mint");
+    expect(style()).toContain(HIGHLIGHT_SHADES.mint.fill);
     expect(keywordRanges()).toEqual(["Python"]);
     expect(sendMessage).not.toHaveBeenCalled();
   });

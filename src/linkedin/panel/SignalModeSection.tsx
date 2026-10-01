@@ -14,6 +14,8 @@ interface SignalModeSectionProps {
   onKeywordsChange: (keywords: string) => void;
   color: HighlightColor;
   onColorChange: (color: HighlightColor) => void;
+  keywordColor: HighlightColor;
+  onKeywordColorChange: (color: HighlightColor) => void;
   updatingSection?: string | null;
 }
 
@@ -48,7 +50,7 @@ function SignalStatus({ analysis, highlighted, updatingSection }: Pick<SignalMod
   );
 }
 
-export function SignalModeSection({ enabled, analysis, highlighted, onChange, keywords, onKeywordsChange, color, onColorChange, updatingSection }: SignalModeSectionProps) {
+export function SignalModeSection({ enabled, analysis, highlighted, onChange, keywords, onKeywordsChange, color, onColorChange, keywordColor, onKeywordColorChange, updatingSection }: SignalModeSectionProps) {
   return (
     <div className="lw-signals">
       <label className="lw-signals__toggle">
@@ -59,7 +61,7 @@ export function SignalModeSection({ enabled, analysis, highlighted, onChange, ke
       </label>
       {enabled && <HighlightColorPicker color={color} onChange={onColorChange} />}
       {enabled && <SignalStatus analysis={analysis} highlighted={highlighted} updatingSection={updatingSection} />}
-      <KeywordInput value={keywords} onChange={onKeywordsChange} />
+      <KeywordInput value={keywords} onChange={onKeywordsChange} color={keywordColor} onColorChange={onKeywordColorChange} />
     </div>
   );
 }

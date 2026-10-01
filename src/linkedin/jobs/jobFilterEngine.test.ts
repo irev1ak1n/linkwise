@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decideCardAction, type CardEvidence, type JobFilterRules } from "./jobFilterEngine";
+import { decideCardAction, highlightColorFor, type CardEvidence, type JobFilterRules } from "./jobFilterEngine";
+import { DEFAULT_JOBS_SETTINGS } from "../../models/jobsSettings";
 
 function evidence(overrides: Partial<CardEvidence> = {}): CardEvidence {
   return { applied: false, viewed: false, saved: false, matchedKeyword: null, ...overrides };
@@ -49,5 +50,35 @@ describe("decideCardAction", () => {
     expect(
       decideCardAction(evidence({ viewed: true, saved: true, matchedKeyword: "Senior" }), rules({ viewedAction: "highlight", savedAction: "highlight", keywordAction: "highlight" })),
     ).toBe("highlight");
+  });
+});
+
+describe("highlightColorFor", () => {
+  const settings = {
+    ...DEFAULT_JOBS_SETTINGS,
+    appliedAction: "highlight" as const,
+    viewedAction: "highlight" as const,
+    savedAction: "highlight" as const,
+    keywordAction: "highlight" as const,
+    appliedColor: "coral" as const,
+    viewedColor: "green" as const,
+    savedColor: "violet" as const,
+    keywordColor: "yellow" as const,
+  };
+
+  it("uses each status's own color", () => {
+    expect(highlightColorFor(evidence({ applied: true }), settings)).toBe("coral");
+    expect(highlightColorFor(evidence({ viewed: true }), settings)).toBe("green");
+    expect(highlightColorFor(evidence({ saved: true }), settings)).toBe("violet");
+    expect(highlightColorFor(evidence({ matchedKeyword: "Senior" }), settings)).toBe("yellow");
+  });
+
+  it("picks applied, then viewed, then saved, then keyword when several highlight one card", () => {
+    expect(highlightColorFor(evidence({ viewed: true, saved: true, matchedKeyword: "Senior" }), settings)).toBe("green");
+    expect(highlightColorFor(evidence({ saved: true, matchedKeyword: "Senior" }), settings)).toBe("violet");
+  });
+
+  it("ignores a matching status that does not highlight", () => {
+    expect(highlightColorFor(evidence({ applied: true, matchedKeyword: "Senior" }), { ...settings, appliedAction: "none" })).toBe("yellow");
   });
 });

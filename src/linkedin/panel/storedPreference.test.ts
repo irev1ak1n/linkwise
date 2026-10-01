@@ -116,3 +116,25 @@ describe("highlightColorPreference", () => {
     expect(toHighlightColor(3)).toBeUndefined();
   });
 });
+
+describe("keywordColorPreference", () => {
+  async function freshPreference() {
+    vi.resetModules();
+    const { keywordColorPreference } = await import("./keywordColorPreference");
+    keywordColorPreference.init();
+    await vi.waitFor(() => expect(keywordColorPreference.getState().loaded).toBe(true));
+    return keywordColorPreference;
+  }
+
+  it("defaults to the original amber and keeps a chosen color", async () => {
+    expect((await freshPreference()).getState().value).toBe("orange");
+    (await freshPreference()).set("green");
+    await vi.waitFor(() => expect(data["finder.keywordHighlightColor.v1"]).toBe("green"));
+    expect((await freshPreference()).getState().value).toBe("green");
+  });
+
+  it("falls back to amber for an unknown stored color", async () => {
+    data["finder.keywordHighlightColor.v1"] = "neon";
+    expect((await freshPreference()).getState().value).toBe("orange");
+  });
+});
