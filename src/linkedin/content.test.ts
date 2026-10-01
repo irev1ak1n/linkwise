@@ -1323,6 +1323,106 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     }
   });
 
+  it("Auto scan waits for a slow return to actually reach the top before analyzing", async () => {
+    restoreHeight();
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test", reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.goals.v1": [{ id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Anything", importance: "PREFERRED" }] }],
+      }),
+    });
+    setMainProfilePage();
+    document.querySelector("main")!.insertAdjacentHTML("beforeend", "<section><h2>Education</h2><ul><li><p>State University</p><p>BS Computer Science</p></li></ul></section>");
+    const page = stubScrollingPage(4000);
+    try {
+      await import("./content");
+      const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
+      const main = document.querySelector("main")!;
+      let arrivedAt: number | null = null;
+      const settledAt: number[] = [];
+      subscribePanelProfileData(() => {
+        if (getPanelProfileData().collection?.status === "settled") settledAt.push(Date.now());
+      });
+      Object.defineProperty(main, "scrollTo", {
+        configurable: true,
+        value: () => {
+          setTimeout(() => {
+            main.scrollTop = 0;
+            arrivedAt = Date.now();
+            main.insertAdjacentHTML("afterbegin", "<section><h2>About</h2><p>Builds websites for student clubs.</p></section>");
+          }, 2000);
+        },
+      });
+      await vi.advanceTimersByTimeAsync(40000);
+      expect(arrivedAt).not.toBeNull();
+      expect(settledAt.length).toBeGreaterThan(0);
+      expect(settledAt.every((at) => at >= arrivedAt! + 2500)).toBe(true);
+      expect(getPanelProfileData().profile?.about).toContain("Builds websites");
+    } finally {
+      page.restore();
+      restoreHeight = stubRenderedPageHeight();
+    }
+  });
+
+  it("Auto scan returns to the top once, reads it again, then analyzes once and stays there", async () => {
+    restoreHeight();
+    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
+    vi.stubGlobal("chrome", {
+      runtime: { id: "test", reload: vi.fn() },
+      storage: installFakeChromeStorage({
+        "finder.scanMode.v1": "auto",
+        "finder.goals.v1": [{ id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Anything", importance: "PREFERRED" }] }],
+      }),
+    });
+    setMainProfilePage();
+    document.querySelector("main")!.insertAdjacentHTML("beforeend", "<section><h2>Education</h2><ul><li><p>State University</p><p>BS Computer Science</p></li></ul></section>");
+    const page = stubScrollingPage(4000);
+    try {
+      await import("./content");
+      const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
+      const { autoScroller } = await import("./autoScroller");
+      const main = document.querySelector("main")!;
+      const settledPublishes: unknown[] = [];
+      subscribePanelProfileData(() => {
+        if (getPanelProfileData().collection?.status === "settled") settledPublishes.push(getPanelProfileData().profile);
+      });
+      const returns: { options: ScrollToOptions; settled: boolean }[] = [];
+      Object.defineProperty(main, "scrollTo", {
+        configurable: true,
+        value: (options: ScrollToOptions) => {
+          returns.push({ options, settled: getPanelProfileData().collection?.status === "settled" });
+          main.scrollTop = options.top ?? main.scrollTop;
+          // LinkedIn renders some top sections only once the page is back near them.
+          main.insertAdjacentHTML("afterbegin", "<section><h2>About</h2><p>Builds websites for student clubs.</p></section>");
+        },
+      });
+      let lowest = 0;
+      main.addEventListener("scroll", () => {
+        if (autoScroller.getState().status === "running") lowest = main.scrollTop;
+      });
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(lowest).toBeGreaterThanOrEqual(3000);
+      expect(autoScroller.getState()).toMatchObject({ status: "complete", pausedBy: null });
+      expect(returns).toEqual([{ options: { top: 0, behavior: "smooth" }, settled: false }]);
+      expect(main.scrollTop).toBe(0);
+
+      const writes = page.writes.length;
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(page.writes.length).toBe(writes);
+      expect(returns).toHaveLength(1);
+      expect(main.scrollTop).toBe(0);
+      expect(autoScroller.getState().status).toBe("complete");
+      expect(getPanelProfileData().collection?.status).toBe("settled");
+      expect(getPanelProfileData().profile?.about).toContain("Builds websites");
+      expect(new Set(settledPublishes).size).toBe(1);
+    } finally {
+      page.restore();
+      restoreHeight = stubRenderedPageHeight();
+    }
+  });
+
   it("turning Enhanced analysis on after the main page already settled starts the crawler without discarding its evidence", async () => {
     const { assign } = stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
     vi.stubGlobal("chrome", {
@@ -1665,6 +1765,8 @@ describe("content.ts bootstrap - Auto scroll profile", () => {
     page.restore();
     page = stubScrollingPage(1400);
     const { autoScroller, main } = await startMain();
+    const scrollTo = vi.fn();
+    Object.defineProperty(main, "scrollTo", { configurable: true, value: scrollTo });
     await vi.advanceTimersByTimeAsync(20000);
     expect(autoScroller.getState().status).toBe("complete");
     const bottom = main.scrollTop;
@@ -1672,6 +1774,7 @@ describe("content.ts bootstrap - Auto scroll profile", () => {
     await vi.advanceTimersByTimeAsync(20000);
     expect(main.scrollTop).toBe(bottom);
     expect(page.writes.every((delta) => delta >= 0)).toBe(true);
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it("publishes a detail page's new evidence as soon as the reader takes over", async () => {

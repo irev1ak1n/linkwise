@@ -174,8 +174,57 @@ function noteUserScroll(): void {
   }, TAKEOVER_IDLE_MS + 50);
 }
 
+// Auto scan finishes back at the top and reads it once more before analyzing: LinkedIn renders
+// some top sections (often About) late, after the fast scan has already passed them. Auto scroll
+// is for reading, so it stays where it finished.
+const TOP_REREAD_MS = 2500;
+// A smooth return from far down takes a moment; if the reader scrolls elsewhere meanwhile, the
+// re-read stops waiting for the top after this long.
+const RETURN_TIMEOUT_MS = 3000;
+const TOP_TOLERANCE_PX = 4;
+let returnedToTop: { target: string; requestedAt: number; arrivedAt: number | null } | null = null;
+let topRereadHandle: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleTopReread(delayMs: number): void {
+  if (topRereadHandle) clearTimeout(topRereadHandle);
+  topRereadHandle = setTimeout(() => {
+    topRereadHandle = null;
+    if (!torndown) tick();
+  }, delayMs + 50);
+}
+
+function finishedAutoScanHere(): boolean {
+  const { status, strategy, target } = autoScroller.getState();
+  return status === "complete" && strategy === "steps" && target === pageTarget();
+}
+
+function returnToTopAfterAutoScan(): void {
+  if (autoScroller.getState().status === "running") returnedToTop = null;
+  if (!finishedAutoScanHere() || returnedToTop?.target === pageTarget()) return;
+  returnedToTop = { target: pageTarget(), requestedAt: Date.now(), arrivedAt: null };
+  const container = findScrollContainer();
+  if (typeof container.scrollTo === "function") container.scrollTo({ top: 0, behavior: "smooth" });
+  else container.scrollTop = 0;
+  scheduleTopReread(0);
+}
+
+function rereadingTop(): boolean {
+  if (!finishedAutoScanHere()) return false;
+  if (returnedToTop?.target !== pageTarget()) return true;
+  const now = Date.now();
+  if (returnedToTop.arrivedAt === null) {
+    if (findScrollContainer().scrollTop <= TOP_TOLERANCE_PX) returnedToTop.arrivedAt = now;
+    else if (now - returnedToTop.requestedAt < RETURN_TIMEOUT_MS) {
+      scheduleTopReread(250);
+      return true;
+    } else returnedToTop.arrivedAt = returnedToTop.requestedAt + RETURN_TIMEOUT_MS;
+    scheduleTopReread(TOP_REREAD_MS);
+  }
+  return now - returnedToTop.arrivedAt < TOP_REREAD_MS;
+}
+
 function reachedEndOfScan(): boolean {
-  return isPageScrollable() && !scanIsActive() && (isNearDocumentEnd() || autoScroller.getState().status === "complete");
+  return isPageScrollable() && !scanIsActive() && !rereadingTop() && (isNearDocumentEnd() || autoScroller.getState().status === "complete");
 }
 
 let pageSeen: { target: string; at: number } | null = null;
@@ -189,7 +238,7 @@ function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
   if (foundSections(profile).length === 0) return false;
   if (!isAutomaticScan(getScanModeState().mode)) return true;
   if (manualTakeover()) return Date.now() - lastUserScrollAt >= TAKEOVER_IDLE_MS;
-  if (scanIsActive()) return false;
+  if (scanIsActive() || rereadingTop()) return false;
   const stalled = !isPageScrollable() && pageSeen !== null && Date.now() - pageSeen.at >= UNSCROLLABLE_GRACE_MS;
   return selectActiveGoal(getGoalStoreState()) === null || stalled;
 }
@@ -618,6 +667,7 @@ function tick(): void {
 
   const profileKey = engine.getProfileKey();
   if (profileKey === null) return;
+  returnToTopAfterAutoScan();
 
   const coverage = deriveScanCoverage(engine.getCollectionState());
 
