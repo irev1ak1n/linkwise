@@ -135,12 +135,19 @@ const MAX_IDENTITY_CARD_TEXT_LENGTH = 3000;
 
 // The name heading's ancestor that also has the headline/location. .closest("section") isn't
 // reliable here, so this walks up until the text grows meaningfully past just the name.
+// Links and buttons don't count, so an owner-only prompt like "Verify in 2 minutes" beside the name
+// doesn't pass for the headline.
+function plainTextLength(node: HTMLElement): number {
+  const interactive = Array.from(node.querySelectorAll("a, button")).filter((el) => !el.parentElement?.closest("a, button"));
+  return (node.textContent ?? "").trim().length - interactive.reduce((sum, el) => sum + (el.textContent ?? "").trim().length, 0);
+}
+
 function findIdentityCardContainer(heading: HTMLElement): HTMLElement | null {
   const nameLength = (heading.textContent ?? "").trim().length;
   let node: HTMLElement | null = heading.parentElement;
   let depth = 0;
   while (node && depth < MAX_IDENTITY_CARD_WALK) {
-    const textLength = (node.textContent ?? "").trim().length;
+    const textLength = plainTextLength(node);
     if (textLength > nameLength + 15 && textLength < MAX_IDENTITY_CARD_TEXT_LENGTH) return node;
     node = node.parentElement;
     depth++;

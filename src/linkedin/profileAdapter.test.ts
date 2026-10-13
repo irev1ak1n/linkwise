@@ -203,6 +203,23 @@ describe("extractLinkedInProfile - full profile", () => {
     expect(profile.headline).toBe("Mechanical Engineering Student | University of Michigan");
   });
 
+  it("reads the headline past an owner-only prompt beside the name", () => {
+    setBody(`
+      <main role="main">
+        <section>
+          <div>
+            <div><h2>Jordan Rivera</h2><a href="/verify">Verify in 2 minutes</a></div>
+            <p>Student developer | Robotics Club</p>
+            <p>Austin, Texas, United States</p>
+          </div>
+        </section>
+      </main>
+    `);
+    const profile = extractLinkedInProfile(document);
+    expect(profile.headline).toBe("Student developer | Robotics Club");
+    expect(profile.location).toBe("Austin, Texas, United States");
+  });
+
   it("never doubles text that has both an aria-hidden copy and a screen-reader-only copy", () => {
     setBody(`
       <main role="main">
