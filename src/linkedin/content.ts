@@ -30,7 +30,15 @@
 import { EMPTY_PROFILE, foundSections, type LinkedInProfile } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
 import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
-import { detailsPageSection, detectProfileSections, extractDetailsPageProfile, extractLinkedInProfile, normalizeProfileUrl, profileIdentityKey } from "./profileAdapter";
+import {
+  detailsPageSection,
+  detectProfileSections,
+  extractDetailsPageProfile,
+  extractLinkedInProfile,
+  extractProfileShell,
+  normalizeProfileUrl,
+  profileIdentityKey,
+} from "./profileAdapter";
 import { discoverProfileSections, excludeFromAutoScanQueue } from "./sectionDiscovery";
 import { mergeProfileEvidence, sameEvidence } from "./profileEvidenceAccumulator";
 import {
@@ -63,6 +71,8 @@ import { computeAnalysisCacheKey } from "../ai/analysisCacheKey";
 import { buildAnalyzeProfileRequest } from "../ai/buildAnalyzeRequest";
 import { scoreProfileAgainstGoal } from "../matching/scoreProfile";
 import { hydrateSignalCache } from "../ai/signalAnalysisController";
+import { hydrateOptimizerCache } from "../optimizer/optimizerController";
+import { recordProfileShell, setProfileShell } from "../optimizer/profileShellStore";
 import { expandSeeMoreToggles } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
@@ -589,6 +599,14 @@ function tickSignals(): void {
   signalRuntime.tick(signalTickInput(getSignalModeState().enabled, location.href, getPanelProfileData()));
 }
 
+// Photo, banner, and section headings only exist on the main profile page, so details pages keep
+// the last main-page reading.
+function publishProfileShell(): void {
+  const profileKey = profileIdentityKey(location.href);
+  if (profileKey === null) setProfileShell(null);
+  else if (!/\/(details|edit)\//.test(location.href)) recordProfileShell(profileKey, extractProfileShell(document), false);
+}
+
 function tick(): void {
   if (torndown) return;
   const target = pageTarget();
@@ -601,6 +619,7 @@ function tick(): void {
   ensureLinkWiseOpener(togglePanel);
   runJobsTick(location.href, getJobsSettingsState().settings);
   tickSignals();
+  publishProfileShell();
   scheduleKeywordPaint();
   if (!getScanModeState().loaded) return;
   const urlProfileKey = profileIdentityKey(location.href);
@@ -703,6 +722,7 @@ registerCleanup(subscribeExpandDetailsStore(tick));
 
 void hydrateAnalysisCache();
 void hydrateSignalCache();
+void hydrateOptimizerCache();
 initManualSectionsStore();
 autoExpandPreference.init();
 initEnhancedAnalysisStore();

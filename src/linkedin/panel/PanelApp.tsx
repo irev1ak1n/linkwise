@@ -24,6 +24,13 @@ import { ScanningView } from "./ScanningView";
 import { LoadingView } from "./LoadingView";
 import { AnalysisView } from "./AnalysisView";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
+import { OptimizerView } from "../../optimizer/OptimizerView";
+import { panelToolPreference, type PanelTool } from "../../optimizer/optimizerPreferences";
+
+const TOOLS: { tool: PanelTool; label: string }[] = [
+  { tool: "analyzer", label: "Profile Analyzer" },
+  { tool: "optimizer", label: "Profile Optimizer" },
+];
 
 interface PanelAppProps {
   onClose: () => void;
@@ -48,6 +55,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { value: keywordColor } = useStoredPreference(keywordColorPreference);
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
+  const { value: tool } = useStoredPreference(panelToolPreference);
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
@@ -66,7 +74,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   // Memoized so this stays reference-stable, an unstable one would re-trigger AI on every render.
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
 
-  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal);
+  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && tool === "analyzer");
 
   function handleAnalyzeNow(): void {
     if (!profileKey) return;
@@ -113,7 +121,23 @@ export function PanelApp({ onClose }: PanelAppProps) {
         </button>
       </header>
       <div className="lw-panel__body">
-        {!goalsLoaded ? (
+        <div className="lw-scan-mode__control" role="tablist" aria-label="LinkWise tool">
+          {TOOLS.map((option) => (
+            <button
+              key={option.tool}
+              type="button"
+              role="tab"
+              aria-selected={tool === option.tool}
+              className={`lw-scan-mode__option${tool === option.tool ? " is-active" : ""}`}
+              onClick={() => panelToolPreference.set(option.tool)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        {tool === "optimizer" ? (
+          <OptimizerView profileKey={profileKey} profile={profile} isFinal={isFinal} onAnalyzeNow={handleAnalyzeNow} />
+        ) : !goalsLoaded ? (
           <p className="lw-empty">Loading your goals…</p>
         ) : (
           <>

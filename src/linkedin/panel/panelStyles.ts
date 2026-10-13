@@ -639,5 +639,97 @@ export function getPanelStyles(widthPx: number): string {
     color: #56687a;
     cursor: pointer;
   }
+
+  .lw-optimizer,
+  .lw-optimizer__result,
+  .lw-optimizer__context,
+  .lw-optimizer__reading,
+  .lw-optimizer__error,
+  .lw-optimizer__draft {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .lw-optimizer {
+    gap: 14px;
+  }
+  .lw-optimizer__score {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .lw-optimizer__score-value {
+    font-size: 30px;
+    font-weight: 700;
+    color: #0a66c2;
+  }
+  .lw-optimizer__score-label {
+    color: #56687a;
+  }
+  .lw-optimizer__summary {
+    margin: 0;
+    color: #38434f;
+  }
+  .lw-optimizer__rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lw-optimizer__row {
+    border: 1px solid #e4e9ed;
+    border-radius: 8px;
+  }
+  .lw-optimizer__row-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    font: inherit;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+  .lw-optimizer__row-label {
+    flex: 1;
+    font-weight: 600;
+  }
+  .lw-optimizer__badge,
+  .lw-optimizer__impact {
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 1px 8px;
+    white-space: nowrap;
+  }
+  .lw-optimizer__badge.is-add { background: #fff4e5; color: #915907; }
+  .lw-optimizer__badge.is-improve { background: #eaf3fc; color: #0a66c2; }
+  .lw-optimizer__badge.is-strong { background: #e6f4ea; color: #1e7b34; }
+  .lw-optimizer__impact { color: #56687a; background: #f0f2f5; }
+  .lw-optimizer__impact.is-high { color: #b24020; background: #fdecea; }
+  .lw-optimizer__details {
+    padding: 0 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lw-optimizer__details p {
+    margin: 0;
+  }
+  .lw-optimizer__suggestions {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .lw-optimizer__source {
+    font-size: 11px;
+    color: #56687a;
+  }
+  .lw-optimizer__source.is-user_context {
+    color: #915907;
+  }
 `;
 }

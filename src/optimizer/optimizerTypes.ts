@@ -20,3 +20,21 @@ export interface OptimizerResultDTO {
   summary: string;
   sections: SectionAssessmentDTO[];
 }
+
+export type OptimizeProfileApiResponse =
+  | ({ status: "optimizer"; model: string } & OptimizerResultDTO)
+  | { status: "not_configured" }
+  | { status: "unavailable"; reason: string }
+  | { status: "invalid_request"; message: string };
+
+export type OptimizerOutcome = { status: "ok"; result: OptimizerResultDTO } | { status: "unavailable"; reason: string };
+
+export type DraftSection = "headline" | "about" | "experience";
+
+export type OptimizerDraftApiResponse =
+  | { status: "draft"; model: string; section: DraftSection; draft: string }
+  | { status: "not_configured" }
+  | { status: "unavailable"; reason: string }
+  | { status: "invalid_request"; message: string };
+
+export type DraftOutcome = { status: "ok"; draft: string } | { status: "unavailable"; reason: string };

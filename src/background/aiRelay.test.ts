@@ -7,6 +7,9 @@ import {
   LINKWISE_CANCEL_GENERATE_CRITERIA,
   LINKWISE_ANALYZE_SIGNALS,
   LINKWISE_CANCEL_SIGNALS,
+  LINKWISE_OPTIMIZE_PROFILE,
+  LINKWISE_OPTIMIZER_DRAFT,
+  LINKWISE_CANCEL_OPTIMIZE,
 } from "./aiRelay";
 
 type Listener = (message: unknown, sender: unknown, sendResponse: (response?: unknown) => void) => boolean | void;
@@ -191,5 +194,23 @@ describe("installAiRelay - analyze-signals proxy", () => {
     installAiRelay(fetchImpl as unknown as typeof fetch);
     expect(fake.listener({ type: "toString", requestId: "x", payload: {} }, {}, vi.fn())).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe("installAiRelay - profile optimizer", () => {
+  it("routes optimizer and draft requests to their endpoints, and cancels them", () => {
+    const fake = installFakeChromeRuntime();
+    const signals: AbortSignal[] = [];
+    const fetchImpl = vi.fn((_url: string, init: RequestInit) => {
+      signals.push(init.signal!);
+      return new Promise(() => {});
+    });
+    installAiRelay(fetchImpl as unknown as typeof fetch);
+
+    fake.listener({ type: LINKWISE_OPTIMIZE_PROFILE, requestId: "o1", payload: {} }, {}, vi.fn());
+    fake.listener({ type: LINKWISE_OPTIMIZER_DRAFT, requestId: "d1", payload: {} }, {}, vi.fn());
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([expect.stringContaining("/api/optimize-profile"), expect.stringContaining("/api/optimizer-draft")]);
+    fake.listener({ type: LINKWISE_CANCEL_OPTIMIZE, requestId: "o1" }, {}, vi.fn());
+    expect(signals.map((s) => s.aborted)).toEqual([true, false]);
   });
 });

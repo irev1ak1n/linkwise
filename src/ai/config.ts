@@ -13,3 +13,11 @@ export function generateCriteriaEndpoint(): string {
 export function analyzeSignalsEndpoint(): string {
   return `${LINKWISE_API_BASE_URL}/api/analyze-signals`;
 }
+
+export function optimizeProfileEndpoint(): string {
+  return `${LINKWISE_API_BASE_URL}/api/optimize-profile`;
+}
+
+export function optimizerDraftEndpoint(): string {
+  return `${LINKWISE_API_BASE_URL}/api/optimizer-draft`;
+}
