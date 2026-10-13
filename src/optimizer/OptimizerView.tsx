@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { LinkedInProfile } from "../models/profile";
 import { useStoredPreference } from "../linkedin/panel/useStoredPreference";
 import { LoadingView } from "../linkedin/panel/LoadingView";
 import { getProfileShell, subscribeProfileShell } from "./profileShellStore";
 import { optimizerContextPreference } from "./optimizerPreferences";
-import { OptimizerController, type OptimizerReady, type OptimizerViewState } from "./optimizerController";
+import { OptimizerController, buildOptimizerRequest, type OptimizerReady, type OptimizerViewState } from "./optimizerController";
 import { requestOptimizerDraft } from "./optimizerClient";
 import { readWholeProfile } from "./profileReader";
+import { getOptimizerPage, subscribeOptimizerPage } from "./optimizerNav";
+import { SectionCards, SectionPage, type SectionContext } from "./SectionPages";
+import { HeadlineGenerator } from "./HeadlineGenerator";
+import { copyText } from "./copyText";
 import { sectionInfo } from "./sections";
 import type { DraftSection, OptimizerImpact, OptimizerSource, OptimizerState, SectionAssessmentDTO } from "./optimizerTypes";
 
@@ -65,12 +69,52 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   }, [ready, profileKey, profile, shell, userContext]);
   useEffect(() => () => controllerRef.current?.reset(), []);
 
+  const page = useSyncExternalStore(subscribeOptimizerPage, getOptimizerPage, getOptimizerPage);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const homeScroll = useRef(0);
+  const lastPage = useRef(page);
+  // Returning home restores where the list was; a detail page starts at its top.
+  useLayoutEffect(() => {
+    const scroller = rootRef.current?.closest(".lw-panel__body");
+    if (!scroller) return;
+    if (lastPage.current !== page) {
+      scroller.scrollTop = page.name === "home" ? homeScroll.current : 0;
+      lastPage.current = page;
+    }
+    if (page.name !== "home") return;
+    const remember = () => (homeScroll.current = scroller.scrollTop);
+    scroller.addEventListener("scroll", remember, { passive: true });
+    return () => scroller.removeEventListener("scroll", remember);
+  }, [page, shell !== null && profile !== null]);
+
+  const body = useMemo(
+    () => (ready ? buildOptimizerRequest({ profileKey: profileKey!, profile: profile!, shell: shell!, userContext }) : null),
+    [ready, profileKey, profile, shell, userContext],
+  );
+
   if (profileKey === null || (shell !== null && !shell.isOwnProfile)) return <p className="lw-empty">{NOT_OWN_PROFILE_MESSAGE}</p>;
   if (!shell || !profile) return <p className="lw-empty">Loading profile…</p>;
 
+  const context: SectionContext = { shell, profile, body, overall: state.status === "ready" ? state.result.sections : [] };
+  if (page.name === "section") {
+    return (
+      <div className="lw-optimizer" ref={rootRef}>
+        <SectionPage key={page.section} section={page.section} context={context} />
+      </div>
+    );
+  }
+  if (page.name === "generate") {
+    return (
+      <div className="lw-optimizer" ref={rootRef}>
+        <HeadlineGenerator body={body} currentHeadline={profile.headline ?? ""} />
+      </div>
+    );
+  }
+
   return (
-    <div className="lw-optimizer">
+    <div className="lw-optimizer" ref={rootRef}>
       <ContextInput committed={userContext} />
+      {pageRead && <SectionCards context={context} />}
       {!pageRead ? (
         <LoadingView label="Reading every section of your profile…" />
       ) : !isFinal ? (
@@ -261,7 +305,7 @@ function DraftBox({ ready, assessment, section, evidenceId, userContext, label }
         <>
           <textarea className="lw-keywords__input" readOnly rows={section === "headline" ? 2 : 8} value={draft.draft} />
           <p className="lw-scan-mode__hint">A draft for you to review. LinkWise never changes your profile.</p>
-          <button type="button" className="lw-button lw-button--secondary" onClick={() => void navigator.clipboard?.writeText(draft.draft)}>
+          <button type="button" className="lw-button lw-button--secondary" onClick={() => void copyText(draft.draft)}>
             Copy draft
           </button>
         </>

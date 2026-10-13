@@ -38,3 +38,34 @@ export type OptimizerDraftApiResponse =
   | { status: "invalid_request"; message: string };
 
 export type DraftOutcome = { status: "ok"; draft: string } | { status: "unavailable"; reason: string };
+
+export type SectionAnalysisState = "strong" | "improve" | "missing";
+export type HeadlineAspect = "role" | "skills" | "keywords" | "specificity" | "focus" | "differentiation" | "readability" | "accuracy";
+
+export interface SectionAnalysisDTO {
+  state: SectionAnalysisState;
+  summary: string;
+  findings: { aspect: HeadlineAspect; verdict: "good" | "improve"; note: string }[];
+  ideas: string[];
+}
+
+export type SectionAnalysisApiResponse =
+  | ({ status: "section"; model: string; section: string } & SectionAnalysisDTO)
+  | { status: "not_configured" }
+  | { status: "unavailable"; reason: string }
+  | { status: "invalid_request"; message: string };
+
+export type SectionAnalysisOutcome = { status: "ok"; analysis: SectionAnalysisDTO } | { status: "unavailable"; reason: string };
+
+export interface HeadlineOption {
+  label: string;
+  headline: string;
+}
+
+export type HeadlineOptionsApiResponse =
+  | { status: "headlines"; model: string; options: HeadlineOption[] }
+  | { status: "not_configured" }
+  | { status: "unavailable"; reason: string }
+  | { status: "invalid_request"; message: string };
+
+export type HeadlineOptionsOutcome = { status: "ok"; options: HeadlineOption[] } | { status: "unavailable"; reason: string };

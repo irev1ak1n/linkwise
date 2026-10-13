@@ -635,6 +635,24 @@ export function extractProfileShell(doc: Document = document): ProfileShell {
   };
 }
 
+export type TopCardPart = "photo" | "banner" | "headline";
+
+// The viewer's own top-card element for a part, and LinkedIn's own control for editing it.
+export function findTopCardPart(part: TopCardPart, doc: Document = document): { element: HTMLElement | null; editControl: HTMLElement | null } {
+  const main = findMain(doc);
+  const editIntro = main.querySelector<HTMLElement>('a[href*="/edit/intro/"]');
+  if (part === "photo") {
+    const image = main.querySelector<HTMLElement>('img[src*="profile-displayphoto"], img[src*="profile-framedphoto"]');
+    return { element: image, editControl: image?.closest<HTMLElement>("a, button") ?? editIntro };
+  }
+  if (part === "banner") {
+    const image = main.querySelector<HTMLElement>('img[src*="profile-displaybackgroundimage"]');
+    const control = main.querySelector<HTMLElement>('button[aria-label*="background" i], button[aria-label*="cover" i]');
+    return { element: image ?? control, editControl: control ?? editIntro };
+  }
+  return { element: findIdentityHeading(main), editControl: editIntro };
+}
+
 // A stable profile identity, the vanity-slug path segment, never the full URL with its
 // volatile tracking params. Null when the URL isn't a profile page. Matches a "/details/..."
 // page the same as the main profile, since both share the same "/in/{slug}" prefix.

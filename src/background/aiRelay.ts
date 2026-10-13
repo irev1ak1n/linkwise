@@ -1,7 +1,7 @@
 // The background worker's half of the content-script/backend bridge. Relays the actual HTTP
 // request and supports cancelling it by ID, since messaging can't carry a real AbortSignal.
 // Handles both the analysis and criteria-generation endpoints.
-import { analyzeProfileEndpoint, analyzeSignalsEndpoint, generateCriteriaEndpoint, optimizeProfileEndpoint, optimizerDraftEndpoint } from "../ai/config";
+import { analyzeProfileEndpoint, analyzeSignalsEndpoint, generateCriteriaEndpoint, optimizeProfileEndpoint, optimizerDraftEndpoint, optimizerHeadlinesEndpoint, optimizerSectionEndpoint } from "../ai/config";
 
 export const LINKWISE_ANALYZE_PROFILE = "LINKWISE_ANALYZE_PROFILE";
 export const LINKWISE_CANCEL_ANALYSIS = "LINKWISE_CANCEL_ANALYSIS";
@@ -13,6 +13,10 @@ export const LINKWISE_OPTIMIZE_PROFILE = "LINKWISE_OPTIMIZE_PROFILE";
 export const LINKWISE_CANCEL_OPTIMIZE = "LINKWISE_CANCEL_OPTIMIZE";
 export const LINKWISE_OPTIMIZER_DRAFT = "LINKWISE_OPTIMIZER_DRAFT";
 export const LINKWISE_CANCEL_OPTIMIZER_DRAFT = "LINKWISE_CANCEL_OPTIMIZER_DRAFT";
+export const LINKWISE_OPTIMIZER_SECTION = "LINKWISE_OPTIMIZER_SECTION";
+export const LINKWISE_CANCEL_OPTIMIZER_SECTION = "LINKWISE_CANCEL_OPTIMIZER_SECTION";
+export const LINKWISE_OPTIMIZER_HEADLINES = "LINKWISE_OPTIMIZER_HEADLINES";
+export const LINKWISE_CANCEL_OPTIMIZER_HEADLINES = "LINKWISE_CANCEL_OPTIMIZER_HEADLINES";
 
 const ENDPOINTS: Record<string, () => string> = {
   [LINKWISE_ANALYZE_PROFILE]: analyzeProfileEndpoint,
@@ -20,6 +24,8 @@ const ENDPOINTS: Record<string, () => string> = {
   [LINKWISE_ANALYZE_SIGNALS]: analyzeSignalsEndpoint,
   [LINKWISE_OPTIMIZE_PROFILE]: optimizeProfileEndpoint,
   [LINKWISE_OPTIMIZER_DRAFT]: optimizerDraftEndpoint,
+  [LINKWISE_OPTIMIZER_SECTION]: optimizerSectionEndpoint,
+  [LINKWISE_OPTIMIZER_HEADLINES]: optimizerHeadlinesEndpoint,
 };
 
 const CANCEL_TYPES = new Set([
@@ -28,6 +34,8 @@ const CANCEL_TYPES = new Set([
   LINKWISE_CANCEL_SIGNALS,
   LINKWISE_CANCEL_OPTIMIZE,
   LINKWISE_CANCEL_OPTIMIZER_DRAFT,
+  LINKWISE_CANCEL_OPTIMIZER_SECTION,
+  LINKWISE_CANCEL_OPTIMIZER_HEADLINES,
 ]);
 
 interface RelayMessage {

@@ -68,3 +68,29 @@ describe("extractProfileShell", () => {
     expect(extractProfileShell(document).isOwnProfile).toBe(false);
   });
 });
+
+describe("findTopCardPart", () => {
+  it("finds the photo, banner, and headline with LinkedIn's own edit controls", async () => {
+    const { findTopCardPart } = await import("./profileAdapter");
+    setPage(
+      "https://www.linkedin.com/in/jordan/",
+      `<section>
+        <button aria-label="Edit background image"></button>
+        <img src="https://media.licdn.com/x/profile-displaybackgroundimage-shrink/0">
+        <a href="https://www.linkedin.com/in/jordan/photo"><img src="https://media.licdn.com/y/profile-displayphoto-crop/0"></a>
+        <h2>Jordan Rivera</h2>
+        <a href="https://www.linkedin.com/in/jordan/edit/intro/">Edit</a>
+      </section>`,
+    );
+    expect(findTopCardPart("banner").editControl?.getAttribute("aria-label")).toBe("Edit background image");
+    expect(findTopCardPart("photo").editControl?.getAttribute("href")).toContain("/photo");
+    expect(findTopCardPart("headline").element?.textContent).toBe("Jordan Rivera");
+    expect(findTopCardPart("headline").editControl?.getAttribute("href")).toContain("/edit/intro/");
+  });
+
+  it("reports a default banner as no banner element", async () => {
+    const { findTopCardPart } = await import("./profileAdapter");
+    setPage("https://www.linkedin.com/in/jordan/", `<section><h2>Jordan Rivera</h2></section>`);
+    expect(findTopCardPart("banner")).toEqual({ element: null, editControl: null });
+  });
+});

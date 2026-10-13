@@ -1,12 +1,26 @@
 import { sendBackgroundRelayRequest, type PendingRelayRequest } from "../ai/backgroundRelay";
 import type { EvidencePayloadItem } from "../ai/evidencePayload";
 import type { SectionPresence } from "./sections";
-import type { DraftOutcome, DraftSection, OptimizeProfileApiResponse, OptimizerDraftApiResponse, OptimizerOutcome } from "./optimizerTypes";
+import type {
+  DraftOutcome,
+  DraftSection,
+  HeadlineOptionsApiResponse,
+  HeadlineOptionsOutcome,
+  OptimizeProfileApiResponse,
+  OptimizerDraftApiResponse,
+  OptimizerOutcome,
+  SectionAnalysisApiResponse,
+  SectionAnalysisOutcome,
+} from "./optimizerTypes";
 
 export const LINKWISE_OPTIMIZE_PROFILE = "LINKWISE_OPTIMIZE_PROFILE";
 export const LINKWISE_CANCEL_OPTIMIZE = "LINKWISE_CANCEL_OPTIMIZE";
 export const LINKWISE_OPTIMIZER_DRAFT = "LINKWISE_OPTIMIZER_DRAFT";
 export const LINKWISE_CANCEL_OPTIMIZER_DRAFT = "LINKWISE_CANCEL_OPTIMIZER_DRAFT";
+export const LINKWISE_OPTIMIZER_SECTION = "LINKWISE_OPTIMIZER_SECTION";
+export const LINKWISE_CANCEL_OPTIMIZER_SECTION = "LINKWISE_CANCEL_OPTIMIZER_SECTION";
+export const LINKWISE_OPTIMIZER_HEADLINES = "LINKWISE_OPTIMIZER_HEADLINES";
+export const LINKWISE_CANCEL_OPTIMIZER_HEADLINES = "LINKWISE_CANCEL_OPTIMIZER_HEADLINES";
 
 export interface OptimizerProfilePayload {
   identity: string;
@@ -49,6 +63,48 @@ export function requestOptimizerDraft(payload: OptimizerDraftRequestBody): Pendi
     idPrefix: "draft_req",
     payload,
     toOutcome: (response) => (response.status === "draft" ? { status: "ok", draft: response.draft } : unavailable(response)),
+    unavailable: (reason) => ({ status: "unavailable", reason }),
+  });
+}
+
+export interface SectionAnalysisRequestBody {
+  profile: OptimizerProfilePayload;
+  section: "banner" | "headline";
+  present: boolean;
+  userContext: string;
+}
+
+export interface HeadlineGenerationRequestBody {
+  profile: OptimizerProfilePayload;
+  currentHeadline: string;
+  targetRole: string;
+  keywords: string;
+  additionalContext: string;
+  language: string;
+  userContext: string;
+}
+
+export function requestSectionAnalysis(payload: SectionAnalysisRequestBody): PendingRelayRequest<SectionAnalysisOutcome> {
+  return sendBackgroundRelayRequest<SectionAnalysisApiResponse, SectionAnalysisOutcome>({
+    requestType: LINKWISE_OPTIMIZER_SECTION,
+    cancelType: LINKWISE_CANCEL_OPTIMIZER_SECTION,
+    idPrefix: "section_req",
+    payload,
+    toOutcome: (response) =>
+      response.status === "section"
+        ? { status: "ok", analysis: { state: response.state, summary: response.summary, findings: response.findings, ideas: response.ideas } }
+        : unavailable(response),
+    unavailable: (reason) => ({ status: "unavailable", reason }),
+  });
+}
+
+export function requestHeadlineOptions(payload: HeadlineGenerationRequestBody): PendingRelayRequest<HeadlineOptionsOutcome> {
+  return sendBackgroundRelayRequest<HeadlineOptionsApiResponse, HeadlineOptionsOutcome>({
+    requestType: LINKWISE_OPTIMIZER_HEADLINES,
+    cancelType: LINKWISE_CANCEL_OPTIMIZER_HEADLINES,
+    idPrefix: "headlines_req",
+    payload,
+    toOutcome: (response) => (response.status === "headlines" ? { status: "ok", options: response.options } : unavailable(response)),
     unavailable: (reason) => ({ status: "unavailable", reason }),
   });
 }

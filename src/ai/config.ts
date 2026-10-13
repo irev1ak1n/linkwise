@@ -21,3 +21,11 @@ export function optimizeProfileEndpoint(): string {
 export function optimizerDraftEndpoint(): string {
   return `${LINKWISE_API_BASE_URL}/api/optimizer-draft`;
 }
+
+export function optimizerSectionEndpoint(): string {
+  return `${LINKWISE_API_BASE_URL}/api/optimizer-section`;
+}
+
+export function optimizerHeadlinesEndpoint(): string {
+  return `${LINKWISE_API_BASE_URL}/api/optimizer-headlines`;
+}
