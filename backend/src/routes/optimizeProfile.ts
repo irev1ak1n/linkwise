@@ -12,7 +12,7 @@ export interface OptimizerDeps {
   timeoutMs?: number;
 }
 
-function sendFailure(res: Response, label: string, result: Exclude<StructuredResult<unknown>, { status: "ok" }>): void {
+export function sendFailure(res: Response, label: string, result: Exclude<StructuredResult<unknown>, { status: "ok" }>): void {
   if (result.status === "not_configured") {
     res.status(200).json({ status: "not_configured" });
     return;
@@ -21,13 +21,13 @@ function sendFailure(res: Response, label: string, result: Exclude<StructuredRes
   res.status(200).json({ status: "unavailable", reason: result.status === "timeout" ? "timeout" : "openai_error" });
 }
 
-function invalid(res: Response): void {
+export function invalidRequest(res: Response): void {
   res.status(400).json({ status: "invalid_request", message: "The request body did not match the expected shape." });
 }
 
 export async function handleOptimizeProfile(req: Request, res: Response, deps: OptimizerDeps): Promise<void> {
   const parsed = optimizeProfileRequestSchema.safeParse(req.body);
-  if (!parsed.success) return invalid(res);
+  if (!parsed.success) return invalidRequest(res);
   const request = trimOptimizerEvidence(parsed.data);
 
   const result = await requestStructured<OptimizerResponse>(
@@ -50,9 +50,9 @@ export async function handleOptimizeProfile(req: Request, res: Response, deps: O
 
 export async function handleOptimizerDraft(req: Request, res: Response, deps: OptimizerDeps): Promise<void> {
   const parsed = optimizerDraftRequestSchema.safeParse(req.body);
-  if (!parsed.success) return invalid(res);
+  if (!parsed.success) return invalidRequest(res);
   const request = trimOptimizerEvidence(parsed.data);
-  if (request.section === "experience" && !request.profile.evidence.some((item) => item.id === request.evidenceId)) return invalid(res);
+  if (request.section === "experience" && !request.profile.evidence.some((item) => item.id === request.evidenceId)) return invalidRequest(res);
 
   const result = await requestStructured<OptimizerDraftResponse>(
     deps.config,

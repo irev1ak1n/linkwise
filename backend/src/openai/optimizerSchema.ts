@@ -32,3 +32,19 @@ export type OptimizerSource = z.infer<typeof optimizerSourceSchema>;
 export type SectionAssessment = z.infer<typeof sectionAssessmentSchema>;
 export type OptimizerResponse = z.infer<typeof optimizerResponseSchema>;
 export type OptimizerDraftResponse = z.infer<typeof optimizerDraftResponseSchema>;
+
+export const HEADLINE_ASPECTS = ["role", "skills", "keywords", "specificity", "focus", "differentiation", "readability", "accuracy"] as const;
+
+export const sectionAnalysisResponseSchema = z.object({
+  status: z.enum(["strong", "improve"]),
+  summary: z.string(),
+  findings: z.array(z.object({ aspect: z.enum(HEADLINE_ASPECTS), verdict: z.enum(["good", "improve"]), note: z.string() })),
+  ideas: z.array(z.string()),
+});
+
+export const headlineOptionsResponseSchema = z.object({
+  options: z.array(z.object({ label: z.string(), headline: z.string() })),
+});
+
+export type SectionAnalysisResponse = z.infer<typeof sectionAnalysisResponseSchema>;
+export type HeadlineOptionsResponse = z.infer<typeof headlineOptionsResponseSchema>;

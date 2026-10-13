@@ -7,6 +7,7 @@ import { handleAnalyzeProfile } from "./routes/analyzeProfile";
 import { handleGenerateCriteria } from "./routes/generateCriteria";
 import { handleAnalyzeSignals } from "./routes/analyzeSignals";
 import { handleOptimizeProfile, handleOptimizerDraft } from "./routes/optimizeProfile";
+import { handleHeadlineGeneration, handleSectionAnalysis } from "./routes/optimizerSection";
 import type { AnalysisClient } from "./openai/client";
 import type { CriteriaGenerationClient } from "./openai/criteriaClient";
 import type { SignalAnalysisClient } from "./openai/signalsClient";
@@ -21,6 +22,8 @@ export interface CreateAppOptions {
   signalClient?: SignalAnalysisClient;
   optimizerClient?: StructuredClient;
   draftClient?: StructuredClient;
+  sectionClient?: StructuredClient;
+  headlineClient?: StructuredClient;
   timeoutMs?: number;
 }
 
@@ -58,6 +61,14 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.post("/api/optimizer-draft", (req: Request, res: Response) => {
     void handleOptimizerDraft(req, res, { config, client: options.draftClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/optimizer-section", (req: Request, res: Response) => {
+    void handleSectionAnalysis(req, res, { config, client: options.sectionClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/optimizer-headlines", (req: Request, res: Response) => {
+    void handleHeadlineGeneration(req, res, { config, client: options.headlineClient, timeoutMs: options.timeoutMs });
   });
 
   // Catches malformed JSON. Never leak the raw parser error to the client.

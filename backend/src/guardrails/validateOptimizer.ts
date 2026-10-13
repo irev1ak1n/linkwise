@@ -46,7 +46,7 @@ const GENERIC_ADD: Record<OptimizerSection, string> = {
 };
 
 // Words advice may always use: section names, LinkedIn's own terms, and common file and link words.
-const ALWAYS_ALLOWED = new Set(
+export const ALWAYS_ALLOWED: ReadonlySet<string> = new Set(
   [
     "linkedin", "profile", "photo", "banner", "headline", "about", "featured", "experience", "education", "projects", "project",
     "skills", "skill", "licenses", "license", "certifications", "certification", "volunteer", "volunteering", "honors", "awards",
@@ -65,14 +65,14 @@ function mentions(sources: string, token: string): boolean {
 }
 
 // Every number, acronym, and mid-sentence capitalized name in text must appear in the sources.
-export function isGrounded(text: string, sources: string): boolean {
+export function isGrounded(text: string, sources: string, allowed: ReadonlySet<string> = ALWAYS_ALLOWED): boolean {
   const lowered = sources.toLowerCase();
   for (const number of text.match(/\d+(?:[.,]\d+)*/g) ?? []) {
     if (!lowered.includes(number)) return false;
   }
   for (const match of text.matchAll(/[\p{L}][\p{L}\d&+#'-]*/gu)) {
     const token = match[0].replace(/['-]+$/, "");
-    if (ALWAYS_ALLOWED.has(token.toLowerCase())) continue;
+    if (ALWAYS_ALLOWED.has(token.toLowerCase()) || allowed.has(token.toLowerCase())) continue;
     const acronym = token.length >= 2 && token === token.toUpperCase() && /\p{Lu}/u.test(token);
     const name = /^\p{Lu}/u.test(token) && !sentenceStart(text, match.index ?? 0);
     const base = token.replace(/'s$/i, "");
