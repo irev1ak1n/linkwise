@@ -75,7 +75,8 @@ export function isGrounded(text: string, sources: string): boolean {
     if (ALWAYS_ALLOWED.has(token.toLowerCase())) continue;
     const acronym = token.length >= 2 && token === token.toUpperCase() && /\p{Lu}/u.test(token);
     const name = /^\p{Lu}/u.test(token) && !sentenceStart(text, match.index ?? 0);
-    if ((acronym || name) && !mentions(lowered, token.replace(/'s$/i, ""))) return false;
+    const base = token.replace(/'s$/i, "");
+    if ((acronym || name) && !mentions(lowered, base) && !mentions(lowered, base.replace(/s$/, ""))) return false;
   }
   return true;
 }
@@ -92,11 +93,12 @@ export function validateOptimizerResponse(response: OptimizerResponse, request: 
   const evidence = new Map(request.profile.evidence.map((item) => [item.id, item]));
   const presence = new Map(request.sections.map((p) => [p.section, p]));
   const context = request.userContext.trim();
-  const profileText = request.profile.evidence.map((item) => item.text).join("\n");
+  const counts = request.sections.filter((p) => p.itemCount !== null).map((p) => `${p.itemCount} ${p.section}`);
+  const profileText = [...request.profile.evidence.map((item) => item.text), ...counts].join("\n");
   const sourcesFor: Record<SectionAssessment["sourceType"], string> = {
     linkedin_profile: profileText,
     user_context: `${profileText}\n${context}`,
-    general_best_practice: "",
+    general_best_practice: profileText,
   };
 
   const sections: ValidatedAssessment[] = [];
@@ -108,10 +110,9 @@ export function validateOptimizerResponse(response: OptimizerResponse, request: 
     let evidenceIds = [...new Set(raw.evidenceIds.filter((id) => evidence.has(id)))];
     let sourceType = raw.sourceType;
     if (sourceType === "linkedin_profile" && evidenceIds.length === 0) evidenceIds = known.evidenceIds.filter((id) => evidence.has(id));
-    const presenceOnly = known.present && (raw.section === "photo" || raw.section === "banner");
     const sourceOk =
       sourceType === "general_best_practice" ||
-      (sourceType === "linkedin_profile" && (evidenceIds.length > 0 || presenceOnly)) ||
+      (sourceType === "linkedin_profile" && (evidenceIds.length > 0 || known.present)) ||
       (sourceType === "user_context" && context.length > 0 && !!raw.contextQuote && findGroundedText(context, raw.contextQuote) !== null);
     if (sourceType === "general_best_practice") evidenceIds = [];
 

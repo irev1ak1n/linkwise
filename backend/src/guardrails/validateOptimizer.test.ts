@@ -36,6 +36,7 @@ describe("isGrounded", () => {
     expect(isGrounded("Mention the 40 users.", "300 monthly visitors")).toBe(false);
     expect(isGrounded("Lead with the 300 monthly visitors from React.", "Built in React with 300 monthly visitors")).toBe(true);
     expect(isGrounded("Consider adding a link to Featured.", "")).toBe(true);
+    expect(isGrounded("Both entries list credential IDs.", "Credential ID DN-1")).toBe(true);
   });
 });
 
@@ -85,6 +86,17 @@ describe("validateOptimizerResponse", () => {
     ]);
     expect(experience.suggestions).toEqual(["Start with the 300 monthly visitors."]);
     expect(headline).toMatchObject({ state: "strong", impact: "low", suggestions: [] });
+  });
+
+  it("lets general advice on a present section cite what the profile shows, but not the user context", () => {
+    const request = requestWith("I have an AWS certification.");
+    request.sections.push({ section: "skills", present: true, itemCount: 50, evidenceIds: [] });
+    const skills = { section: "skills" as const, state: "improve" as const, impact: "medium" as const, sourceType: "general_best_practice" as const, evidenceIds: [], contextQuote: null, suggestions: [] };
+    const [kept] = validateOptimizerResponse({ summary: "", assessments: [{ ...skills, reason: "With 50 skills listed, put React first." }] }, request).sections;
+    expect(kept?.reason).toBe("With 50 skills listed, put React first.");
+    expect(validateOptimizerResponse({ summary: "", assessments: [{ ...skills, reason: "Add AWS to your skills." }] }, request).sections).toEqual([]);
+    const [shown] = validateOptimizerResponse({ summary: "", assessments: [{ ...skills, sourceType: "linkedin_profile", reason: "The profile lists 50 skills." }] }, request).sections;
+    expect(shown?.sourceType).toBe("linkedin_profile");
   });
 
   it("keeps only the first assessment per known section", () => {
