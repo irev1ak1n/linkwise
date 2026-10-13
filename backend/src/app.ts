@@ -6,9 +6,11 @@ import { loadConfig, redactedConfigSummary, type BackendConfig } from "./config"
 import { handleAnalyzeProfile } from "./routes/analyzeProfile";
 import { handleGenerateCriteria } from "./routes/generateCriteria";
 import { handleAnalyzeSignals } from "./routes/analyzeSignals";
+import { handleOptimizeProfile, handleOptimizerDraft } from "./routes/optimizeProfile";
 import type { AnalysisClient } from "./openai/client";
 import type { CriteriaGenerationClient } from "./openai/criteriaClient";
 import type { SignalAnalysisClient } from "./openai/signalsClient";
+import type { StructuredClient } from "./openai/structuredClient";
 
 export interface CreateAppOptions {
   config?: BackendConfig;
@@ -17,6 +19,8 @@ export interface CreateAppOptions {
   /** Injected only in tests. */
   criteriaClient?: CriteriaGenerationClient;
   signalClient?: SignalAnalysisClient;
+  optimizerClient?: StructuredClient;
+  draftClient?: StructuredClient;
   timeoutMs?: number;
 }
 
@@ -46,6 +50,14 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.post("/api/analyze-signals", (req: Request, res: Response) => {
     void handleAnalyzeSignals(req, res, { config, client: options.signalClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/optimize-profile", (req: Request, res: Response) => {
+    void handleOptimizeProfile(req, res, { config, client: options.optimizerClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/optimizer-draft", (req: Request, res: Response) => {
+    void handleOptimizerDraft(req, res, { config, client: options.draftClient, timeoutMs: options.timeoutMs });
   });
 
   // Catches malformed JSON. Never leak the raw parser error to the client.
