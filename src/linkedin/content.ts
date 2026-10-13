@@ -8,9 +8,8 @@
 //
 // Two scanning modes, user-selectable (see panel/scanModeStore.ts): "scroll" (default) never
 // moves the page, it only ever reacts to sections the user reveals by scrolling manually.
-// The automatic modes are the only ones allowed to scroll the page (see autoScrollController.ts):
-// "auto" steps through it quickly, "autoScroll" reads through it slowly at the chosen speed.
-// Both let lazy-loaded sections render, stop at the bottom, and analyze once the page is read.
+// "auto" is the only mode allowed to scroll the page (see autoScrollController.ts): it steps
+// through it quickly, lets lazy-loaded sections render, and analyzes once the page is read.
 //
 // Whether to attempt auto-scroll is decided in exactly one place, scanCoverage.ts's
 // shouldAttemptAutoScroll(mode, coverage). A Match % existing is not the same as the profile
@@ -48,15 +47,12 @@ import {
 import { loadAutoScanSession, saveAutoScanSession } from "../storage/autoScanSessionRepository";
 import { isProfileSessionFresh, loadProfileSession, updateProfileSession } from "../storage/profileSessionRepository";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
-import { getPanelProfileData, setPanelProfileData, type AutoScanProgress, type PanelProfileData } from "./panel/panelStore";
-import { PANEL_HOST_ID, destroyPanel, openPanel, togglePanel, wasPanelOpen } from "./panel/mount";
+import { getPanelProfileData, setPanelProfileData, type AutoScanProgress } from "./panel/panelStore";
+import { destroyPanel, openPanel, togglePanel, wasPanelOpen } from "./panel/mount";
 import { installDevTooling } from "./devTools";
-import { isUserScrollIntent, type ScrollStrategy } from "./autoScrollController";
 import { autoScroller } from "./autoScroller";
-import { autoScrollSpeedPreference } from "./panel/autoScrollSpeedPreference";
 import { getGoalStoreState, initGoalStore, selectActiveGoal, subscribeGoalStore } from "./panel/goalStore";
 import { getScanModeState, initScanModeStore, subscribeScanModeStore, type ScanMode } from "./panel/scanModeStore";
-import { isAutomaticScan } from "../models/scanMode";
 import { getExpandDetailsState, initExpandDetailsStore, subscribeExpandDetailsStore } from "./panel/expandDetailsStore";
 import { getEnhancedAnalysisState, initEnhancedAnalysisStore, subscribeEnhancedAnalysisStore } from "./panel/enhancedAnalysisStore";
 import { getManualSectionsState, initManualSectionsStore } from "./panel/manualSectionsStore";
@@ -145,39 +141,13 @@ function pageTarget(): string {
   return normalizeProfileUrl(location.href) ?? location.href;
 }
 
-function strategyFor(mode: ScanMode): ScrollStrategy {
-  return mode === "autoScroll" ? "smooth" : "steps";
-}
-
-// A manual takeover is not an active scan: the reader is browsing, so evidence settles as it
-// does in "Analyze as I scroll". Only the Pause button holds analysis back.
 function scanIsActive(): boolean {
-  const { status, target, pausedBy } = autoScroller.getState();
-  return (status === "running" || (status === "paused" && pausedBy === "button")) && target === pageTarget();
-}
-
-function manualTakeover(): boolean {
-  const { status, target, pausedBy } = autoScroller.getState();
-  return status === "paused" && pausedBy === "user" && target === pageTarget();
-}
-
-// A takeover analyzes once the reader has stopped scrolling for a moment, not mid-scroll.
-const TAKEOVER_IDLE_MS = 1500;
-let lastUserScrollAt = 0;
-let takeoverIdleHandle: ReturnType<typeof setTimeout> | null = null;
-
-function noteUserScroll(): void {
-  lastUserScrollAt = Date.now();
-  if (takeoverIdleHandle) clearTimeout(takeoverIdleHandle);
-  takeoverIdleHandle = setTimeout(() => {
-    takeoverIdleHandle = null;
-    tick();
-  }, TAKEOVER_IDLE_MS + 50);
+  const { status, target } = autoScroller.getState();
+  return status === "running" && target === pageTarget();
 }
 
 // Auto scan finishes back at the top and reads it once more before analyzing: LinkedIn renders
-// some top sections (often About) late, after the fast scan has already passed them. Auto scroll
-// is for reading, so it stays where it finished.
+// some top sections (often About) late, after the fast scan has already passed them.
 const TOP_REREAD_MS = 2500;
 // A smooth return from far down takes a moment; if the reader scrolls elsewhere meanwhile, the
 // re-read stops waiting for the top after this long.
@@ -195,8 +165,8 @@ function scheduleTopReread(delayMs: number): void {
 }
 
 function finishedAutoScanHere(): boolean {
-  const { status, strategy, target } = autoScroller.getState();
-  return status === "complete" && strategy === "steps" && target === pageTarget();
+  const { status, target } = autoScroller.getState();
+  return status === "complete" && target === pageTarget();
 }
 
 function returnToTopAfterAutoScan(): void {
@@ -237,8 +207,7 @@ function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
   if (!profile.extracted) return false;
   if (restoredSession && !rescanExpected && !scanIsActive()) return true;
   if (foundSections(profile).length === 0) return false;
-  if (!isAutomaticScan(getScanModeState().mode)) return true;
-  if (manualTakeover()) return Date.now() - lastUserScrollAt >= TAKEOVER_IDLE_MS;
+  if (getScanModeState().mode !== "auto") return true;
   if (scanIsActive() || rereadingTop()) return false;
   const stalled = !isPageScrollable() && pageSeen !== null && Date.now() - pageSeen.at >= UNSCROLLABLE_GRACE_MS;
   return selectActiveGoal(getGoalStoreState()) === null || stalled;
@@ -246,18 +215,16 @@ function hasEnoughEvidenceToSettle(profile: LinkedInProfile): boolean {
 
 // Once a result is showing, unsettled evidence stays off the panel until the next settle.
 let publishedSettledKey: string | null = null;
-let liveEvidence: { profileKey: string; profile: LinkedInProfile } | null = null;
 
 const engine = createCollectionEngine({
   now: () => Date.now(),
   extractProfile: () => extractLinkedInProfile(document),
   detectSections: () => detectProfileSections(document),
   getProfileKey: () => profileIdentityKey(location.href),
-  isNearDocumentEnd: () => (isAutomaticScan(getScanModeState().mode) ? reachedEndOfScan() : isNearDocumentEnd()),
+  isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? reachedEndOfScan() : isNearDocumentEnd()),
   hasEnoughEvidence: hasEnoughEvidenceToSettle,
   onUpdate: (profileKey, profile, collection) => {
     const merged = withAccumulatedEvidence(profileKey, profile);
-    liveEvidence = { profileKey, profile: merged };
     const settled = collection.status === "settled" || (restoredSession && !rescanExpected && sessionKey === profileKey && !scanIsActive());
     if (settled && merged.extracted) {
       autoScanEvidence = merged;
@@ -284,7 +251,7 @@ const engine = createCollectionEngine({
 });
 
 function shouldExpandDetailsThisTick(mode: ScanMode): boolean {
-  return isAutomaticScan(mode) ? autoExpandPreference.getState().value : getExpandDetailsState().enabled;
+  return mode === "auto" ? autoExpandPreference.getState().value : getExpandDetailsState().enabled;
 }
 
 // --- Auto scan checklist state (separate from the single-page engine above, only ever driven
@@ -326,7 +293,7 @@ function ensureProfileSession(profileKey: string): boolean {
       const current = getPanelProfileData();
       const profile = current.profileKey === profileKey && current.profile ? mergeProfileEvidence(current.profile, session.evidence) : session.evidence;
       const mode = getScanModeState().mode;
-      rescanExpected = (mode === "autoScroll" || (mode === "auto" && !mainPageScanned)) && !/\/details\//.test(location.href);
+      rescanExpected = mode === "auto" && !mainPageScanned && !/\/details\//.test(location.href);
       // A rescan shows the previous result only when it is already cached, never a fresh request
       // for evidence the scan is about to replace.
       const showRestored = !rescanExpected || hasCachedAnalysis(profile);
@@ -420,7 +387,7 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
     return;
   }
   if (autoExpandPreference.getState().value) expandSeeMoreToggles(document, { restrictToViewport: false });
-  if (isPageScrollable()) autoScroller.start(currentUrl, findScrollContainer, strategyFor(getScanModeState().mode));
+  if (isPageScrollable()) autoScroller.start(currentUrl, findScrollContainer);
   const reading = autoScroller.getState().status === "running";
 
   const sectionProfile = extractDetailsPageProfile(document);
@@ -432,7 +399,6 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
       ? current.profile
       : { ...EMPTY_PROFILE };
   const merged = mergeProfileEvidence(base, sectionProfile);
-  liveEvidence = { profileKey, profile: merged };
   const scannedSection = detailsPageSection(currentUrl);
   if (sameEvidence(merged, base)) {
     if (!reading && !manualScan.validated) void updateProfileSession(profileKey, { scannedSection, validated: true });
@@ -594,16 +560,6 @@ const signalHighlighter = new SignalHighlighter(document);
 const signalRuntime = createSignalRuntime({ highlighter: signalHighlighter, publish: publishSignalAnalysis });
 registerCleanup(() => signalRuntime.dispose());
 
-// While Auto scroll reads, or the reader takes over, signals follow the evidence as soon as it
-// renders, which LinkedIn does in scroll order, so what is about to be read is analyzed first.
-function signalData(): PanelProfileData {
-  const data = getPanelProfileData();
-  const following = autoScroller.getState().strategy === "smooth" && (scanIsActive() || manualTakeover());
-  if (!following || !liveEvidence || liveEvidence.profileKey !== data.profileKey) return data;
-  if (foundSections(liveEvidence.profile).length === 0) return data;
-  return { ...data, profile: liveEvidence.profile, collection: { ...(data.collection ?? engine.getCollectionState()), status: "settled" } };
-}
-
 // Keyword highlights are local and cheap, so they follow every DOM change instead of the tick.
 const KEYWORD_PAINT_DELAY_MS = 50;
 const keywordHighlighter = new KeywordHighlighter(document);
@@ -630,7 +586,7 @@ registerCleanup(() => {
 let signalHref = "";
 function tickSignals(): void {
   signalHref = location.href;
-  signalRuntime.tick(signalTickInput(getSignalModeState().enabled, location.href, signalData()));
+  signalRuntime.tick(signalTickInput(getSignalModeState().enabled, location.href, getPanelProfileData()));
 }
 
 function tick(): void {
@@ -639,7 +595,7 @@ function tick(): void {
   if (pageSeen?.target !== target) pageSeen = { target, at: Date.now() };
   const scrolling = autoScroller.getState();
   const currentMode = getScanModeState().mode;
-  if (scrolling.target !== null && (scrolling.target !== target || !isAutomaticScan(currentMode) || scrolling.strategy !== strategyFor(currentMode))) {
+  if (scrolling.target !== null && (scrolling.target !== target || currentMode !== "auto")) {
     autoScroller.reset();
   }
   ensureLinkWiseOpener(togglePanel);
@@ -654,10 +610,6 @@ function tick(): void {
 
   if (isDetailsPage && mode === "auto") {
     tickAutoScanCrawl();
-    return;
-  }
-  if (isDetailsPage && mode === "autoScroll") {
-    if (urlProfileKey !== null) tickManualSection(urlProfileKey, target);
     return;
   }
 
@@ -677,10 +629,10 @@ function tick(): void {
     return;
   }
 
-  // Auto scan skips a profile it just scanned; Auto scroll is for reading, so it always reads.
-  if (!shouldAttemptAutoScroll(mode, coverage) || (mainPageScanned && mode === "auto") || !isPageScrollable()) return;
+  // Auto scan skips a profile it just scanned.
+  if (!shouldAttemptAutoScroll(mode, coverage) || mainPageScanned || !isPageScrollable()) return;
   if (selectActiveGoal(getGoalStoreState()) === null) return;
-  autoScroller.start(target, findScrollContainer, strategyFor(mode));
+  autoScroller.start(target, findScrollContainer);
 }
 
 function watchForChanges(): void {
@@ -737,24 +689,8 @@ function watchForChanges(): void {
   }
 }
 
-// Only the slow read-through yields to the user; the fast scan finishes on its own.
-function pauseOnUserScroll(event: Event): void {
-  const { status, strategy } = autoScroller.getState();
-  const intent = (status === "running" && strategy === "smooth") || manualTakeover();
-  if (!intent || !isUserScrollIntent(event, document.getElementById(PANEL_HOST_ID), findScrollContainer())) return;
-  noteUserScroll();
-  if (status === "running") autoScroller.pause("user");
-}
-for (const type of ["wheel", "touchmove", "keydown", "mousedown"]) {
-  window.addEventListener(type, pauseOnUserScroll, { capture: true, passive: true });
-  registerCleanup(() => window.removeEventListener(type, pauseOnUserScroll, { capture: true }));
-}
-registerCleanup(() => {
-  if (takeoverIdleHandle) clearTimeout(takeoverIdleHandle);
-});
 registerCleanup(() => autoScroller.reset());
 registerCleanup(autoScroller.subscribe(() => tick()));
-autoScrollSpeedPreference.init();
 
 initGoalStore();
 registerCleanup(subscribeGoalStore(tick));

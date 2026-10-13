@@ -17,17 +17,13 @@ import { autoExpandPreference } from "./autoExpandPreference";
 import { useStoredPreference } from "./useStoredPreference";
 import { JobsSettingsSection } from "./JobsSettingsSection";
 import { SignalModeSection } from "./SignalModeSection";
-import { AutoScrollControls } from "./AutoScrollControls";
-import { autoScrollSpeedPreference } from "./autoScrollSpeedPreference";
 import { highlightKeywordsPreference } from "./keywordPreference";
 import { highlightColorPreference } from "./highlightColorPreference";
 import { keywordColorPreference } from "./keywordColorPreference";
-import { useAutoScroll } from "./useAutoScroll";
 import { ScanningView } from "./ScanningView";
 import { LoadingView } from "./LoadingView";
 import { AnalysisView } from "./AnalysisView";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
-import { isAutomaticScan } from "../../models/scanMode";
 
 interface PanelAppProps {
   onClose: () => void;
@@ -47,11 +43,9 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { enabled: enhancedAnalysisEnabled, setEnhancedAnalysisPreference } = useEnhancedAnalysisPreference();
   const { enabled: manualSectionsEnabled, setManualSectionsPreference } = useManualSectionsPreference();
   const { value: autoExpandEnabled } = useStoredPreference(autoExpandPreference);
-  const { value: scrollSpeed } = useStoredPreference(autoScrollSpeedPreference);
   const { value: highlightKeywords } = useStoredPreference(highlightKeywordsPreference);
   const { value: highlightColor } = useStoredPreference(highlightColorPreference);
   const { value: keywordColor } = useStoredPreference(keywordColorPreference);
-  const { state: autoScroll, pause: pauseAutoScroll, resume: resumeAutoScroll } = useAutoScroll();
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
@@ -105,10 +99,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
 
     // Settled, but AI hasn't resolved yet, show only a loading state.
     if (aiState.status === "idle") return <LoadingView label="Preparing results…" />;
-    if (aiState.status === "loading") {
-      const partial = scanMode === "autoScroll" && autoScroll.pausedBy === "user";
-      return <LoadingView label={partial ? "Analyzing collected profile information…" : "Analyzing match…"} />;
-    }
+    if (aiState.status === "loading") return <LoadingView label="Analyzing match…" />;
 
     return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} />;
   }
@@ -131,24 +122,13 @@ export function PanelApp({ onClose }: PanelAppProps) {
             {profileKey !== null && scanMode === "scroll" && (
               <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />
             )}
-            {profileKey !== null && scanMode === "autoScroll" && (
-              <AutoScrollControls
-                speed={scrollSpeed}
-                status={autoScroll.status}
-                pausedByUser={autoScroll.pausedBy === "user"}
-                analyzing={aiState.status === "loading" || (aiState.status === "ready" && !!aiState.updating)}
-                onSpeedChange={autoScrollSpeedPreference.set}
-                onPause={pauseAutoScroll}
-                onResume={resumeAutoScroll}
-              />
-            )}
-            {profileKey !== null && isAutomaticScan(scanMode) && (
+            {profileKey !== null && scanMode === "auto" && (
               <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />
             )}
             {profileKey !== null && scanMode === "auto" && (
               <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />
             )}
-            {profileKey !== null && isAutomaticScan(scanMode) && (
+            {profileKey !== null && scanMode === "auto" && (
               <ManualSectionsCheckbox enabled={manualSectionsEnabled} onChange={setManualSectionsPreference} />
             )}
             {renderProfileSection()}

@@ -343,7 +343,6 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
       runtime: { id: "test", reload: vi.fn() },
       storage: installFakeChromeStorage({
         "finder.scanMode.v1": mode,
-        "finder.autoScrollSpeed.v1": 0.5,
         "finder.goals.v1": [{ id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Anything", importance: "PREFERRED" }] }],
       }),
     });
@@ -365,13 +364,12 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
     expect(writes.every((delta) => delta === 680)).toBe(true);
   });
 
-  it("Auto scroll starts on its own and reads down in small steps at the chosen speed", async () => {
+  it("a saved scan mode from the removed Auto scroll runs Auto scan instead", async () => {
     const writes = await scanWithMode("autoScroll", 5000);
-    expect(writes.length).toBeGreaterThan(50);
-    expect(Math.max(...writes)).toBeLessThan(20);
-    const total = writes.reduce((a, b) => a + b, 0);
-    expect(total).toBeGreaterThan(80);
-    expect(total).toBeLessThan(160);
+    expect(writes.length).toBeGreaterThanOrEqual(3);
+    expect(writes.every((delta) => delta === 680)).toBe(true);
+    const { getScanModeState } = await import("./panel/scanModeStore");
+    expect(getScanModeState().mode).toBe("auto");
   });
 
   it("Analyze as I scroll, checkbox ON or OFF, never auto-scrolls the page either way", async () => {
@@ -1405,7 +1403,7 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
       });
       await vi.advanceTimersByTimeAsync(30000);
       expect(lowest).toBeGreaterThanOrEqual(3000);
-      expect(autoScroller.getState()).toMatchObject({ status: "complete", pausedBy: null });
+      expect(autoScroller.getState()).toMatchObject({ status: "complete" });
       expect(returns).toEqual([{ options: { top: 0, behavior: "smooth" }, settled: false }]);
       expect(main.scrollTop).toBe(0);
 
@@ -1520,312 +1518,6 @@ describe("content.ts bootstrap - Enhanced analysis toggle", () => {
     expect(assign).not.toHaveBeenCalledWith("/in/irev1ak1n/details/education/");
     expect(progress?.status).toBe("complete");
     expect(getPanelProfileData().profile?.extracted).toBe(true); // evidence collected so far wasn't thrown away
-  });
-});
-
-describe("content.ts bootstrap - Auto scroll profile", () => {
-  let page: ReturnType<typeof stubScrollingPage>;
-  const sendMessage = vi.fn();
-
-  beforeEach(() => {
-    vi.resetModules();
-    vi.useFakeTimers();
-    page = stubScrollingPage();
-    sendMessage.mockReset();
-  });
-
-  afterEach(() => {
-    page.restore();
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-    document.body.innerHTML = "";
-    Object.defineProperty(document, "URL", { value: "http://localhost/", configurable: true });
-  });
-
-  const goals = [{ id: "g1", name: "Test goal", criteria: [{ id: "c1", label: "Anything", importance: "PREFERRED" }] }];
-
-  async function startMain(extra: Record<string, unknown> = {}) {
-    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/");
-    const storage = installFakeChromeStorage({ "finder.scanMode.v1": "autoScroll", "finder.goals.v1": goals, ...extra });
-    // Requests to the background worker never answer, like a very slow OpenAI call.
-    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn(), sendMessage }, storage });
-    document.body.innerHTML = `
-      <div id="app-root"><main role="main">
-        <section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section>
-        <section><h2>About</h2><p>Builds websites for student clubs and led a 5-student team.</p></section>
-      </main></div>
-    `;
-    await import("./content");
-    await vi.advanceTimersByTimeAsync(3000);
-    const { autoScroller } = await import("./autoScroller");
-    const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
-    return { autoScroller, storage, getPanelProfileData, subscribePanelProfileData, main: document.querySelector("main")! };
-  }
-
-  it("pauses when the user scrolls with the wheel, but never because of its own scrolling", async () => {
-    const { autoScroller, main } = await startMain();
-    expect(autoScroller.getState().status).toBe("running");
-    main.dispatchEvent(new Event("scroll", { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(autoScroller.getState().status).toBe("running");
-
-    main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
-    const at = main.scrollTop;
-    await vi.advanceTimersByTimeAsync(3000);
-    expect(autoScroller.getState().status).toBe("paused");
-    expect(main.scrollTop).toBe(at);
-  });
-
-  it("Auto scan finishes on its own even if the user scrolls", async () => {
-    const { autoScroller, main } = await startMain({ "finder.scanMode.v1": "auto" });
-    main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
-    expect(autoScroller.getState()).toMatchObject({ status: "running", strategy: "steps" });
-  });
-
-  it("pauses on Page Down and ignores clicks inside the LinkWise panel", async () => {
-    const { autoScroller, main } = await startMain();
-    const host = document.createElement("div");
-    host.id = "finder-linkwise-panel-host";
-    document.body.append(host);
-    host.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
-    host.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    expect(autoScroller.getState().status).toBe("running");
-    main.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }));
-    expect(autoScroller.getState().status).toBe("paused");
-  });
-
-  it("keeps the result and session while paused, then resumes from the same place", async () => {
-    const evidence = { ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] }, name: "Illia Reviakin", about: "Builds websites for student clubs and led a 5-student team.", extracted: true };
-    const { autoScroller, storage, getPanelProfileData, main } = await startMain({ "finder.profileSessions.v2": { irev1ak1n: storedSession("irev1ak1n", evidence, Date.now() - 20 * 60 * 1000) } });
-    await vi.advanceTimersByTimeAsync(4000);
-    autoScroller.pause();
-    const at = main.scrollTop;
-    const before = getPanelProfileData();
-    const session = (await storage.local.get("finder.profileSessions.v2"))["finder.profileSessions.v2"];
-    await vi.advanceTimersByTimeAsync(10000);
-    expect(main.scrollTop).toBe(at);
-    expect(getPanelProfileData().profile).toBe(before.profile);
-    expect(getPanelProfileData().collection?.status).toBe(before.collection?.status);
-    expect((await storage.local.get("finder.profileSessions.v2"))["finder.profileSessions.v2"]).toEqual(session);
-
-    autoScroller.resume();
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(main.scrollTop).toBeGreaterThan(at);
-    expect(main.scrollTop - at).toBeLessThan(200);
-  });
-
-  it("rescans a stale profile without analyzing its old evidence first when no result is cached", async () => {
-    page.restore();
-    page = stubScrollingPage(2400);
-    const evidence = { ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] }, name: "Illia Reviakin", about: "Old about text.", extracted: true };
-    const { autoScroller, getPanelProfileData } = await startMain({ "finder.profileSessions.v2": { irev1ak1n: storedSession("irev1ak1n", evidence, Date.now() - 20 * 60 * 1000) } });
-    expect(autoScroller.getState().status).toBe("running");
-    expect(getPanelProfileData().collection?.status).not.toBe("settled");
-    await vi.advanceTimersByTimeAsync(50000);
-    expect(autoScroller.getState().status).toBe("complete");
-    expect(getPanelProfileData().collection?.status).toBe("settled");
-    expect(getPanelProfileData().profile?.about).toContain("Builds websites");
-  });
-
-  it("runs the final match analysis only after the read-through ends, never on scroll frames", async () => {
-    page.restore();
-    page = stubScrollingPage(2400);
-    const { autoScroller, getPanelProfileData, subscribePanelProfileData } = await startMain();
-    const settled: unknown[] = [];
-    subscribePanelProfileData(() => {
-      if (getPanelProfileData().collection?.status === "settled") settled.push(getPanelProfileData().profile);
-    });
-    await vi.advanceTimersByTimeAsync(10000);
-    expect(page.writes.length).toBeGreaterThan(300);
-    expect(settled).toHaveLength(0);
-    await vi.advanceTimersByTimeAsync(40000);
-    expect(autoScroller.getState().status).toBe("complete");
-    expect(new Set(settled).size).toBe(1);
-  });
-
-  it("switching from Auto scroll to Auto scan keeps the evidence and scans on from the same place", async () => {
-    const { autoScroller, getPanelProfileData, main } = await startMain();
-    await vi.advanceTimersByTimeAsync(4000);
-    const at = main.scrollTop;
-    const { setScanMode } = await import("./panel/scanModeStore");
-    setScanMode("auto");
-    await vi.advanceTimersByTimeAsync(100);
-    expect(autoScroller.getState().strategy).toBe("steps");
-    expect(main.scrollTop).toBeGreaterThanOrEqual(at);
-    await vi.advanceTimersByTimeAsync(20000);
-    expect(getPanelProfileData().profile?.about).toContain("Builds websites");
-  });
-
-  it("keeps scrolling while signal analysis is still waiting for an answer", async () => {
-    const { autoScroller, main } = await startMain({ "finder.signalMode.v1": true });
-    await vi.advanceTimersByTimeAsync(6000);
-    expect(sendMessage).toHaveBeenCalled();
-    const at = main.scrollTop;
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(autoScroller.getState().status).toBe("running");
-    expect(main.scrollTop).toBeGreaterThan(at + 150);
-  });
-
-  function settledPublishes(getPanelProfileData: () => { collection?: { status: string } | null; profile?: unknown }, subscribe: (l: () => void) => unknown) {
-    const seen: unknown[] = [];
-    subscribe(() => {
-      if (getPanelProfileData().collection?.status === "settled") seen.push(getPanelProfileData().profile);
-    });
-    return seen;
-  }
-
-  it("analyzes what was collected once the reader takes over, without reaching the bottom", async () => {
-    const { autoScroller, getPanelProfileData, main } = await startMain();
-    await vi.advanceTimersByTimeAsync(3000);
-    expect(getPanelProfileData().collection?.status).not.toBe("settled");
-    main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
-    expect(autoScroller.getState()).toMatchObject({ status: "paused", pausedBy: "user" });
-    await vi.advanceTimersByTimeAsync(6000);
-    expect(getPanelProfileData().collection?.status).toBe("settled");
-    expect(getPanelProfileData().profile?.about).toContain("Builds websites");
-    expect(main.scrollTop).toBeLessThan(4000);
-  });
-
-  it("waits until the reader stops scrolling before analyzing a takeover", async () => {
-    const { getPanelProfileData, main } = await startMain();
-    await vi.advanceTimersByTimeAsync(4000);
-    for (let i = 0; i < 6; i++) {
-      main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
-      await vi.advanceTimersByTimeAsync(1000);
-    }
-    expect(getPanelProfileData().collection?.status).not.toBe("settled");
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(getPanelProfileData().collection?.status).toBe("settled");
-  });
-
-  it("updates once for new evidence found while browsing manually, and never for known content", async () => {
-    const { getPanelProfileData, subscribePanelProfileData, main } = await startMain();
-    main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
-    await vi.advanceTimersByTimeAsync(6000);
-    const seen = settledPublishes(getPanelProfileData, subscribePanelProfileData);
-
-    main.insertAdjacentHTML("beforeend", "<section><h2>Education</h2><ul><li><p>State University</p><p>BS Computer Science</p></li></ul></section>");
-    await vi.advanceTimersByTimeAsync(6000);
-    expect(new Set(seen).size).toBe(1);
-    expect(getPanelProfileData().profile?.education.map((e) => e.school)).toEqual(["State University"]);
-
-    for (let i = 0; i < 5; i++) {
-      main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -120 }));
-      main.dispatchEvent(new Event("scroll", { bubbles: true }));
-      await vi.advanceTimersByTimeAsync(1000);
-    }
-    await vi.advanceTimersByTimeAsync(6000);
-    expect(new Set(seen).size).toBe(1);
-  });
-
-  it("the Pause button holds analysis back instead of acting like a takeover", async () => {
-    const { autoScroller, getPanelProfileData } = await startMain();
-    await vi.advanceTimersByTimeAsync(3000);
-    autoScroller.pause();
-    await vi.advanceTimersByTimeAsync(10000);
-    expect(autoScroller.getState().pausedBy).toBe("button");
-    expect(getPanelProfileData().collection?.status).not.toBe("settled");
-  });
-
-  it("resumes after a takeover from the same place, keeping the partial result", async () => {
-    const { autoScroller, getPanelProfileData, main } = await startMain();
-    await vi.advanceTimersByTimeAsync(3000);
-    main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
-    await vi.advanceTimersByTimeAsync(6000);
-    const result = getPanelProfileData().profile;
-    const at = main.scrollTop;
-    autoScroller.resume();
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(autoScroller.getState()).toMatchObject({ status: "running", pausedBy: null });
-    expect(main.scrollTop).toBeGreaterThan(at);
-    expect(main.scrollTop - at).toBeLessThan(150);
-    expect(getPanelProfileData().profile).toBe(result);
-  });
-
-  it("picks up a section that renders mid-read right away instead of waiting for the next interval", async () => {
-    const { main } = await startMain();
-    await vi.advanceTimersByTimeAsync(3000);
-    main.insertAdjacentHTML("beforeend", "<section><h2>Experience</h2><p>Web Lead</p><button type=\"button\">…see more</button></section>");
-    const clicked = vi.fn();
-    main.querySelector("section:last-child button")!.addEventListener("click", clicked);
-    await vi.advanceTimersByTimeAsync(1200);
-    expect(clicked).toHaveBeenCalled();
-  });
-
-  it("asks for signals as soon as new evidence renders, one request at a time", async () => {
-    const { main } = await startMain({ "finder.signalMode.v1": true });
-    await vi.advanceTimersByTimeAsync(5000);
-    const signalCalls = () => sendMessage.mock.calls.filter(([message]) => /signal/i.test(String((message as { type?: string }).type))).length;
-    expect(signalCalls()).toBe(1);
-    main.insertAdjacentHTML("beforeend", "<section><h2>Education</h2><ul><li><p>State University</p><p>BS Computer Science</p></li></ul></section>");
-    await vi.advanceTimersByTimeAsync(10000);
-    expect(signalCalls()).toBe(1);
-  });
-
-  it("stops at the bottom once and never scrolls back up", async () => {
-    page.restore();
-    page = stubScrollingPage(1400);
-    const { autoScroller, main } = await startMain();
-    const scrollTo = vi.fn();
-    Object.defineProperty(main, "scrollTo", { configurable: true, value: scrollTo });
-    await vi.advanceTimersByTimeAsync(20000);
-    expect(autoScroller.getState().status).toBe("complete");
-    const bottom = main.scrollTop;
-    expect(bottom).toBeGreaterThanOrEqual(599);
-    await vi.advanceTimersByTimeAsync(20000);
-    expect(main.scrollTop).toBe(bottom);
-    expect(page.writes.every((delta) => delta >= 0)).toBe(true);
-    expect(scrollTo).not.toHaveBeenCalled();
-  });
-
-  it("publishes a detail page's new evidence as soon as the reader takes over", async () => {
-    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
-    const evidence = { ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] }, name: "Illia Reviakin", about: "Builds websites.", extracted: true };
-    const storage = installFakeChromeStorage({
-      "finder.scanMode.v1": "autoScroll",
-      "finder.profileSessions.v2": { irev1ak1n: storedSession("irev1ak1n", evidence, Date.now()) },
-    });
-    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn(), sendMessage }, storage });
-    document.body.innerHTML = `<div id="app-root"><main role="main"><section><h2>Education</h2><ul><li><p>State University</p><p>BS Computer Science</p></li></ul></section></main></div>`;
-    await import("./content");
-    await vi.advanceTimersByTimeAsync(3000);
-    const { autoScroller } = await import("./autoScroller");
-    const { getPanelProfileData } = await import("./panel/panelStore");
-    const main = document.querySelector("main")!;
-    main.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
-    expect(autoScroller.getState().pausedBy).toBe("user");
-    document.querySelector("li")!.insertAdjacentHTML("beforeend", "<p>Robotics club captain</p>");
-    await vi.advanceTimersByTimeAsync(3000);
-    expect(JSON.stringify(getPanelProfileData().profile?.education)).toContain("Robotics club captain");
-  });
-
-  it("reads an opened section with the same scroller and publishes once more when it finishes", async () => {
-    stubNavigableLocation("https://www.linkedin.com/in/irev1ak1n/details/education/");
-    const evidence = { ...{ experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] }, name: "Illia Reviakin", about: "Builds websites.", extracted: true };
-    const storage = installFakeChromeStorage({
-      "finder.scanMode.v1": "autoScroll",
-      "finder.profileSessions.v2": { irev1ak1n: storedSession("irev1ak1n", evidence, Date.now()) },
-    });
-    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn(), sendMessage }, storage });
-    document.body.innerHTML = `<div id="app-root"><main role="main"><section><h2>Education</h2><ul><li><p>State University</p><p>BS Computer Science</p></li></ul></section></main></div>`;
-    await import("./content");
-    await vi.advanceTimersByTimeAsync(3000);
-    const { autoScroller } = await import("./autoScroller");
-    const { getPanelProfileData, subscribePanelProfileData } = await import("./panel/panelStore");
-    expect(autoScroller.getState()).toEqual({ status: "running", target: "https://www.linkedin.com/in/irev1ak1n/details/education/", strategy: "smooth", pausedBy: null });
-    expect(getPanelProfileData().profile?.education.map((e) => e.school)).toEqual(["State University"]);
-    expect(getPanelProfileData().profile?.about).toBe("Builds websites.");
-
-    const listener = vi.fn();
-    subscribePanelProfileData(listener);
-    document.querySelector("li")!.insertAdjacentHTML("beforeend", "<p>Robotics club captain</p>");
-    await vi.advanceTimersByTimeAsync(10000);
-    expect(listener).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(90000);
-    expect(autoScroller.getState().status).toBe("complete");
-    expect(listener).toHaveBeenCalled();
-    expect(JSON.stringify(getPanelProfileData().profile?.education)).toContain("Robotics club captain");
   });
 });
 

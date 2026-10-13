@@ -8,7 +8,6 @@ interface ScanModeToggleProps {
 const MODES: { mode: ScanMode; label: string; hint: string }[] = [
   { mode: "scroll", label: "Analyze as I scroll", hint: "Analyze sections while you browse." },
   { mode: "auto", label: "Auto scan profile", hint: "Quickly scan and analyze the profile for you." },
-  { mode: "autoScroll", label: "Auto scroll profile", hint: "Slowly scroll through the profile hands-free while LinkWise reads with you." },
 ];
 
 // A compact segmented control, only one mode is ever active. Kept small since this is a
