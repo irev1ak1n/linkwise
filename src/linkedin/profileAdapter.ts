@@ -585,6 +585,49 @@ export function detectProfileSections(doc: Document = document): ProfileSectionN
   return detected;
 }
 
+// What the main profile page shows beyond its text: whether this is the viewer's own profile,
+// the photo and banner, and which section headings exist (with LinkedIn's "(50)" counts).
+export interface ProfileShell {
+  isOwnProfile: boolean;
+  hasPhoto: boolean;
+  hasBanner: boolean;
+  sections: Partial<Record<ProfileSectionName | "featured", number | null>>;
+}
+
+const OWNER_CONTROLS = /^(edit profile|add section|add profile section|enhance profile)$/i;
+
+// Own-profile view needs two independent signals: edit links under this profile's own URL, plus
+// an owner-only control or LinkedIn's "Private to you" analytics. Neither alone is trusted.
+function isOwnProfileView(main: HTMLElement, slug: string | null): boolean {
+  if (!slug) return false;
+  const editPath = `/in/${slug.toLowerCase()}/edit/`;
+  const hasEditLink = Array.from(main.querySelectorAll<HTMLAnchorElement>("a[href]")).some((a) =>
+    decodeURIComponent(a.getAttribute("href") ?? "").toLowerCase().includes(editPath),
+  );
+  if (!hasEditLink) return false;
+  const hasOwnerControl = Array.from(main.querySelectorAll<HTMLElement>("button, a")).some((el) =>
+    OWNER_CONTROLS.test((el.getAttribute("aria-label") ?? el.textContent ?? "").replace(/\s+/g, " ").trim()),
+  );
+  return hasOwnerControl || (main.textContent ?? "").includes("Private to you");
+}
+
+export function extractProfileShell(doc: Document = document): ProfileShell {
+  const main = findMain(doc);
+  const sections: ProfileShell["sections"] = {};
+  for (const heading of Array.from(main.querySelectorAll<HTMLElement>("h2"))) {
+    const text = cleanText(visibleText(heading) ?? heading.textContent) ?? "";
+    const count = /\((\d+)\)/.exec(text);
+    const name = /^featured\b/i.test(text) ? "featured" : ALL_PROFILE_SECTIONS.find((section) => isSectionHeading(section, text));
+    if (name && !(name in sections)) sections[name] = count ? Number(count[1]) : null;
+  }
+  return {
+    isOwnProfile: isOwnProfileView(main, profileIdentityKey(doc.URL)),
+    hasPhoto: !!main.querySelector('img[src*="profile-displayphoto"], img[src*="profile-framedphoto"]'),
+    hasBanner: !!main.querySelector('img[src*="profile-displaybackgroundimage"]'),
+    sections,
+  };
+}
+
 // A stable profile identity, the vanity-slug path segment, never the full URL with its
 // volatile tracking params. Null when the URL isn't a profile page. Matches a "/details/..."
 // page the same as the main profile, since both share the same "/in/{slug}" prefix.
