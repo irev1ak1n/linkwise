@@ -76,6 +76,21 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
   const editable = !hasActiveGoal || isEditing;
   const textareaValue = editable ? draft : (goal?.description ?? "");
 
+  if (!editable) {
+    return (
+      <section className="lw-an-goal">
+        <div className="lw-an-goal__text">
+          <span className="lw-an-goal__label">Looking for</span>
+          <p title={goal?.description}>{goal?.description}</p>
+        </div>
+        <button type="button" className="lw-an-more" onClick={handleEdit}>
+          Edit
+        </button>
+        {message && <p className="lw-goal__message">{message}</p>}
+      </section>
+    );
+  }
+
   return (
     <section className="app__section lw-goal">
       <h2>Who are you looking for?</h2>
@@ -113,11 +128,7 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
                 </button>
               )}
             </>
-          ) : (
-            <button type="button" className="button" onClick={handleEdit}>
-              Edit
-            </button>
-          )}
+          ) : null}
         </div>
       </div>
       {message && <p className="lw-goal__message">{message}</p>}

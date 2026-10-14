@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useCollectionData } from "./useCollectionData";
 import { useGoalStore } from "./useGoalStore";
 import { useAiAnalysis } from "./useAiAnalysis";
@@ -23,6 +23,7 @@ import { keywordColorPreference } from "./keywordColorPreference";
 import { ScanningView } from "./ScanningView";
 import { LoadingView } from "./LoadingView";
 import { AnalysisView } from "./AnalysisView";
+import { getAnalyzerPage, subscribeAnalyzerPage, syncAnalyzerProfile } from "./analyzerNav";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
 import { OptimizerView } from "../../optimizer/OptimizerView";
 import { panelToolPreference, type PanelTool } from "../../optimizer/optimizerPreferences";
@@ -30,6 +31,7 @@ import { panelToolPreference, type PanelTool } from "../../optimizer/optimizerPr
 const TOOLS: { tool: PanelTool; label: string }[] = [
   { tool: "analyzer", label: "Profile Analyzer" },
   { tool: "optimizer", label: "Profile Optimizer" },
+  { tool: "highlights", label: "Smart Highlights" },
   { tool: "jobs", label: "Job Filters" },
 ];
 
@@ -58,9 +60,11 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const signalMode = useSignalMode();
   const { value: tool } = useStoredPreference(panelToolPreference);
   // Back from Job Filters returns to whichever profile tool was open.
-  const profileTool = useRef<PanelTool>(tool === "optimizer" ? "optimizer" : "analyzer");
+  const profileTool = useRef<PanelTool>(tool === "jobs" ? "analyzer" : tool);
   if (tool !== "jobs") profileTool.current = tool;
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
+  const analyzerPage = useSyncExternalStore(subscribeAnalyzerPage, getAnalyzerPage, getAnalyzerPage);
+  useEffect(() => syncAnalyzerProfile(profileKey), [profileKey]);
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
   // A multi-page Auto scan overrides the single-page settle check: never final mid-crawl even
@@ -79,6 +83,8 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
 
   const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && tool !== "optimizer");
+
+  const analysisReady = profileKey !== null && !!profile && !!collection && !!goal && isFinal && !!result && (aiState.status === "ready" || aiState.status === "unavailable");
 
   function handleAnalyzeNow(): void {
     if (!profileKey) return;
@@ -125,14 +131,14 @@ export function PanelApp({ onClose }: PanelAppProps) {
         </button>
       </header>
       <div className="lw-panel__body">
-        <div className="lw-scan-mode__control" role="tablist" aria-label="LinkWise tool">
+        <div className="lw-tools" role="tablist" aria-label="LinkWise tool">
           {TOOLS.map((option) => (
             <button
               key={option.tool}
               type="button"
               role="tab"
               aria-selected={tool === option.tool}
-              className={`lw-scan-mode__option${tool === option.tool ? " is-active" : ""}`}
+              className={`lw-tools__tab${tool === option.tool ? " is-active" : ""}`}
               onClick={() => panelToolPreference.set(option.tool)}
             >
               {option.label}
@@ -143,26 +149,15 @@ export function PanelApp({ onClose }: PanelAppProps) {
           <JobFiltersPage settings={jobsSettings} onChange={setJobsSettings} onBack={() => panelToolPreference.set(profileTool.current)} />
         ) : tool === "optimizer" ? (
           <OptimizerView profileKey={profileKey} profile={profile} isFinal={isFinal} onAnalyzeNow={handleAnalyzeNow} />
-        ) : !goalsLoaded ? (
-          <p className="lw-empty">Loading your goals…</p>
-        ) : (
-          <>
-            <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
-            {profileKey !== null && <ScanModeToggle mode={scanMode} onChange={setScanMode} />}
-            {profileKey !== null && scanMode === "scroll" && (
-              <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />
-            )}
-            {profileKey !== null && scanMode === "auto" && (
-              <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />
-            )}
-            {profileKey !== null && scanMode === "auto" && (
-              <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />
-            )}
-            {profileKey !== null && scanMode === "auto" && (
-              <ManualSectionsCheckbox enabled={manualSectionsEnabled} onChange={setManualSectionsPreference} />
-            )}
-            {renderProfileSection()}
-            {profileKey !== null && (
+        ) : tool === "highlights" ? (
+          <section className="lw-jobs-page">
+            <div>
+              <h3 className="lw-opt-page__title">Smart Highlights</h3>
+              <p className="lw-scan-mode__hint">Highlight the most useful details while you read a profile.</p>
+            </div>
+            {profileKey === null ? (
+              <p className="lw-empty">Open a LinkedIn profile to use Smart Highlights.</p>
+            ) : (
               <SignalModeSection
                 enabled={signalMode.enabled}
                 analysis={signalMode.analysis}
@@ -177,6 +172,29 @@ export function PanelApp({ onClose }: PanelAppProps) {
                 updatingSection={updatingSection}
               />
             )}
+          </section>
+        ) : !goalsLoaded ? (
+          <p className="lw-empty">Loading your goals…</p>
+        ) : analysisReady && analyzerPage !== "home" ? (
+          renderProfileSection()
+        ) : (
+          <>
+            <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
+            {profileKey !== null && (
+              <details className="lw-an-scan" open={!isFinal}>
+                <summary>
+                  Scan settings <span>· {scanMode === "auto" ? "Auto scan profile" : "Analyze as I scroll"}</span>
+                </summary>
+                <ScanModeToggle mode={scanMode} onChange={setScanMode} />
+                {scanMode === "scroll" && <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />}
+                {scanMode === "auto" && (
+                  <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />
+                )}
+                {scanMode === "auto" && <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />}
+                {scanMode === "auto" && <ManualSectionsCheckbox enabled={manualSectionsEnabled} onChange={setManualSectionsPreference} />}
+              </details>
+            )}
+            {renderProfileSection()}
           </>
         )}
       </div>

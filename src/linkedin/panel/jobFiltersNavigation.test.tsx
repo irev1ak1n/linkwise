@@ -122,3 +122,24 @@ describe("job cards and the settings store", () => {
     unsubscribe();
   });
 });
+
+describe("Smart Highlights separation", () => {
+  it("keeps highlight controls out of Profile Analyzer and on their own page", async () => {
+    await mountPanel();
+    expect(container.textContent).not.toContain("Signal Mode");
+    expect(container.textContent).not.toContain("Highlight keywords");
+    await act(async () => button("Smart Highlights").click());
+    expect(container.textContent).toContain("Signal Mode");
+    expect(container.querySelector(".lw-signals")).not.toBeNull();
+  });
+
+  it("still turns Signal Mode on from its own page", async () => {
+    const { getSignalModeState } = await import("./signalModeStore");
+    await mountPanel();
+    await act(async () => button("Smart Highlights").click());
+    const toggle = container.querySelector<HTMLInputElement>(".lw-signals__toggle input")!;
+    const before = getSignalModeState().enabled;
+    await act(async () => toggle.click());
+    expect(getSignalModeState().enabled).toBe(!before);
+  });
+});
