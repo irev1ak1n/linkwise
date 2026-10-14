@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCollectionData } from "./useCollectionData";
 import { useGoalStore } from "./useGoalStore";
 import { useAiAnalysis } from "./useAiAnalysis";
@@ -15,7 +15,7 @@ import { EnhancedAnalysisCheckbox } from "./EnhancedAnalysisCheckbox";
 import { ManualSectionsCheckbox } from "./ManualSectionsCheckbox";
 import { autoExpandPreference } from "./autoExpandPreference";
 import { useStoredPreference } from "./useStoredPreference";
-import { JobsSettingsSection } from "./JobsSettingsSection";
+import { JobFiltersPage } from "./JobFiltersPage";
 import { SignalModeSection } from "./SignalModeSection";
 import { highlightKeywordsPreference } from "./keywordPreference";
 import { highlightColorPreference } from "./highlightColorPreference";
@@ -30,6 +30,7 @@ import { panelToolPreference, type PanelTool } from "../../optimizer/optimizerPr
 const TOOLS: { tool: PanelTool; label: string }[] = [
   { tool: "analyzer", label: "Profile Analyzer" },
   { tool: "optimizer", label: "Profile Optimizer" },
+  { tool: "jobs", label: "Job Filters" },
 ];
 
 interface PanelAppProps {
@@ -56,6 +57,9 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
   const { value: tool } = useStoredPreference(panelToolPreference);
+  // Back from Job Filters returns to whichever profile tool was open.
+  const profileTool = useRef<PanelTool>(tool === "optimizer" ? "optimizer" : "analyzer");
+  if (tool !== "jobs") profileTool.current = tool;
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
 
   const forced = profileKey !== null && forcedKeys.has(profileKey);
@@ -74,7 +78,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   // Memoized so this stays reference-stable, an unstable one would re-trigger AI on every render.
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
 
-  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && tool === "analyzer");
+  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && tool !== "optimizer");
 
   function handleAnalyzeNow(): void {
     if (!profileKey) return;
@@ -135,7 +139,9 @@ export function PanelApp({ onClose }: PanelAppProps) {
             </button>
           ))}
         </div>
-        {tool === "optimizer" ? (
+        {tool === "jobs" ? (
+          <JobFiltersPage settings={jobsSettings} onChange={setJobsSettings} onBack={() => panelToolPreference.set(profileTool.current)} />
+        ) : tool === "optimizer" ? (
           <OptimizerView profileKey={profileKey} profile={profile} isFinal={isFinal} onAnalyzeNow={handleAnalyzeNow} />
         ) : !goalsLoaded ? (
           <p className="lw-empty">Loading your goals…</p>
@@ -171,7 +177,6 @@ export function PanelApp({ onClose }: PanelAppProps) {
                 updatingSection={updatingSection}
               />
             )}
-            <JobsSettingsSection settings={jobsSettings} onChange={setJobsSettings} />
           </>
         )}
       </div>

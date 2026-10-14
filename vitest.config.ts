@@ -6,5 +6,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // The first jsdom test in a file pays for transforming its imports, which can pass 5s under full parallel load.
+    testTimeout: 20000,
   },
 });

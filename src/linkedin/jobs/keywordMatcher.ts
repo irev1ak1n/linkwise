@@ -10,7 +10,7 @@ const TEXT_SELECTORS = [
 
 export function parseKeywords(keywordsText: string): string[] {
   return keywordsText
-    .split(",")
+    .split(/[,\n]/)
     .map((k) => k.trim())
     .filter((k) => k.length > 0);
 }
