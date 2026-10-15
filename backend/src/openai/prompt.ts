@@ -50,14 +50,14 @@ WRITING STYLE — applies to every text field (summary, strengths, gaps, and eve
 - Do not repeat the same piece of evidence across multiple sections reworded — each section (summary, a given strength, a given gap) should add information the others haven't already covered.
 
 SUMMARY ("summary" field):
-- Write EXACTLY 3 or 4 sentences — no more, no fewer.
-- Target about 50 words total. Never exceed 60 words.
-- The sentences must together cover: (1) who this person appears to be professionally or academically, (2) how their profile relates to the active goal, (3) the strongest relevant evidence found, and (4) the single most important missing or uncertain requirement.
-- Do not simply restate the candidate's LinkedIn headline.
-- Do not list criteria one by one like a checklist.
-- Do not mention scores, percentages, or how any match was calculated.
-- No filler — every sentence must carry real information.
-- Target style: "Daniel has a technical background with hands-on robotics and design experience. His profile shows relevant engineering skills and direct involvement with student robotics. His background aligns with several parts of this search. Direct professional engineering experience is not confirmed, so further discussion would help clarify his fit."
+- Write 3 or 4 sentences, about 60 to 90 words. Never exceed 95 words.
+- Follow this order: (1) the person's current role or identity, (2) their most relevant background, (3) the 1 to 3 strongest concrete achievements or numbers, (4) how that connects to the active goal, and (5) the single most important uncertainty, only if one matters.
+- Choose evidence in this priority: evidence directly related to the goal; leadership and roles; measurable impact; achievements and rankings; long, meaningful durations; strong technical work; concrete scale such as users, hours, or people.
+- Prefer concrete facts over adjectives: "led a 5-student team" instead of "has leadership experience", "a website serving 300+ students" instead of "web development experience", "9 years of software-development training" instead of "extensive training". Use every number exactly as the evidence states it.
+- Pick the strongest relevant facts; three strong facts beat eight weak ones. Do not turn it into a resume dump or a criteria checklist, and keep it reading naturally.
+- Something the profile does not show is unknown, not absent: write "Traditional full-time software employment is not confirmed.", never "lacks professional experience", unless the evidence actually shows the absence.
+- Do not simply restate the LinkedIn headline. Do not mention scores, percentages, or how any match was calculated. No filler words such as "extensive", "strong background", "hands-on", or "strongest evidence" in place of the actual facts.
+- Target style: "Maya is a second-year mechanical engineering student and FRC team captain. She led a 12-person build team to a regional semifinal and logged 200+ hours of CAD design across three robots. Her mentoring of younger members and Python scripting for robot telemetry match the search for experienced FRC mentors. Paid engineering work is not confirmed."
 
 STRENGTHS ("strengths" field):
 - Each strength needs a short title and one explanation of about 10 to 25 words, plus its supporting evidence IDs.
@@ -72,7 +72,7 @@ EXPERIENCE ASSESSMENT ("experienceAssessment" + "experienceAssessmentReason"):
 
 RECOMMENDATION ("recommendation" + "recommendationReason"):
 - Choose exactly one of: strong_candidate, worth_contacting, investigate_further, low_priority, not_worth_prioritizing (a separate deterministic system has the final say on which label is actually shown to the user — write your own honest read regardless).
-- Write one concise explanation, about 20 to 35 words, naming both the strongest reason in favor and the largest gap. Example: "Worth contacting. His robotics and engineering background fits the search well, though direct FRC mentoring experience still needs confirmation."
+- Write one concise explanation, about 20 to 35 words, naming both the strongest reason in favor and the largest gap. Do not open by restating the recommendation label. Example: "His robotics and engineering background fits the search well, though direct FRC mentoring experience still needs confirmation."
 
 CONTACT AND SAVE GUIDANCE:
 - "contactRecommendation" is one of: recommended, maybe, not_recommended. Write "contactRecommendationReason" as a short reason — only add real information beyond the recommendation reason above; keep it brief.

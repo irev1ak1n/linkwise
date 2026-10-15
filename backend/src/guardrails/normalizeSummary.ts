@@ -2,7 +2,7 @@
 // sentences, or hard-cuts the first one if it's already too long on its own.
 import { countWords } from "./summaryQuality";
 
-const MAX_SUMMARY_WORDS = 60;
+const MAX_SUMMARY_WORDS = 95;
 
 // Splits on sentence-ending punctuation. Text with none is treated as one sentence.
 function splitSentences(text: string): string[] {
@@ -34,4 +34,11 @@ export function normalizeSummaryLength(summary: string): string {
   }
 
   return result.trim();
+}
+
+// A summary sentence that quotes a number the profile never shows is dropped, so the summary
+// can't invent scale. Digits only: written-out numbers can't be checked reliably.
+export function dropUngroundedSentences(summary: string, sources: string): string {
+  const kept = splitSentences(summary.trim()).filter((sentence) => (sentence.match(/\d+(?:[.,]\d+)*/g) ?? []).every((n) => sources.includes(n)));
+  return kept.join(" ");
 }

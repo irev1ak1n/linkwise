@@ -83,12 +83,20 @@ describe("validateNarrative - summary", () => {
     expect(validateNarrative(response({ summary: "   " }), new Set()).summary).toBeUndefined();
   });
 
-  it("normalizes a summary over the 60-word hard cap rather than passing it through as-is", () => {
+  it("normalizes a summary over the 95-word hard cap rather than passing it through as-is", () => {
     const longSentence = "This is a padded sentence with plenty of words in it for testing purposes today.";
-    const summary = Array(6).fill(longSentence).join(" "); // well over 60 words
+    const summary = Array(10).fill(longSentence).join(" "); // well over 95 words
     const validated = validateNarrative(response({ summary }), new Set());
     const wordCount = validated.summary!.trim().split(/\s+/).length;
-    expect(wordCount).toBeLessThanOrEqual(60);
+    expect(wordCount).toBeLessThanOrEqual(95);
+  });
+});
+
+describe("validateNarrative - grounded summary", () => {
+  it("drops summary sentences that quote numbers the evidence never shows", () => {
+    const summary = "Jordan built a site for 300+ students. It earned 9,000 signups. Paid work is not confirmed.";
+    const validated = validateNarrative(response({ summary }), new Set(), "Yearbook website serving 300+ students");
+    expect(validated.summary).toBe("Jordan built a site for 300+ students. Paid work is not confirmed.");
   });
 });
 

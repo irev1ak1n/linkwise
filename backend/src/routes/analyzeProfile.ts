@@ -50,7 +50,7 @@ export async function handleAnalyzeProfile(req: Request, res: Response, deps: An
     const merge = mergeCriterionAssessments(request, aiResult.data);
     const result = computeFinalScore(request, merge, aiResult.data);
     const suppliedEvidenceIds = new Set(request.profile.evidence.map((e) => e.id));
-    const narrative = validateNarrative(aiResult.data, suppliedEvidenceIds);
+    const narrative = validateNarrative(aiResult.data, suppliedEvidenceIds, request.profile.evidence.map((e) => e.text).join("\n"));
 
     res.status(200).json({ status: "ai_analysis", model: deps.config.openAiModel, result, narrative });
   } catch (error) {

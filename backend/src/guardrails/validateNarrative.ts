@@ -3,7 +3,7 @@
 // since it describes an absence, only invalid IDs get stripped from it.
 import type { CriterionImportance } from "../../../src/models/goal";
 import type { AnalysisResponse, ConfidenceLevel } from "../openai/responseSchema";
-import { normalizeSummaryLength } from "./normalizeSummary";
+import { dropUngroundedSentences, normalizeSummaryLength } from "./normalizeSummary";
 
 export interface ValidatedStrength {
   title: string;
@@ -32,7 +32,7 @@ export interface ValidatedNarrative {
   confidenceLevel: ConfidenceLevel;
 }
 
-export function validateNarrative(response: AnalysisResponse, suppliedEvidenceIds: ReadonlySet<string>): ValidatedNarrative {
+export function validateNarrative(response: AnalysisResponse, suppliedEvidenceIds: ReadonlySet<string>, evidenceText?: string): ValidatedNarrative {
   const strengths: ValidatedStrength[] = response.strengths
     .map((strength) => ({ ...strength, evidenceIds: strength.evidenceIds.filter((id) => suppliedEvidenceIds.has(id)) }))
     .filter((strength) => strength.evidenceIds.length > 0 && strength.title.trim().length > 0);
@@ -41,7 +41,7 @@ export function validateNarrative(response: AnalysisResponse, suppliedEvidenceId
     .map((gap) => ({ ...gap, evidenceIds: gap.evidenceIds.filter((id) => suppliedEvidenceIds.has(id)) }))
     .filter((gap) => gap.title.trim().length > 0);
 
-  const trimmedSummary = normalizeSummaryLength(response.summary);
+  const trimmedSummary = normalizeSummaryLength(evidenceText === undefined ? response.summary : dropUngroundedSentences(response.summary, evidenceText));
 
   return {
     summary: trimmedSummary.length > 0 ? trimmedSummary : undefined,

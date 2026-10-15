@@ -10,13 +10,13 @@ describe("SYSTEM_PROMPT - summary writing rules", () => {
   });
 
   it("specifies the word count target and hard ceiling", () => {
-    expect(SYSTEM_PROMPT).toMatch(/50 words/);
-    expect(SYSTEM_PROMPT).toMatch(/[Nn]ever exceed 60 words/);
+    expect(SYSTEM_PROMPT).toMatch(/60 to 90 words/);
+    expect(SYSTEM_PROMPT).toMatch(/[Nn]ever exceed 95 words/);
   });
 
   it("forbids restating the headline, listing criteria, and mentioning scores", () => {
-    expect(SYSTEM_PROMPT).toMatch(/restate the candidate's LinkedIn headline/);
-    expect(SYSTEM_PROMPT).toMatch(/list criteria one by one/);
+    expect(SYSTEM_PROMPT).toMatch(/restate the LinkedIn headline/);
+    expect(SYSTEM_PROMPT).toMatch(/criteria checklist/);
     expect(SYSTEM_PROMPT).toMatch(/scores, percentages/);
   });
 });
@@ -129,5 +129,18 @@ describe("SYSTEM_PROMPT - AI-first scoring", () => {
 
   it("instructs the model to reason holistically from the goal description when no criteria list is supplied", () => {
     expect(SYSTEM_PROMPT).toMatch(/If no criteria list is provided.+reason directly from the Goal description text itself/);
+  });
+});
+
+describe("SYSTEM_PROMPT summary rules", () => {
+  it("asks for a concise, concrete, evidence-first summary", () => {
+    expect(SYSTEM_PROMPT).toContain("about 60 to 90 words");
+    expect(SYSTEM_PROMPT).toContain('"led a 5-student team" instead of "has leadership experience"');
+    expect(SYSTEM_PROMPT).toContain("three strong facts beat eight weak ones");
+  });
+
+  it("keeps unknown separate from absent", () => {
+    expect(SYSTEM_PROMPT).toContain("unknown, not absent");
+    expect(SYSTEM_PROMPT).toContain("never \"lacks professional experience\"");
   });
 });
