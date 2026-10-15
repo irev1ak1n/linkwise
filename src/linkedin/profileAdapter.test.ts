@@ -731,3 +731,23 @@ describe("extractLinkedInProfile - owner view prompts", () => {
     expect(profile.location).toBe("Charlotte, North Carolina, United States");
   });
 });
+
+describe("profile identity on details pages", () => {
+  it("never reads a section heading as the person's name", async () => {
+    const { isProfileSectionHeading } = await import("./profileAdapter");
+    setBody(`<main role="main"><section><h2>Experience</h2><p>Web Lead</p></section></main>`);
+    expect(extractLinkedInProfile(document).name).toBeUndefined();
+    expect(isProfileSectionHeading("Experience")).toBe(true);
+    expect(isProfileSectionHeading("Honors & awards (3)")).toBe(true);
+    expect(isProfileSectionHeading("Jordan Rivera")).toBe(false);
+  });
+
+  it("returns no identity from a details page that is still loading", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/experience/", configurable: true });
+    setBody(`<main role="main"><section><h1>Jordan Rivera</h1><div><span>Student developer</span></div></section></main>`);
+    const profile = extractDetailsPageProfile(document);
+    expect(profile.name).toBeUndefined();
+    expect(profile.headline).toBeUndefined();
+    Object.defineProperty(document, "URL", { value: "about:blank", configurable: true });
+  });
+});

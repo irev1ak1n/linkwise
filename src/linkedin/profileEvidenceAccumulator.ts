@@ -136,3 +136,10 @@ function canonical(value: unknown): unknown {
 export function sameEvidence(a: LinkedInProfile, b: LinkedInProfile): boolean {
   return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
+
+// One person's evidence across their main page and every details page. The main page refreshes
+// who the person is; a details page only ever adds to what the session already holds, so its
+// section heading can never become the person's identity.
+export function accumulateForPage(accumulated: LinkedInProfile, page: LinkedInProfile, isDetailsPage: boolean): LinkedInProfile {
+  return isDetailsPage ? mergeProfileEvidence(accumulated, { ...page, name: undefined, headline: undefined, location: undefined }) : mergeProfileEvidence(page, accumulated);
+}

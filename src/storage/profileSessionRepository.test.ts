@@ -81,3 +81,16 @@ describe("profileSessionRepository", () => {
     expect(await updateProfileSession("irev1ak1n", { scannedSection: "education" }, 0)).toBeNull();
   });
 });
+
+describe("updateProfileSession ordering", () => {
+  it("never lets an earlier-read update write older evidence over a newer one", async () => {
+    const older = { ...EMPTY_PROFILE, name: "Jordan Rivera", languages: [{ name: "English" }], extracted: true };
+    const newer = { ...older, languages: [{ name: "English" }, { name: "Spanish" }] };
+    await updateProfileSession("jordan", { evidence: older });
+    // Issued together, as the content script does: a new section's evidence, then a validation-only touch.
+    await Promise.all([updateProfileSession("jordan", { evidence: newer, scannedSection: "languages" }), updateProfileSession("jordan", { validated: true })]);
+    const session = await loadProfileSession("jordan");
+    expect(session?.evidence.languages.map((l) => l.name)).toEqual(["English", "Spanish"]);
+    expect(session?.scannedSections).toContain("languages");
+  });
+});

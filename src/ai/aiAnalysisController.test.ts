@@ -332,3 +332,29 @@ describe("AiAnalysisController - incremental updates", () => {
     expect(last.updateError).toBe("openai_error");
   });
 });
+
+describe("AiAnalysisController - one profile across its pages", () => {
+  it("keeps the newest evidence's result when the main page returns with the same merged evidence", async () => {
+    vi.useFakeTimers();
+    const goal = { ...createGoal("Bilingual developers"), criteria: [createCriterion("Speaks multiple languages", "PREFERRED")] };
+    const states: AiAnalysisState[] = [];
+    const requestAiAnalysis = vi.fn(() => makePendingRequest(Promise.resolve(readyOutcome())).pending);
+    const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 10 });
+    const ask = (p: LinkedInProfile) => controller.request(goal, p, scoreProfileAgainstGoal(goal, p), (s) => states.push(s));
+
+    const mainOnly = profile({ name: "Jordan Rivera", languages: [{ name: "English" }] });
+    const withDetails = profile({ name: "Jordan Rivera", languages: [{ name: "English" }, { name: "Spanish" }] });
+    ask(mainOnly);
+    await vi.advanceTimersByTimeAsync(20);
+    ask(withDetails);
+    await vi.advanceTimersByTimeAsync(20);
+    expect(requestAiAnalysis).toHaveBeenCalledTimes(2);
+
+    // Back on the main page: the merged session evidence is unchanged, so nothing is asked again.
+    ask({ ...withDetails });
+    await vi.advanceTimersByTimeAsync(20);
+    expect(requestAiAnalysis).toHaveBeenCalledTimes(2);
+    expect(states.at(-1)?.status).toBe("ready");
+    vi.useRealTimers();
+  });
+});

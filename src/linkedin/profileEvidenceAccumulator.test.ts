@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeProfileEvidence } from "./profileEvidenceAccumulator";
+import { accumulateForPage, mergeProfileEvidence } from "./profileEvidenceAccumulator";
 import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 
 function profile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
@@ -125,5 +125,25 @@ describe("mergeProfileEvidence - one record per real education or role", () => {
     const details = profile({ education: [detailSchool], experience: [{ title: "Web Lead", company: "Robotics Club", dates: "2026" }] });
     const once = mergeProfileEvidence(profile({}), details);
     expect(mergeProfileEvidence(once, details)).toEqual(once);
+  });
+});
+
+describe("accumulateForPage", () => {
+  const session = { ...EMPTY_PROFILE, name: "Jordan Rivera", headline: "Web developer", languages: [{ name: "English" }], extracted: true };
+
+  it("keeps the person's identity on a details page, whatever its heading says", () => {
+    const detailsPage = { ...EMPTY_PROFILE, name: "Languages", headline: "Show all", languages: [{ name: "English" }, { name: "Ukrainian" }], extracted: true };
+    const merged = accumulateForPage(session, detailsPage, true);
+    expect(merged.name).toBe("Jordan Rivera");
+    expect(merged.headline).toBe("Web developer");
+    expect(merged.languages.map((l) => l.name)).toEqual(["English", "Ukrainian"]);
+  });
+
+  it("lets the main page refresh identity while keeping details-page evidence", () => {
+    const enriched = accumulateForPage(session, { ...EMPTY_PROFILE, languages: [{ name: "Ukrainian" }], extracted: true }, true);
+    const mainPage = { ...EMPTY_PROFILE, name: "Jordan Rivera", headline: "Full-stack developer", languages: [{ name: "English" }], extracted: true };
+    const back = accumulateForPage(enriched, mainPage, false);
+    expect(back.headline).toBe("Full-stack developer");
+    expect(back.languages.map((l) => l.name)).toEqual(["English", "Ukrainian"]);
   });
 });

@@ -36,11 +36,12 @@ import {
   extractDetailsPageProfile,
   extractLinkedInProfile,
   extractProfileShell,
+  isProfileSectionHeading,
   normalizeProfileUrl,
   profileIdentityKey,
 } from "./profileAdapter";
 import { discoverProfileSections, excludeFromAutoScanQueue } from "./sectionDiscovery";
-import { mergeProfileEvidence, sameEvidence } from "./profileEvidenceAccumulator";
+import { accumulateForPage, mergeProfileEvidence, sameEvidence } from "./profileEvidenceAccumulator";
 import {
   forceCompleteSession,
   hasExceededOverallTimeout,
@@ -229,7 +230,7 @@ let publishedSettledKey: string | null = null;
 
 const engine = createCollectionEngine({
   now: () => Date.now(),
-  extractProfile: () => extractLinkedInProfile(document),
+  extractProfile: () => (/\/details\//.test(location.href) ? extractDetailsPageProfile(document) : extractLinkedInProfile(document)),
   detectSections: () => detectProfileSections(document),
   getProfileKey: () => profileIdentityKey(location.href),
   isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? reachedEndOfScan() : isNearDocumentEnd()),
@@ -298,7 +299,7 @@ function ensureProfileSession(profileKey: string): boolean {
     if (sessionKey !== profileKey || torndown) return;
     sessionReady = true;
     if (session?.evidence.extracted) {
-      autoScanEvidence = session.evidence;
+      autoScanEvidence = isProfileSectionHeading(session.evidence.name) ? { ...session.evidence, name: undefined } : session.evidence;
       restoredSession = true;
       mainPageScanned = session.scannedSections.includes(MAIN_PAGE_SECTION) && isProfileSessionFresh(session, Date.now());
       const current = getPanelProfileData();
@@ -366,7 +367,8 @@ function goToNextSectionOrFinish(session: AutoScanSession): void {
 }
 
 function withAccumulatedEvidence(profileKey: string, profile: LinkedInProfile): LinkedInProfile {
-  return sessionKey === profileKey && autoScanEvidence.extracted ? mergeProfileEvidence(profile, autoScanEvidence) : profile;
+  if (sessionKey !== profileKey || !autoScanEvidence.extracted) return profile;
+  return accumulateForPage(autoScanEvidence, profile, /\/details\//.test(location.href));
 }
 
 let manualScan: SectionScanState | null = null;

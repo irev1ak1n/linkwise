@@ -124,9 +124,15 @@ function findIdentityHeading(main: HTMLElement): HTMLElement | null {
   return main.querySelector<HTMLElement>("h1") ?? main.querySelector<HTMLElement>("h2");
 }
 
+// A section heading ("Experience") is never a person's name.
+export function isProfileSectionHeading(text: string | undefined): boolean {
+  return !!text && ALL_PROFILE_SECTIONS.some((section) => isSectionHeading(section, text));
+}
+
 function extractName(main: HTMLElement): string | undefined {
   const heading = findIdentityHeading(main);
-  return heading ? visibleText(heading) : undefined;
+  const name = heading ? visibleText(heading) : undefined;
+  return isProfileSectionHeading(name) ? undefined : name;
 }
 
 const MAX_IDENTITY_CARD_WALK = 12;
@@ -510,7 +516,9 @@ export function extractDetailsPageProfile(doc: Document = document): LinkedInPro
   const section = detailsPageSection(doc.URL);
   const container = doc.querySelector<HTMLElement>('[data-testid*="DetailsSection"]');
   const list = detailsEntryList(doc);
-  if (!section || (!list && !container)) return extractLinkedInProfile(doc);
+  // A details page never shows who the person is, only the section, so identity always comes
+  // from the profile session instead.
+  if (!section || (!list && !container)) return { ...extractLinkedInProfile(doc), name: undefined, headline: undefined, location: undefined };
 
   const profile: LinkedInProfile = { ...EMPTY_PROFILE, experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] };
   if (section !== "skills" && section !== "about") {

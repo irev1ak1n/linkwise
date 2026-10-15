@@ -37,12 +37,20 @@ export async function loadProfileSession(profileKey: string, now = Date.now()): 
   return session && session.profileKey === profileKey && isRetained(session, now) ? session : null;
 }
 
+type SessionUpdate = { evidence?: LinkedInProfile; scannedSection?: string | null; validated?: boolean };
+
+// Updates run one at a time, so an update that read storage earlier can never write older
+// evidence back over a newer one.
+let queue: Promise<unknown> = Promise.resolve();
+
+export function updateProfileSession(profileKey: string, update: SessionUpdate, now = Date.now()): Promise<ProfileSession | null> {
+  const run = queue.then(() => applySessionUpdate(profileKey, update, now));
+  queue = run.catch(() => {});
+  return run;
+}
+
 // Freshness moves only when the page's evidence was actually checked, or changed.
-export async function updateProfileSession(
-  profileKey: string,
-  update: { evidence?: LinkedInProfile; scannedSection?: string | null; validated?: boolean },
-  now = Date.now(),
-): Promise<ProfileSession | null> {
+async function applySessionUpdate(profileKey: string, update: SessionUpdate, now: number): Promise<ProfileSession | null> {
   const sessions = await readSessions();
   const existing = sessions[profileKey];
   const current = existing && isRetained(existing, now) ? existing : null;
