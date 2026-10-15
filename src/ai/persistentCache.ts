@@ -1,3 +1,4 @@
+import { isExtensionContextValid } from "../linkedin/extensionContext";
 import { safeStorageGet, safeStorageSet } from "../storage/safeChromeStorage";
 
 interface Entry<T> {
@@ -23,12 +24,36 @@ export function createPersistentCache<T>(storageKey: string, ttlMs: number, maxE
     return !!entry && now - entry.savedAt < ttlMs;
   }
 
+  // The newer copy of an entry wins, wherever it came from.
+  function absorb(saved: unknown): void {
+    if (!saved || typeof saved !== "object") return;
+    for (const [key, entry] of Object.entries(saved as Record<string, Entry<T>>)) {
+      const mine = entries.get(key);
+      if (!mine || entry.savedAt > mine.savedAt) entries.set(key, entry);
+    }
+  }
+
+  // Entries another tab saves become available here too, without asking again.
+  if (isExtensionContextValid()) {
+    chrome.storage?.onChanged?.addListener((changes, area) => {
+      if (area === "local" && changes[storageKey]) absorb(changes[storageKey].newValue);
+    });
+  }
+
+  // Merges with what is stored first, so a tab that loaded the cache earlier never drops entries
+  // another tab saved since.
+  let writing: Promise<void> = Promise.resolve();
   function persist(now: number): void {
-    const kept = [...entries.entries()]
-      .filter(([, entry]) => fresh(entry, now))
-      .sort(([, a], [, b]) => b.savedAt - a.savedAt)
-      .slice(0, maxEntries);
-    void safeStorageSet({ [storageKey]: Object.fromEntries(kept) });
+    writing = writing
+      .then(async () => {
+        absorb((await safeStorageGet(storageKey))[storageKey]);
+        const kept = [...entries.entries()]
+          .filter(([, entry]) => fresh(entry, now))
+          .sort(([, a], [, b]) => b.savedAt - a.savedAt)
+          .slice(0, maxEntries);
+        await safeStorageSet({ [storageKey]: Object.fromEntries(kept) });
+      })
+      .catch(() => {});
   }
 
   return {
@@ -44,14 +69,7 @@ export function createPersistentCache<T>(storageKey: string, ttlMs: number, maxE
       if (loading) return loading;
       ready = false;
       loading = safeStorageGet(storageKey)
-        .then((stored) => {
-          const saved = stored[storageKey];
-          if (saved && typeof saved === "object") {
-            for (const [key, entry] of Object.entries(saved as Record<string, Entry<T>>)) {
-              if (!entries.has(key)) entries.set(key, entry);
-            }
-          }
-        })
+        .then((stored) => absorb(stored[storageKey]))
         .catch(() => {})
         .finally(() => {
           ready = true;

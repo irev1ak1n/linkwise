@@ -54,7 +54,7 @@ import {
   type AutoScanSession,
 } from "./autoScanSession";
 import { loadAutoScanSession, saveAutoScanSession } from "../storage/autoScanSessionRepository";
-import { isProfileSessionFresh, loadProfileSession, updateProfileSession } from "../storage/profileSessionRepository";
+import { isProfileSessionFresh, loadProfileSession, profileSessionStorageKey, updateProfileSession, type ProfileSession } from "../storage/profileSessionRepository";
 import { ensureLinkWiseOpener, removeLinkWiseOpener } from "./opener";
 import { getPanelProfileData, setPanelProfileData, type AutoScanProgress } from "./panel/panelStore";
 import { destroyPanel, openPanel, togglePanel, wasPanelOpen } from "./panel/mount";
@@ -87,7 +87,7 @@ import { highlightColorPreference } from "./panel/highlightColorPreference";
 import { keywordColorPreference } from "./panel/keywordColorPreference";
 import { SignalHighlighter } from "./signalHighlighter";
 import { getSignalModeState, initSignalModeStore, publishSignalAnalysis, subscribeSignalModeStore } from "./panel/signalModeStore";
-import { watchForContextInvalidation } from "./extensionContext";
+import { isExtensionContextValid, watchForContextInvalidation } from "./extensionContext";
 
 const DOCUMENT_END_MARGIN_PX = 600;
 const MUTATION_DEBOUNCE_MS = 900;
@@ -321,6 +321,36 @@ function ensureProfileSession(profileKey: string): boolean {
   });
   return false;
 }
+// Another tab, or this page before a back/forward restore, may have enriched the stored session.
+function adoptStoredSession(profileKey: string, session: ProfileSession | null): void {
+  if (sessionKey !== profileKey || !sessionReady || !session?.evidence.extracted) return;
+  const stored = isProfileSectionHeading(session.evidence.name) ? { ...session.evidence, name: undefined } : session.evidence;
+  const merged = autoScanEvidence.extracted ? mergeProfileEvidence(autoScanEvidence, stored) : stored;
+  if (!sameEvidence(merged, autoScanEvidence)) autoScanEvidence = merged;
+  const current = getPanelProfileData();
+  if (current.profileKey !== profileKey || !current.profile) return;
+  const profile = mergeProfileEvidence(current.profile, stored);
+  if (!sameEvidence(profile, current.profile)) setPanelProfileData({ ...current, profile });
+}
+
+if (isExtensionContextValid()) {
+  const onSessionStored = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+    if (area !== "local" || !sessionKey) return;
+    const change = changes[profileSessionStorageKey(sessionKey)];
+    if (change?.newValue) adoptStoredSession(sessionKey, change.newValue as ProfileSession);
+  };
+  chrome.storage.onChanged.addListener(onSessionStored);
+  registerCleanup(() => chrome.storage.onChanged.removeListener(onSessionStored));
+}
+
+const onPageShow = (event: PageTransitionEvent) => {
+  if (!event.persisted || !sessionKey) return;
+  const key = sessionKey;
+  void loadProfileSession(key).then((session) => adoptStoredSession(key, session));
+};
+window.addEventListener("pageshow", onPageShow);
+registerCleanup(() => window.removeEventListener("pageshow", onPageShow));
+
 let autoScanLoadInFlight = false;
 let sectionArrivedAt: number | null = null;
 let sectionHandledUrl: string | null = null;

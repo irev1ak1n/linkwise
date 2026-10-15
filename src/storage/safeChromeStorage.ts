@@ -15,6 +15,16 @@ export async function safeStorageGet(keys: string | string[]): Promise<Record<st
   }
 }
 
+export async function safeStorageGetAll(): Promise<Record<string, unknown>> {
+  if (!isExtensionContextValid()) return {};
+  try {
+    return await chrome.storage.local.get(null);
+  } catch (error) {
+    if (isContextInvalidatedError(error)) return {};
+    throw error;
+  }
+}
+
 export async function safeStorageSet(items: Record<string, unknown>): Promise<void> {
   if (!isExtensionContextValid()) return;
   try {

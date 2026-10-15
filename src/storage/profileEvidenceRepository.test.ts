@@ -9,9 +9,9 @@ function installFakeChromeStorage() {
     runtime: { id: "test" },
     storage: {
       local: {
-        get: (keys: string | string[]) =>
+        get: (keys: string | string[] | null) =>
           Promise.resolve(
-            (Array.isArray(keys) ? keys : [keys]).reduce<Record<string, unknown>>((acc, key) => {
+            (keys === null ? Object.keys(data) : Array.isArray(keys) ? keys : [keys]).reduce<Record<string, unknown>>((acc, key) => {
               if (key in data) acc[key] = data[key];
               return acc;
             }, {}),
@@ -20,8 +20,8 @@ function installFakeChromeStorage() {
           Object.assign(data, items);
           return Promise.resolve();
         },
-        remove: (key: string) => {
-          delete data[key];
+        remove: (keys: string | string[]) => {
+          for (const key of Array.isArray(keys) ? keys : [keys]) delete data[key];
           return Promise.resolve();
         },
       },

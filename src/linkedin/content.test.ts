@@ -72,15 +72,19 @@ function installFakeChromeStorage(overrides: Record<string, unknown> = {}) {
   const data: Record<string, unknown> = { "finder.goalsSeeded.v1": true, "finder.goals.v1": [], ...overrides };
   return {
     local: {
-      get: (keys: string | string[]) =>
+      get: (keys: string | string[] | null) =>
         Promise.resolve(
-          (Array.isArray(keys) ? keys : [keys]).reduce<Record<string, unknown>>((acc, key) => {
+          (keys === null ? Object.keys(data) : Array.isArray(keys) ? keys : [keys]).reduce<Record<string, unknown>>((acc, key) => {
             if (key in data) acc[key] = data[key];
             return acc;
           }, {}),
         ),
       set: (items: Record<string, unknown>) => {
         Object.assign(data, items);
+        return Promise.resolve();
+      },
+      remove: (keys: string | string[]) => {
+        for (const key of Array.isArray(keys) ? keys : [keys]) delete data[key];
         return Promise.resolve();
       },
     },
@@ -1087,20 +1091,33 @@ describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
 
     const { getPanelProfileData } = await import("./panel/panelStore");
     expect(getPanelProfileData().profile?.about).toBe("Builds websites.");
-    const writes = set.mock.calls.filter(([items]) => "finder.profileSessions.v2" in items);
+    const writes = set.mock.calls.filter(([items]) => "finder.profileSession.v3:irev1ak1n" in items);
     expect(writes).toHaveLength(1);
-    const session = (await storage.local.get("finder.profileSessions.v2"))["finder.profileSessions.v2"] as Record<string, { lastValidatedAt: number; lastEvidenceChangeAt: number; evidence: unknown }>;
-    expect(session.irev1ak1n.lastValidatedAt).toBeGreaterThan(validatedAt);
-    expect(session.irev1ak1n.lastEvidenceChangeAt).toBe(validatedAt);
-    expect(session.irev1ak1n.evidence).toEqual(known);
+    const session = (await storage.local.get("finder.profileSession.v3:irev1ak1n"))["finder.profileSession.v3:irev1ak1n"] as { lastValidatedAt: number; lastEvidenceChangeAt: number; evidence: unknown };
+    expect(session.lastValidatedAt).toBeGreaterThan(validatedAt);
+    expect(session.lastEvidenceChangeAt).toBe(validatedAt);
+    expect(session.evidence).toEqual(known);
+  });
+
+  it("adopts a richer session another tab stored for the same person, and ignores other people", async () => {
+    const { storage, getPanelProfileData } = await openEducation({});
+    const listeners = (storage.onChanged.addListener as ReturnType<typeof vi.fn>).mock.calls.map(([fn]) => fn as (changes: object, area: string) => void);
+    const elsewhere = { ...mainEvidence, languages: [{ name: "Ukrainian" }] };
+    for (const listener of listeners) listener({ "finder.profileSession.v3:someone-else": { newValue: storedSession("someone-else", { ...mainEvidence, name: "Someone Else", skills: ["Cobol"] }, Date.now()) } }, "local");
+    expect(getPanelProfileData().profile?.skills).toEqual([]);
+    for (const listener of listeners) listener({ "finder.profileSession.v3:irev1ak1n": { newValue: storedSession("irev1ak1n", elsewhere, Date.now()) } }, "local");
+    const profile = getPanelProfileData().profile!;
+    expect(profile.languages.map((l) => l.name)).toEqual(["Ukrainian"]);
+    expect(profile.education.map((e) => e.school)).toContain("State University");
+    expect(profile.name).toBe("Illia Reviakin");
   });
 
   it("persists the merged evidence for the same profile", async () => {
     const { storage } = await openEducation({});
-    const sessions = (await storage.local.get("finder.profileSessions.v2"))["finder.profileSessions.v2"] as Record<string, { evidence: LinkedInProfile; scannedSections: string[] }>;
-    expect(sessions.irev1ak1n.evidence.experience).toEqual(mainEvidence.experience);
-    expect(sessions.irev1ak1n.evidence.education.map((e) => e.school)).toContain("State University");
-    expect(sessions.irev1ak1n.scannedSections).toContain("education");
+    const session = (await storage.local.get("finder.profileSession.v3:irev1ak1n"))["finder.profileSession.v3:irev1ak1n"] as { evidence: LinkedInProfile; scannedSections: string[] };
+    expect(session.evidence.experience).toEqual(mainEvidence.experience);
+    expect(session.evidence.education.map((e) => e.school)).toContain("State University");
+    expect(session.scannedSections).toContain("education");
   });
 
   it("publishes nothing more while the same section stays unchanged", async () => {

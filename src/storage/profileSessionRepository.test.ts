@@ -11,9 +11,16 @@ beforeEach(() => {
     runtime: { id: "test" },
     storage: {
       local: {
-        get: (key: string) => Promise.resolve(key in data ? { [key]: structuredClone(data[key]) } : {}),
+        get: (keys: string | string[] | null) => {
+          const list = keys === null ? Object.keys(data) : Array.isArray(keys) ? keys : [keys];
+          return Promise.resolve(Object.fromEntries(list.filter((k) => k in data).map((k) => [k, structuredClone(data[k])])));
+        },
         set: (items: Record<string, unknown>) => {
           Object.assign(data, structuredClone(items));
+          return Promise.resolve();
+        },
+        remove: (keys: string | string[]) => {
+          for (const key of Array.isArray(keys) ? keys : [keys]) delete data[key];
           return Promise.resolve();
         },
       },
@@ -74,7 +81,7 @@ describe("profileSessionRepository", () => {
     await updateProfileSession("jordan-rivera", { evidence: evidence("Jordan") }, 0);
     expect(await loadProfileSession("jordan-rivera", PROFILE_SESSION_RETENTION_MS)).toBeNull();
     await updateProfileSession("irev1ak1n", { evidence: evidence("Illia") }, PROFILE_SESSION_RETENTION_MS + 1);
-    expect(Object.keys(data["finder.profileSessions.v2"] as Record<string, unknown>)).toEqual(["irev1ak1n"]);
+    expect(Object.keys(data)).toEqual(["finder.profileSession.v3:irev1ak1n"]);
   });
 
   it("does not create a session from a section mark alone", async () => {
@@ -92,5 +99,31 @@ describe("updateProfileSession ordering", () => {
     const session = await loadProfileSession("jordan");
     expect(session?.evidence.languages.map((l) => l.name)).toEqual(["English", "Spanish"]);
     expect(session?.scannedSections).toContain("languages");
+  });
+});
+
+describe("one canonical session per person", () => {
+  const enriched = { ...EMPTY_PROFILE, name: "Jordan Rivera", languages: [{ name: "English" }, { name: "Spanish" }], education: [{ school: "State University" }], extracted: true };
+  const shallow = { ...EMPTY_PROFILE, name: "Jordan Rivera", languages: [{ name: "English" }], extracted: true };
+
+  it("never downgrades when a page or tab that saw less writes later", async () => {
+    await updateProfileSession("jordan", { evidence: enriched });
+    await updateProfileSession("jordan", { evidence: shallow, validated: true });
+    const session = await loadProfileSession("jordan");
+    expect(session?.evidence.languages.map((l) => l.name)).toEqual(["English", "Spanish"]);
+    expect(session?.evidence.education.map((e) => e.school)).toEqual(["State University"]);
+  });
+
+  it("stores each person separately, so saving one never rewrites another", async () => {
+    await updateProfileSession("jordan", { evidence: enriched });
+    const before = structuredClone(data["finder.profileSession.v3:jordan"]);
+    await updateProfileSession("someone-else", { evidence: { ...EMPTY_PROFILE, name: "Someone Else", extracted: true } });
+    expect(data["finder.profileSession.v3:jordan"]).toEqual(before);
+    expect((await loadProfileSession("someone-else"))?.evidence.languages).toEqual([]);
+  });
+
+  it("still reads a session saved in the older shared map", async () => {
+    data["finder.profileSessions.v2"] = { jordan: { profileKey: "jordan", createdAt: 1, lastValidatedAt: Date.now(), lastEvidenceChangeAt: 1, evidence: enriched, scannedSections: ["main"] } };
+    expect((await loadProfileSession("jordan"))?.evidence.languages).toHaveLength(2);
   });
 });
