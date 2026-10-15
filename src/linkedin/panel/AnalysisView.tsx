@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import type { MatchResult } from "../../matching/scoreProfile";
 import { matchDisplayColor, matchDisplayLabel, matchDisplayState, type MatchDisplayState } from "../../matching/matchColors";
-import { EXPERIENCE_LEVEL_LABELS } from "../../matching/profileAnalysis";
+import { EXPERIENCE_LEVEL_LABELS, type RecommendationLabel } from "../../matching/profileAnalysis";
 import { buildProfileEvidence } from "../../evidence/buildProfileEvidence";
 import { buildFinalAnalysis, type FinalAnalysis } from "../../ai/mergeIntoAnalysis";
 import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
@@ -179,12 +179,12 @@ function Dashboard({ final, goal, state, status }: { final: FinalAnalysis; goal:
 
       {analysis.strengths.length === 0 && analysis.gaps.length === 0 && <p className="lw-empty">No criteria to evaluate for this goal yet.</p>}
 
-      <section className="lw-an-card">
-        <h3 className="lw-an-heading">Recommendation</h3>
-        <p className="lw-an-recommendation">{analysis.recommendation.label}</p>
-        <p>{firstSentences(analysis.recommendation.reason, 1)}</p>
-        <MoreLink label="View recommendation" page="full" />
-      </section>
+      <RecommendationCard
+        label={analysis.recommendation.label}
+        reason={analysis.recommendation.reason}
+        sentences={1}
+        more={<MoreLink label="View recommendation" page="full" />}
+      />
 
       <nav className="lw-opt-cards" aria-label="Analysis details">
         <button type="button" className="lw-opt-card" onClick={() => openAnalyzerPage("full")}>
@@ -219,10 +219,10 @@ function BackToAnalyzer() {
 }
 
 function FullAnalysis({ final, goal, state, status }: { final: FinalAnalysis; goal: Goal; state: MatchDisplayState; status: ReactNode }) {
-  const { analysis, guidance } = final;
+  const { analysis } = final;
   const rows = criteriaBreakdown(goal, final.result);
   return (
-    <div className="lw-analysis">
+    <div className="lw-analysis lw-fa">
       <BackToAnalyzer />
       <div className="lw-an-page-head">
         <h3 className="lw-opt-page__title">Full analysis</h3>
@@ -230,32 +230,21 @@ function FullAnalysis({ final, goal, state, status }: { final: FinalAnalysis; go
       </div>
       {status}
 
-      <section className="lw-an-card">
-        <h3 className="lw-an-heading">Summary</h3>
-        <p>{analysis.summary}</p>
+      <section className="lw-fa-summary" aria-label="Summary">
+        <h4 className="lw-fa-label">Summary</h4>
+        <p>{firstSentences(analysis.summary, 4)}</p>
       </section>
 
-      <section className="lw-an-card">
-        <h3 className="lw-an-heading">Recommendation</h3>
-        <p className="lw-an-recommendation">{analysis.recommendation.label}</p>
-        <p>{analysis.recommendation.reason}</p>
-        {guidance.contactReason && guidance.contactReason !== analysis.recommendation.reason && <p>{guidance.contactReason}</p>}
-      </section>
-
-      <section className="lw-an-card">
-        <h3 className="lw-an-heading">Experience assessment</h3>
-        <p className="lw-an-recommendation">{EXPERIENCE_LEVEL_LABELS[analysis.experienceLevel]}</p>
-        {analysis.experienceLevelReason && <p>{analysis.experienceLevelReason}</p>}
-      </section>
+      <RecommendationCard label={analysis.recommendation.label} reason={analysis.recommendation.reason} sentences={2} />
 
       {analysis.strengths.length > 0 && (
-        <section className="lw-an-card">
-          <h3 className="lw-an-heading">Why they match</h3>
-          <ul className="lw-an-points lw-an-points--detailed">
+        <section className="lw-fa-list is-match" aria-label="Why they match">
+          <h4 className="lw-fa-label">Why they match</h4>
+          <ul>
             {analysis.strengths.map((strength) => (
-              <li key={strength.label} className="is-good">
+              <li key={strength.label}>
                 <strong>{strength.label}</strong>
-                {strength.detail && <span>{strength.detail}</span>}
+                {strength.detail && <span>{firstSentences(strength.detail, 1)}</span>}
               </li>
             ))}
           </ul>
@@ -263,38 +252,76 @@ function FullAnalysis({ final, goal, state, status }: { final: FinalAnalysis; go
       )}
 
       {analysis.gaps.length > 0 && (
-        <section className="lw-an-card">
-          <h3 className="lw-an-heading">What's missing</h3>
-          <ul className="lw-an-points lw-an-points--detailed">
+        <section className="lw-fa-list is-gap" aria-label="What's missing">
+          <h4 className="lw-fa-label">What's missing</h4>
+          <ul>
             {analysis.gaps.map((gap) => (
-              <li key={gap.label} className="is-gap">
+              <li key={gap.label}>
                 <strong>{gap.label}</strong>
-                {gap.detail && <span>{gap.detail}</span>}
+                {gap.detail && <span>{firstSentences(gap.detail, 1)}</span>}
               </li>
             ))}
           </ul>
         </section>
       )}
 
+      <section className="lw-fa-experience" aria-label="Experience">
+        <div>
+          <h4 className="lw-fa-label">Experience</h4>
+          <span className="lw-fa-experience__level">{EXPERIENCE_LEVEL_LABELS[analysis.experienceLevel]}</span>
+        </div>
+        {analysis.experienceLevelReason && <p>{firstSentences(analysis.experienceLevelReason, 1)}</p>}
+      </section>
+
       {rows.length > 0 && (
-        <section className="lw-an-card">
-          <h3 className="lw-an-heading">Criteria breakdown</h3>
-          <ul className="lw-an-criteria">
-            {rows.map((row) => (
-              <li key={row.id}>
-                <div className="lw-an-criteria__head">
-                  <span className="lw-an-criteria__label">{row.label}</span>
-                  <span className={`lw-an-chip is-${row.strength}`}>{row.assessment}</span>
-                </div>
+        <section className="lw-fa-criteria" aria-label="Criteria breakdown">
+          <h4 className="lw-fa-label">Criteria breakdown</h4>
+          {rows.map((row) => (
+            <details key={row.id} className="lw-fa-criterion">
+              <summary>
+                <span className="lw-fa-criterion__label">{row.label}</span>
+                <span className={`lw-an-chip is-${row.strength}`}>{row.assessment}</span>
+              </summary>
+              <div className="lw-fa-criterion__body">
                 <span className="lw-an-criteria__importance">{row.importance}</span>
                 {row.evidence && <blockquote className="lw-an-quote">{row.evidence}</blockquote>}
                 {row.note && <p className="lw-an-criteria__note">{row.note}</p>}
-              </li>
-            ))}
-          </ul>
+              </div>
+            </details>
+          ))}
         </section>
       )}
     </div>
+  );
+}
+
+// The deterministic recommendation label, as a decision: green to contact, amber to look closer,
+// red for a weak fit.
+const RECOMMENDATION_TONE: Record<RecommendationLabel, "good" | "maybe" | "weak"> = {
+  "Strong candidate — worth contacting": "good",
+  "Worth contacting": "good",
+  "Consider / investigate further": "maybe",
+  "Low priority": "weak",
+  "Not worth prioritizing for this goal": "weak",
+};
+
+// AI reasons often open by repeating the decision itself ("Strong candidate. His…").
+export function withoutLabelEcho(reason: string, label: string): string {
+  const parts = label.split(" — ").map((part) => part.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&"));
+  return reason.replace(new RegExp(`^\\s*(?:${parts.join("|")})[.!:]\\s*`, "i"), "").trim();
+}
+
+export function RecommendationCard({ label, reason: rawReason, sentences, more }: { label: RecommendationLabel; reason: string; sentences: number; more?: ReactNode }) {
+  const [headline, detail] = label.split(" — ");
+  const reason = firstSentences(withoutLabelEcho(rawReason, label), sentences);
+  return (
+    <section className={`lw-fa-decision is-${RECOMMENDATION_TONE[label]}`} aria-label="Recommendation">
+      <h4 className="lw-fa-label">Recommendation</h4>
+      <p className="lw-fa-decision__headline">{headline}</p>
+      {detail && <p className="lw-fa-decision__detail">{detail[0]!.toUpperCase() + detail.slice(1)}</p>}
+      {reason && <p className="lw-fa-decision__reason">{reason}</p>}
+      {more}
+    </section>
   );
 }
 

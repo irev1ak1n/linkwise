@@ -134,6 +134,50 @@ describe("Profile Analyzer dashboard", () => {
   });
 });
 
+describe("Full analysis layout", () => {
+  function openFull() {
+    render();
+    click("Full analysis");
+  }
+
+  it("gives each section its own role, in order", () => {
+    openFull();
+    const sections = [...container.querySelectorAll("section[aria-label]")].map((s) => [s.getAttribute("aria-label"), s.className]);
+    expect(sections).toEqual([
+      ["Summary", "lw-fa-summary"],
+      ["Recommendation", "lw-fa-decision is-good"],
+      ["Why they match", "lw-fa-list is-match"],
+      ["What's missing", "lw-fa-list is-gap"],
+      ["Experience", "lw-fa-experience"],
+      ["Criteria breakdown", "lw-fa-criteria"],
+    ]);
+  });
+
+  it("splits the recommendation into a decision", () => {
+    openFull();
+    const decision = container.querySelector(".lw-fa-decision")!;
+    expect(decision.querySelector(".lw-fa-decision__headline")?.textContent).not.toContain("—");
+  });
+
+  it("shows the summary once, capped at four sentences", () => {
+    openFull();
+    const summary = container.querySelector(".lw-fa-summary p")!.textContent!;
+    expect(summary).toBe(narrative.summary);
+    expect(container.textContent!.split("Jordan builds websites with React.").length - 1).toBe(1);
+  });
+
+  it("keeps criteria collapsed until one is opened", () => {
+    openFull();
+    const rows = [...container.querySelectorAll<HTMLDetailsElement>(".lw-fa-criterion")];
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => !row.open)).toBe(true);
+    expect(rows[0].querySelector("summary")!.textContent).toContain("Software development");
+    act(() => rows[0].querySelector("summary")!.click());
+    expect(rows[0].open).toBe(true);
+    expect(rows[1].open).toBe(false);
+  });
+});
+
 describe("analysis details", () => {
   it("cuts a summary to whole sentences", () => {
     expect(firstSentences("One. Two! Three? Four.", 2)).toBe("One. Two!");
@@ -167,5 +211,14 @@ describe("analysis details", () => {
     const groups = evidenceGroups(profile, result);
     expect(groups.length).toBeGreaterThan(0);
     for (const group of groups) for (const item of group.items) for (const part of item.text.split(", ")) expect(JSON.stringify(profile)).toContain(part.slice(0, 20));
+  });
+});
+
+describe("recommendation wording", () => {
+  it("drops a reason's opening echo of the decision", async () => {
+    const { withoutLabelEcho } = await import("./AnalysisView");
+    expect(withoutLabelEcho("Strong candidate. His TSA role fits.", "Strong candidate — worth contacting")).toBe("His TSA role fits.");
+    expect(withoutLabelEcho("Worth contacting: strong fit.", "Strong candidate — worth contacting")).toBe("strong fit.");
+    expect(withoutLabelEcho("His TSA role fits.", "Low priority")).toBe("His TSA role fits.");
   });
 });
