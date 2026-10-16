@@ -17,6 +17,8 @@ export interface ProfileSession {
   lastEvidenceChangeAt: number;
   evidence: LinkedInProfile;
   scannedSections: string[];
+  /** Sections the main page shows only part of, behind a "Show all" link. */
+  truncatedSections?: string[];
 }
 
 export function profileSessionStorageKey(profileKey: string): string {
@@ -46,7 +48,7 @@ export async function loadProfileSession(profileKey: string, now = Date.now()): 
   return isRetained(session, now) ? session : null;
 }
 
-type SessionUpdate = { evidence?: LinkedInProfile; scannedSection?: string | null; validated?: boolean };
+type SessionUpdate = { evidence?: LinkedInProfile; scannedSection?: string | null; validated?: boolean; truncatedSections?: string[] };
 
 // Updates in one tab run one at a time, so an update that read storage earlier can never write
 // older evidence back over a newer one.
@@ -68,7 +70,9 @@ async function applySessionUpdate(profileKey: string, update: SessionUpdate, now
   const evidenceChanged = !current || !sameEvidence(evidence, current.evidence);
   const sections = current?.scannedSections ?? [];
   const newSection = !!update.scannedSection && !sections.includes(update.scannedSection);
-  if (current && !evidenceChanged && !newSection && !update.validated) return current;
+  const truncatedSections = update.truncatedSections ?? current?.truncatedSections;
+  const truncationChanged = (truncatedSections ?? []).join() !== (current?.truncatedSections ?? []).join();
+  if (current && !evidenceChanged && !newSection && !truncationChanged && !update.validated) return current;
 
   const next: ProfileSession = {
     profileKey,
@@ -77,6 +81,7 @@ async function applySessionUpdate(profileKey: string, update: SessionUpdate, now
     lastEvidenceChangeAt: evidenceChanged ? now : current!.lastEvidenceChangeAt,
     evidence,
     scannedSections: newSection ? [...sections, update.scannedSection!] : sections,
+    ...(truncatedSections ? { truncatedSections } : {}),
   };
   await safeStorageSet({ [profileSessionStorageKey(profileKey)]: next });
   if (!current) await pruneSessions(profileKey, now);

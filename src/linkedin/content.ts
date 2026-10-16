@@ -40,7 +40,7 @@ import {
   normalizeProfileUrl,
   profileIdentityKey,
 } from "./profileAdapter";
-import { discoverProfileSections, excludeFromAutoScanQueue } from "./sectionDiscovery";
+import { discoverProfileSections, excludeFromAutoScanQueue, truncatedSections } from "./sectionDiscovery";
 import { accumulateForPage, mergeProfileEvidence, sameEvidence } from "./profileEvidenceAccumulator";
 import {
   forceCompleteSession,
@@ -241,7 +241,13 @@ const engine = createCollectionEngine({
     if (settled && merged.extracted) {
       autoScanEvidence = merged;
       const scannedToEnd = collection.status === "settled" && collection.reachedDocumentEnd;
-      void updateProfileSession(profileKey, { evidence: merged, validated: collection.status === "settled", scannedSection: scannedToEnd ? MAIN_PAGE_SECTION : null });
+      const onDetails = /\/details\//.test(location.href);
+      void updateProfileSession(profileKey, {
+        evidence: merged,
+        validated: collection.status === "settled",
+        scannedSection: scannedToEnd ? (onDetails ? detailsPageSection(location.href) : MAIN_PAGE_SECTION) : null,
+        ...(scannedToEnd && !onDetails ? { truncatedSections: truncatedSections(document) } : {}),
+      });
     }
     if (!settled && publishedSettledKey === profileKey) return;
     if (settled) publishedSettledKey = profileKey;

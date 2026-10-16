@@ -35,6 +35,19 @@ interface Candidate {
   heading: string | null;
 }
 
+// Sections whose main-page list is cut short behind a "Show all" link.
+export function truncatedSections(doc: Document = document): ProfileSectionName[] {
+  const main = doc.querySelector<HTMLElement>('main[role="main"], main') ?? doc.body;
+  const found = new Set<ProfileSectionName>();
+  for (const link of Array.from(main.querySelectorAll<HTMLAnchorElement>('a[href*="/details/"]'))) {
+    const href = link.getAttribute("href");
+    if (!href || isProfileManagementUrl(href) || isInsideExcludedLandmark(link) || !/^\s*show all/i.test(link.textContent ?? "")) continue;
+    const section = detailsPageSection(normalizeProfileUrl(href) ?? "");
+    if (section) found.add(section);
+  }
+  return [...found];
+}
+
 // Structural discovery only, no OpenAI call here. An unrecognized slug is still queued as
 // "unknown" (extensible, never a hard-coded ceiling on which sections can exist), just without
 // a known ProfileSectionName to merge its evidence under.
