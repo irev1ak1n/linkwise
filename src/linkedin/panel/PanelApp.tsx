@@ -27,12 +27,14 @@ import { getAnalyzerPage, subscribeAnalyzerPage, syncAnalyzerProfile } from "./a
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
 import { OptimizerView } from "../../optimizer/OptimizerView";
 import { panelToolPreference, type PanelTool } from "../../optimizer/optimizerPreferences";
+import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 
 const TOOLS: { tool: PanelTool; label: string }[] = [
   { tool: "analyzer", label: "Profile Analyzer" },
   { tool: "optimizer", label: "Profile Optimizer" },
   { tool: "highlights", label: "Smart Highlights" },
   { tool: "jobs", label: "Job Filters" },
+  { tool: "saved", label: "Saved Profiles" },
 ];
 
 interface PanelAppProps {
@@ -60,8 +62,8 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const signalMode = useSignalMode();
   const { value: tool } = useStoredPreference(panelToolPreference);
   // Back from Job Filters returns to whichever profile tool was open.
-  const profileTool = useRef<PanelTool>(tool === "jobs" ? "analyzer" : tool);
-  if (tool !== "jobs") profileTool.current = tool;
+  const profileTool = useRef<PanelTool>(tool === "jobs" || tool === "saved" ? "analyzer" : tool);
+  if (tool !== "jobs" && tool !== "saved") profileTool.current = tool;
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
   const analyzerPage = useSyncExternalStore(subscribeAnalyzerPage, getAnalyzerPage, getAnalyzerPage);
   useEffect(() => syncAnalyzerProfile(profileKey), [profileKey]);
@@ -119,7 +121,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
     if (aiState.status === "idle") return <LoadingView label="Preparing results…" />;
     if (aiState.status === "loading") return <LoadingView label="Analyzing match…" />;
 
-    return <AnalysisView result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} />;
+    return <AnalysisView profileKey={profileKey} result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} />;
   }
 
   return (
@@ -145,7 +147,9 @@ export function PanelApp({ onClose }: PanelAppProps) {
             </button>
           ))}
         </div>
-        {tool === "jobs" ? (
+        {tool === "saved" ? (
+          <SavedProfilesView />
+        ) : tool === "jobs" ? (
           <JobFiltersPage settings={jobsSettings} onChange={setJobsSettings} onBack={() => panelToolPreference.set(profileTool.current)} />
         ) : tool === "optimizer" ? (
           <OptimizerView profileKey={profileKey} profile={profile} isFinal={isFinal} onAnalyzeNow={handleAnalyzeNow} />

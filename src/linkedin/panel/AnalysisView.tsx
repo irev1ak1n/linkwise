@@ -11,8 +11,11 @@ import { getAnalyzerPage, openAnalyzerPage, subscribeAnalyzerPage } from "./anal
 import type { AiAnalysisState } from "./useAiAnalysis";
 import type { Goal } from "../../models/goal";
 import type { LinkedInProfile } from "../../models/profile";
+import { SavedProfileBar } from "../../savedProfiles/SavedProfilesView";
+import { useSavedProfileTracking } from "../../savedProfiles/useSavedProfileTracking";
 
 interface AnalysisViewProps {
+  profileKey?: string | null;
   result: MatchResult;
   goal: Goal;
   profile: LinkedInProfile;
@@ -30,7 +33,7 @@ const TOP_GAPS = 2;
 // relevance to the current goal, not a judgment of the person. The dashboard is the quick
 // decision; Full analysis and Evidence go deeper over the same result, so switching pages
 // never asks for anything new.
-export function AnalysisView({ result, goal, profile, aiState, onRetry, updatingSection }: AnalysisViewProps) {
+export function AnalysisView({ profileKey = null, result, goal, profile, aiState, onRetry, updatingSection }: AnalysisViewProps) {
   const page = useSyncExternalStore(subscribeAnalyzerPage, getAnalyzerPage, getAnalyzerPage);
   const evidence = useMemo(() => buildProfileEvidence(profile), [profile]);
   const final = useMemo(() => {
@@ -39,6 +42,8 @@ export function AnalysisView({ result, goal, profile, aiState, onRetry, updating
   }, [goal, profile, evidence, result, aiState]);
   const state = matchDisplayState(final.result);
   const status = <AnalysisStatus aiState={aiState} onRetry={onRetry} updatingSection={updatingSection} />;
+  const tracking = useSavedProfileTracking({ profileKey, profile, goal, final, ready: aiState.status === "ready" && !aiState.updating });
+  const savedBar = profileKey ? <SavedProfileBar saved={tracking.saved} checking={tracking.checking} onSave={tracking.save} /> : null;
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const homeScroll = useRef(0);
@@ -65,7 +70,7 @@ export function AnalysisView({ result, goal, profile, aiState, onRetry, updating
       ) : page === "evidence" ? (
         <EvidencePage final={final} profile={profile} narrative={narrative} state={state} />
       ) : (
-        <Dashboard final={final} goal={goal} state={state} status={status} />
+        <Dashboard final={final} goal={goal} state={state} status={status} savedBar={savedBar} />
       )}
     </div>
   );
@@ -136,13 +141,14 @@ function MoreLink({ label, page }: { label: string; page: "full" | "evidence" })
   );
 }
 
-function Dashboard({ final, goal, state, status }: { final: FinalAnalysis; goal: Goal; state: MatchDisplayState; status: ReactNode }) {
+function Dashboard({ final, goal, state, status, savedBar }: { final: FinalAnalysis; goal: Goal; state: MatchDisplayState; status: ReactNode; savedBar?: ReactNode }) {
   const { analysis } = final;
   const reasons = analysis.strengths.slice(0, TOP_REASONS);
   const gaps = analysis.gaps.slice(0, TOP_GAPS);
   return (
     <div className="lw-analysis">
       <MatchCard final={final} goal={goal} state={state} status={status} />
+      {savedBar}
 
       <section className="lw-an-card">
         <p className="lw-an-summary">{firstSentences(analysis.summary, 3)}</p>

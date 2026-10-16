@@ -4,10 +4,16 @@
 // running. React is mocked out since this is about DOM bootstrapping, not panel rendering.
 import type { LinkedInProfile } from "../models/profile";
 import { DEFAULT_JOBS_SETTINGS } from "../models/jobsSettings";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The first test pays for compiling the whole content-script module graph.
 vi.setConfig({ testTimeout: 30000 });
+
+// Compiles the panel's module graph once up front, so no single test pays for it. Importing the
+// panel has no side effects, unlike content.ts itself.
+beforeAll(async () => {
+  await import("./panel/PanelApp");
+}, 120000);
+afterAll(() => vi.resetModules());
 
 vi.mock("react-dom/client", () => ({
   createRoot: () => ({ render: vi.fn(), unmount: vi.fn() }),
