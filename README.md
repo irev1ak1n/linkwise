@@ -1,4 +1,4 @@
-LinkWise is a Chrome extension that helps you find relevant people and jobs on LinkedIn. Describe who you're looking for to get profile match scores and insights, automatically scan profiles, highlight useful information, or review profiles hands-free with auto scroll.
+LinkWise is a Chrome extension that makes LinkedIn easier to navigate when searching for people, evaluating profiles, or looking for jobs. Describe the type of person you are looking for, and LinkWise analyzes their profile, gives a match score, explains why they fit your criteria, and highlights the most useful evidence directly on the page. It can automatically scan profiles, expand hidden details, and update its analysis as more information is discovered. LinkWise also helps organize job searches by hiding or highlighting listings based on status or keywords, while additional profile tools help users quickly understand important experience, skills, achievements, and gaps.
 
 # What it can do:
 
