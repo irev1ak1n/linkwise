@@ -26,6 +26,10 @@ export function optimizerSectionEndpoint(): string {
   return `${LINKWISE_API_BASE_URL}/api/optimizer-section`;
 }
 
+export function compareProfileEndpoint(): string {
+  return `${LINKWISE_API_BASE_URL}/api/compare-profile`;
+}
+
 export function optimizerHeadlinesEndpoint(): string {
   return `${LINKWISE_API_BASE_URL}/api/optimizer-headlines`;
 }

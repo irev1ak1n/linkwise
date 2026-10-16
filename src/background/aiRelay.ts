@@ -1,7 +1,7 @@
 // The background worker's half of the content-script/backend bridge. Relays the actual HTTP
 // request and supports cancelling it by ID, since messaging can't carry a real AbortSignal.
 // Handles both the analysis and criteria-generation endpoints.
-import { analyzeProfileEndpoint, analyzeSignalsEndpoint, generateCriteriaEndpoint, optimizeProfileEndpoint, optimizerDraftEndpoint, optimizerHeadlinesEndpoint, optimizerSectionEndpoint } from "../ai/config";
+import { analyzeProfileEndpoint, analyzeSignalsEndpoint, generateCriteriaEndpoint, optimizeProfileEndpoint, optimizerDraftEndpoint, optimizerHeadlinesEndpoint, optimizerSectionEndpoint, compareProfileEndpoint } from "../ai/config";
 
 export const LINKWISE_ANALYZE_PROFILE = "LINKWISE_ANALYZE_PROFILE";
 export const LINKWISE_CANCEL_ANALYSIS = "LINKWISE_CANCEL_ANALYSIS";
@@ -17,6 +17,8 @@ export const LINKWISE_OPTIMIZER_SECTION = "LINKWISE_OPTIMIZER_SECTION";
 export const LINKWISE_CANCEL_OPTIMIZER_SECTION = "LINKWISE_CANCEL_OPTIMIZER_SECTION";
 export const LINKWISE_OPTIMIZER_HEADLINES = "LINKWISE_OPTIMIZER_HEADLINES";
 export const LINKWISE_CANCEL_OPTIMIZER_HEADLINES = "LINKWISE_CANCEL_OPTIMIZER_HEADLINES";
+export const LINKWISE_COMPARE_PROFILE = "LINKWISE_COMPARE_PROFILE";
+export const LINKWISE_CANCEL_COMPARE_PROFILE = "LINKWISE_CANCEL_COMPARE_PROFILE";
 
 const ENDPOINTS: Record<string, () => string> = {
   [LINKWISE_ANALYZE_PROFILE]: analyzeProfileEndpoint,
@@ -26,6 +28,7 @@ const ENDPOINTS: Record<string, () => string> = {
   [LINKWISE_OPTIMIZER_DRAFT]: optimizerDraftEndpoint,
   [LINKWISE_OPTIMIZER_SECTION]: optimizerSectionEndpoint,
   [LINKWISE_OPTIMIZER_HEADLINES]: optimizerHeadlinesEndpoint,
+  [LINKWISE_COMPARE_PROFILE]: compareProfileEndpoint,
 };
 
 const CANCEL_TYPES = new Set([
@@ -36,6 +39,7 @@ const CANCEL_TYPES = new Set([
   LINKWISE_CANCEL_OPTIMIZER_DRAFT,
   LINKWISE_CANCEL_OPTIMIZER_SECTION,
   LINKWISE_CANCEL_OPTIMIZER_HEADLINES,
+  LINKWISE_CANCEL_COMPARE_PROFILE,
 ]);
 
 interface RelayMessage {

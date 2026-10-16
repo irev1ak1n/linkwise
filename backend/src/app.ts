@@ -8,6 +8,7 @@ import { handleGenerateCriteria } from "./routes/generateCriteria";
 import { handleAnalyzeSignals } from "./routes/analyzeSignals";
 import { handleOptimizeProfile, handleOptimizerDraft } from "./routes/optimizeProfile";
 import { handleHeadlineGeneration, handleSectionAnalysis } from "./routes/optimizerSection";
+import { handleCompareProfile } from "./routes/compareProfile";
 import type { AnalysisClient } from "./openai/client";
 import type { CriteriaGenerationClient } from "./openai/criteriaClient";
 import type { SignalAnalysisClient } from "./openai/signalsClient";
@@ -24,6 +25,7 @@ export interface CreateAppOptions {
   draftClient?: StructuredClient;
   sectionClient?: StructuredClient;
   headlineClient?: StructuredClient;
+  compareClient?: StructuredClient;
   timeoutMs?: number;
 }
 
@@ -69,6 +71,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.post("/api/optimizer-headlines", (req: Request, res: Response) => {
     void handleHeadlineGeneration(req, res, { config, client: options.headlineClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/compare-profile", (req: Request, res: Response) => {
+    void handleCompareProfile(req, res, { config, client: options.compareClient, timeoutMs: options.timeoutMs });
   });
 
   // Catches malformed JSON. Never leak the raw parser error to the client.
