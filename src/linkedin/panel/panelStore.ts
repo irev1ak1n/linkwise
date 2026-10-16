@@ -3,7 +3,7 @@
 import type { CollectionState } from "../../models/collection";
 import type { LinkedInProfile } from "../../models/profile";
 
-// Diagnostics for the Auto scan checklist, shown in ScanningView while a multi-page crawl runs.
+// Diagnostics for the Auto scan checklist, shown on the scan screen while a multi-page crawl runs.
 export interface AutoScanProgress {
   sessionId: string;
   status: "scanning" | "complete";

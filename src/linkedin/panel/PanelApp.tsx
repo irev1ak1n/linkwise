@@ -20,8 +20,11 @@ import { SignalModeSection } from "./SignalModeSection";
 import { highlightKeywordsPreference } from "./keywordPreference";
 import { highlightColorPreference } from "./highlightColorPreference";
 import { keywordColorPreference } from "./keywordColorPreference";
-import { ScanningView } from "./ScanningView";
-import { LoadingView } from "./LoadingView";
+import { ScannerView } from "./ScannerView";
+import { deriveScanState } from "./scanProgress";
+import { useScanHandoff } from "./useScanHandoff";
+import { isProfileSectionHeading } from "../profileAdapter";
+import { matchDisplayLabel, matchDisplayState } from "../../matching/matchColors";
 import { AnalysisView } from "./AnalysisView";
 import { getAnalyzerPage, subscribeAnalyzerPage, syncAnalyzerProfile } from "./analyzerNav";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
@@ -86,6 +89,22 @@ export function PanelApp({ onClose }: PanelAppProps) {
 
   const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && tool !== "optimizer");
 
+  const scanState =
+    profile && collection
+      ? deriveScanState({
+          mode: scanMode,
+          collection,
+          profile,
+          autoScanProgress,
+          analyzing: isFinal && (aiState.status === "idle" || aiState.status === "loading"),
+          done: isFinal && (aiState.status === "ready" || aiState.status === "unavailable"),
+        })
+      : null;
+  // Auto scan reports progress on its own; in scroll mode a quiet page just means the user is reading.
+  const scanSignature = scanState ? `${scanState.progress}|${scanState.active?.section ?? ""}|${collection?.lastChangedAt ?? 0}` : null;
+  const handoff = useScanHandoff(profileKey, scanState?.status ?? null, scanMode === "auto" ? scanSignature : null);
+  const scanFailed = handoff.stalled && scanState?.status === "scanning";
+
   const analysisReady = profileKey !== null && !!profile && !!collection && !!goal && isFinal && !!result && (aiState.status === "ready" || aiState.status === "unavailable");
 
   function handleAnalyzeNow(): void {
@@ -103,23 +122,23 @@ export function PanelApp({ onClose }: PanelAppProps) {
     if (!goal) {
       return <p className="lw-empty">No active goal set yet — describe who you're looking for above.</p>;
     }
-    if (!isFinal) {
+    if (!result || !scanState) return null;
+    // The scan screen covers collection and the analysis request, then hands over to the results.
+    if (!isFinal || aiState.status === "idle" || aiState.status === "loading" || handoff.showingComplete) {
+      const final = aiState.status === "ready" ? matchDisplayState(aiState.outcome.result) : null;
       return (
-        <ScanningView
-          profileName={profile.name}
+        <ScannerView
+          key={profileKey}
+          profileName={isProfileSectionHeading(profile.name) ? undefined : profile.name}
           goalName={goal.name}
-          collection={collection}
           scanMode={scanMode}
-          autoScanProgress={autoScanProgress}
+          state={scanFailed ? { ...scanState, status: "error", message: "Could not finish scanning" } : scanState}
+          resultLabel={final ? `${"scorePercent" in final ? `${final.scorePercent}% · ` : ""}${matchDisplayLabel(final)}` : undefined}
           onAnalyzeNow={handleAnalyzeNow}
+          onRetry={() => location.reload()}
         />
       );
     }
-    if (!result) return null;
-
-    // Settled, but AI hasn't resolved yet, show only a loading state.
-    if (aiState.status === "idle") return <LoadingView label="Preparing results…" />;
-    if (aiState.status === "loading") return <LoadingView label="Analyzing match…" />;
 
     return <AnalysisView profileKey={profileKey} result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} />;
   }

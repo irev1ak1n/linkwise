@@ -19,7 +19,7 @@ interface AnalysisViewProps {
   result: MatchResult;
   goal: Goal;
   profile: LinkedInProfile;
-  /** Always already resolved, "ready" or "unavailable" only. PanelApp shows a LoadingView
+  /** Always already resolved, "ready" or "unavailable" only. PanelApp shows the scan screen
    * while AI is still pending. */
   aiState: Extract<AiAnalysisState, { status: "ready" } | { status: "unavailable" }>;
   onRetry?: () => void;
