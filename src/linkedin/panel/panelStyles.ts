@@ -1859,6 +1859,11 @@ export function getPanelStyles(widthPx: number): string {
     line-height: 1.5;
     color: #1a1a1a;
   }
+  .lw-dash__none {
+    margin: 0;
+    font-size: 13px;
+    color: #56687a;
+  }
   .lw-dash .lw-an-points--detailed {
     gap: 8px;
   }

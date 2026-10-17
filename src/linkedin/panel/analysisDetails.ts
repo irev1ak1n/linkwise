@@ -56,6 +56,26 @@ export function criteriaBreakdown(goal: Goal, result: MatchResult): CriterionRow
   });
 }
 
+const IMPORTANCE_RANK: Record<CriterionImportance, number> = { MUST_HAVE: 0, PREFERRED: 1, OPTIONAL: 2, EXCLUDED: 3 };
+
+export interface ConfirmedCriterion {
+  id: string;
+  label: string;
+  detail?: string;
+}
+
+// The "Looking for" criteria the result actually confirmed: strong evidence first, then by importance.
+export function confirmedCriteria(goal: Goal, result: MatchResult, limit = 4): ConfirmedCriterion[] {
+  return result.reasons
+    .filter((reason) => reason.criterion.importance !== "EXCLUDED" && goal.criteria.some((c) => c.id === reason.criterion.id))
+    .sort((a, b) => (a.strength === b.strength ? 0 : a.strength === "strong" ? -1 : 1) || IMPORTANCE_RANK[a.criterion.importance] - IMPORTANCE_RANK[b.criterion.importance])
+    .slice(0, limit)
+    .map((reason) => {
+      const note = reason.explanation && !GENERIC_EXPLANATIONS.has(reason.explanation) ? reason.explanation : reason.evidence?.snippet;
+      return { id: reason.criterion.id, label: reason.criterion.label, detail: note ? firstSentences(note, 1) : undefined };
+    });
+}
+
 export interface EvidenceItem {
   id: string;
   section: string;

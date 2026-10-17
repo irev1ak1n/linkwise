@@ -6,7 +6,7 @@ import { buildProfileEvidence } from "../../evidence/buildProfileEvidence";
 import { buildFinalAnalysis, type FinalAnalysis } from "../../ai/mergeIntoAnalysis";
 import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
 import { sectionLabel } from "./sectionLabels";
-import { criteriaBreakdown, evidenceGroups, firstSentences } from "./analysisDetails";
+import { confirmedCriteria, criteriaBreakdown, evidenceGroups, firstSentences } from "./analysisDetails";
 import { getAnalyzerPage, openAnalyzerPage, subscribeAnalyzerPage } from "./analyzerNav";
 import type { AiAnalysisState } from "./useAiAnalysis";
 import type { Goal } from "../../models/goal";
@@ -28,7 +28,7 @@ interface AnalysisViewProps {
   highlights?: ReactNode;
 }
 
-const TOP_REASONS = 3;
+const TOP_REASONS = 4;
 
 // The final profile analysis, never a preview of an in-progress read. A statement of
 // relevance to the current goal, not a judgment of the person. The dashboard is the quick
@@ -138,7 +138,7 @@ function CompactScore({ state }: { state: MatchDisplayState }) {
 // The quick read: how strong, who, and why. Full analysis and Evidence stay reachable by route for a later UI.
 function Dashboard({ final, goal, state, status, savedBar, highlights }: { final: FinalAnalysis; goal: Goal; state: MatchDisplayState; status: ReactNode; savedBar?: ReactNode; highlights?: ReactNode }) {
   const { analysis } = final;
-  const reasons = analysis.strengths.slice(0, TOP_REASONS);
+  const confirmed = confirmedCriteria(goal, final.result, TOP_REASONS);
   return (
     <div className="lw-analysis lw-dash">
       <MatchCard final={final} goal={goal} state={state} status={status} savedBar={savedBar} />
@@ -148,17 +148,21 @@ function Dashboard({ final, goal, state, status, savedBar, highlights }: { final
         <p className="lw-an-summary">{firstSentences(analysis.summary, 3)}</p>
       </section>
 
-      {reasons.length > 0 && (
+      {goal.criteria.some((c) => c.importance !== "EXCLUDED") && (
         <section className="lw-dash__block" aria-label="Why they match">
           <h3 className="lw-dash__label">Why they match</h3>
-          <ul className="lw-an-points lw-an-points--detailed">
-            {reasons.map((strength) => (
-              <li key={strength.label} className="is-good">
-                <strong>{strength.label}</strong>
-                {strength.detail && <span>{firstSentences(strength.detail, 1)}</span>}
-              </li>
-            ))}
-          </ul>
+          {confirmed.length > 0 ? (
+            <ul className="lw-an-points lw-an-points--detailed">
+              {confirmed.map((criterion) => (
+                <li key={criterion.id} className="is-good">
+                  <strong>{criterion.label}</strong>
+                  {criterion.detail && <span>{criterion.detail}</span>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="lw-dash__none">None of the criteria you're looking for were confirmed on this profile.</p>
+          )}
         </section>
       )}
 

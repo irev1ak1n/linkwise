@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { AnalysisView } from "./AnalysisView";
 import { openAnalyzerPage, syncAnalyzerProfile, getAnalyzerPage } from "./analyzerNav";
-import { criteriaBreakdown, evidenceGroups, firstSentences, focusExcerpt } from "./analysisDetails";
+import { confirmedCriteria, criteriaBreakdown, evidenceGroups, firstSentences, focusExcerpt } from "./analysisDetails";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
 import { EMPTY_PROFILE, type LinkedInProfile } from "../../models/profile";
 import type { Goal } from "../../models/goal";
@@ -95,8 +95,11 @@ describe("Profile Analyzer dashboard", () => {
     expect(text).not.toContain("AI-enhanced analysis ·");
     const order = ["lw-an-score", 'aria-label="Summary"', 'aria-label="Why they match"'].map((marker) => container.innerHTML.indexOf(marker));
     expect(order.every((index, i) => index > -1 && (i === 0 || index > order[i - 1]!))).toBe(true);
-    expect(container.querySelectorAll(".lw-an-points li.is-good")).toHaveLength(3);
-    expect(container.querySelector(".lw-an-points li.is-good span")!.textContent).toBe("Detail 0.");
+    const confirmed = [...container.querySelectorAll(".lw-an-points li.is-good strong")].map((el) => el.textContent);
+    expect(confirmed).toEqual(confirmedCriteria(goal, result).map((c) => c.label));
+    expect(confirmed.length).toBeGreaterThan(0);
+    for (const label of confirmed) expect(goal.criteria.map((c) => c.label)).toContain(label);
+    expect(text).not.toContain("Builds websites");
     expect(container.querySelectorAll(".lw-an-points li.is-gap")).toHaveLength(0);
     expect(text).not.toContain("Self-taught");
     expect(container.querySelector(".lw-an-summary")!.textContent).toBe("Jordan builds websites with React. Jordan speaks English and Spanish. Jordan leads a club.");
@@ -108,6 +111,18 @@ describe("Profile Analyzer dashboard", () => {
     expect(container.querySelector('[aria-label="Recommendation"]')).toBeNull();
     expect(container.querySelector('[aria-label="Analysis details"]')).toBeNull();
     for (const absent of ["Recommendation", "Worth contacting", "Full analysis", "Evidence", "View all"]) expect(text).not.toContain(absent);
+  });
+
+  it("says plainly when none of the criteria were confirmed, instead of inventing reasons", () => {
+    const unmatched = { ...result, reasons: [] };
+    const state: AiAnalysisState = { status: "ready", outcome: { status: "ok", model: "m", result: unmatched, narrative } };
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => root!.render(<AnalysisView result={unmatched} goal={goal} profile={profile} aiState={state as Extract<AiAnalysisState, { status: "ready" }>} />));
+    const section = container.querySelector('[aria-label="Why they match"]')!;
+    expect(section.textContent).toContain("None of the criteria you're looking for were confirmed");
+    expect(section.textContent).not.toContain("Builds websites");
   });
 
   it("ends with Profile Highlights", () => {
@@ -243,5 +258,41 @@ describe("recommendation wording", () => {
     expect(withoutLabelEcho("Strong candidate. His TSA role fits.", "Strong candidate — worth contacting")).toBe("His TSA role fits.");
     expect(withoutLabelEcho("Worth contacting: strong fit.", "Strong candidate — worth contacting")).toBe("strong fit.");
     expect(withoutLabelEcho("His TSA role fits.", "Low priority")).toBe("His TSA role fits.");
+  });
+});
+
+describe("confirmedCriteria", () => {
+  const criterion = (id: string, importance: "MUST_HAVE" | "PREFERRED" | "OPTIONAL" | "EXCLUDED") => ({ id, label: `Criterion ${id}`, importance, category: "skill" as const });
+  const many: Goal = { ...goal, criteria: [criterion("a", "OPTIONAL"), criterion("b", "MUST_HAVE"), criterion("c", "PREFERRED"), criterion("d", "EXCLUDED"), criterion("e", "MUST_HAVE"), criterion("f", "PREFERRED")] };
+  const reason = (id: string, strength: "strong" | "moderate", explanation: string) => ({
+    criterion: many.criteria.find((c) => c.id === id)!,
+    strength,
+    evidence: { snippet: `Snippet ${id}`, section: "experience" } as never,
+    explanation,
+  });
+  const scored = {
+    ...result,
+    reasons: [
+      reason("a", "strong", "Optional and strong. More."),
+      reason("b", "moderate", "Must-have, partly shown."),
+      reason("c", "strong", "Preferred and strong."),
+      reason("d", "strong", "An excluded trait."),
+      reason("e", "strong", "Assessed by LinkWise's local deterministic matcher."),
+      reason("f", "moderate", "Preferred, partly shown."),
+    ],
+  };
+
+  it("lists the goal's confirmed criteria, strongest and most important first, up to four", () => {
+    expect(confirmedCriteria(many, scored).map((c) => c.id)).toEqual(["e", "c", "a", "b"]);
+  });
+
+  it("never lists an excluded criterion as a reason they match", () => {
+    expect(confirmedCriteria(many, scored, 10).map((c) => c.id)).not.toContain("d");
+  });
+
+  it("explains each with one sentence, falling back to the evidence for engine bookkeeping", () => {
+    const [e, , a] = confirmedCriteria(many, scored);
+    expect(e!.detail).toBe("Snippet e");
+    expect(a!.detail).toBe("Optional and strong.");
   });
 });
