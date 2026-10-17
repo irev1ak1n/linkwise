@@ -5,6 +5,15 @@ import { generateCriteria } from "../../ai/generateCriteria";
 import { isPanelVisible, subscribePanelVisibility } from "./panelVisibilityStore";
 import type { DraftCriterionInput } from "./goalStore";
 
+// Only a real wording change counts: spacing, line breaks and case alone never regenerate criteria.
+export function normalizeGoalText(text: string): string {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+export function isGoalDraftUnchanged(draft: string, goal: Goal | null): boolean {
+  return !!goal?.description && normalizeGoalText(draft) === normalizeGoalText(goal.description);
+}
+
 interface GoalSetupSectionProps {
   goal: Goal | null;
   profileKey: string | null;
@@ -43,7 +52,10 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
     setMessage(null);
   }
 
+  const unchanged = isGoalDraftUnchanged(draft, goal);
+
   async function handleSubmit(): Promise<void> {
+    if (unchanged) return;
     setGenerating(true);
     setMessage(null);
     try {
@@ -117,7 +129,8 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
               <button
                 type="button"
                 className="button button--primary"
-                disabled={!draft.trim() || generating}
+                disabled={!draft.trim() || generating || unchanged}
+                title={unchanged ? "Change the description to save" : undefined}
                 onClick={() => void handleSubmit()}
               >
                 {generating ? (hasActiveGoal ? "Saving…" : "Creating criteria…") : hasActiveGoal ? "Save" : "Create criteria"}
