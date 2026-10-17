@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { accumulateForPage, mergeProfileEvidence } from "./profileEvidenceAccumulator";
+import { accumulateForPage, mergeProfileEvidence, reconcileSections } from "./profileEvidenceAccumulator";
+import { buildSignalsRequest, signalsCacheKey } from "../ai/signalAnalysisController";
 import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 
 function profile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
@@ -145,5 +146,71 @@ describe("accumulateForPage", () => {
     const back = accumulateForPage(enriched, mainPage, false);
     expect(back.headline).toBe("Full-stack developer");
     expect(back.languages.map((l) => l.name)).toEqual(["English", "Ukrainian"]);
+  });
+});
+
+describe("reconcileSections - a section read completely is the current truth", () => {
+  const role = (title: string, description?: string) => ({ title, company: "Ballantyne Ridge High School", dates: "May 2026 - Present", description });
+  const stored = profile({
+    name: "Jordan Rivera",
+    experience: [role("A", "Kept"), role("B", "Since removed"), role("C", "Built a yearbook website serving 300+ students")],
+    education: [{ school: "State University", degree: "BS" }],
+    volunteering: [{ name: "Member", description: "National Honor Society · Completed 30+ hours of community service" }],
+  });
+
+  it("replaces the section: removed entries go, new ones arrive", () => {
+    const page = profile({ experience: [role("A", "Kept"), role("C", "Built a yearbook website serving 300+ students"), role("D", "New role")] });
+    const result = accumulateForPage(stored, page, true, ["experience"]);
+    expect(result.experience.map((e) => e.title)).toEqual(["A", "C", "D"]);
+  });
+
+  it("takes the new wording of an entry that still exists, even when it's shorter", () => {
+    const page = profile({ experience: [role("A", "Kept"), role("B", "Since removed"), role("C", "Built a site for 4,000+")] });
+    expect(accumulateForPage(stored, page, true).experience[2]!.description).toContain("300+");
+    const reconciled = accumulateForPage(stored, page, true, ["experience"]);
+    expect(reconciled.experience[2]!.description).toBe("Built a site for 4,000+");
+    expect(JSON.stringify(reconciled)).not.toContain("300+");
+  });
+
+  it("drops a removed description while keeping its entry", () => {
+    const page = profile({ volunteering: [{ name: "Member", description: "National Honor Society" }] });
+    expect(accumulateForPage(stored, page, true).volunteering[0]!.description).toContain("30+ hours");
+    const reconciled = accumulateForPage(stored, page, true, ["volunteering"]);
+    expect(reconciled.volunteering).toEqual([{ name: "Member", description: "National Honor Society" }]);
+  });
+
+  it("never deletes on a partial reading", () => {
+    const page = profile({ experience: [role("A", "Kept")] });
+    expect(accumulateForPage(stored, page, true).experience.map((e) => e.title)).toEqual(["A", "B", "C"]);
+  });
+
+  it("only touches the sections it read completely", () => {
+    const page = profile({ experience: [role("A", "Kept")], education: [{ school: "Other College" }] });
+    const result = accumulateForPage(stored, page, true, ["experience"]);
+    expect(result.experience.map((e) => e.title)).toEqual(["A"]);
+    expect(result.education.map((e) => e.school)).toEqual(["State University", "Other College"]);
+    expect(result.volunteering).toEqual(stored.volunteering);
+    expect(result.name).toBe("Jordan Rivera");
+  });
+
+  it("never wipes a section from a complete reading that found nothing", () => {
+    expect(reconcileSections(stored, profile({}), ["experience", "about"]).experience).toHaveLength(3);
+  });
+
+  it("still accumulates across main, details, details, main", () => {
+    const main = profile({ name: "Jordan Rivera", experience: [role("A", "Kept")], education: [{ school: "State University" }] });
+    let session = accumulateForPage(profile({}), main, false, ["experience"]);
+    session = accumulateForPage(session, profile({ experience: [role("A", "Kept"), role("B", "Full list")] }), true, ["experience"]);
+    session = accumulateForPage(session, profile({ education: [{ school: "State University", degree: "BS" }, { school: "Community College" }] }), true, ["education"]);
+    session = accumulateForPage(session, main, false);
+    expect(session.experience.map((e) => e.title)).toEqual(["A", "B"]);
+    expect(session.education.map((e) => e.school)).toEqual(["State University", "Community College"]);
+  });
+
+  it("changes what the cached analyses are keyed on, so none of them survives the deletion", () => {
+    const page = profile({ experience: [role("A", "Kept"), role("C", "Built a yearbook website for a 4,000+ student school")] });
+    const before = signalsCacheKey(buildSignalsRequest("jordan-rivera", stored)!);
+    const after = signalsCacheKey(buildSignalsRequest("jordan-rivera", accumulateForPage(stored, page, true, ["experience"]))!);
+    expect(after).not.toBe(before);
   });
 });

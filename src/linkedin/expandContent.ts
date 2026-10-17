@@ -294,6 +294,15 @@ export function expandSeeMoreToggles(doc: Document = document, options: ExpandOp
   return expanded;
 }
 
+// Whether any of LinkWise's own expandable "…more" toggles inside root is still collapsed, i.e.
+// whether text there is still clamped and its reading can't yet stand for the whole entry.
+export function hasCollapsedText(root: Element, doc: Document = document): boolean {
+  const main = doc.querySelector<HTMLElement>('main[role="main"], main') ?? doc.body;
+  return Array.from(root.querySelectorAll<HTMLButtonElement>("button")).some(
+    (button) => !alreadyExpanded.has(button) && isSeeMoreToggle(button) && isSafeToExpand(button, main, doc),
+  );
+}
+
 // Exported only for tests, so the container/navigation/viewport rules can be verified directly
 // rather than only indirectly through DOM fixtures.
 export const _internal = {

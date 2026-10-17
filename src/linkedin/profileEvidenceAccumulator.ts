@@ -6,6 +6,7 @@ import type {
   ProfileEducationEntry,
   ProfileExperienceEntry,
   ProfileListEntry,
+  ProfileSectionName,
 } from "../models/profile";
 
 function normalize(text: string | undefined): string {
@@ -137,9 +138,28 @@ export function sameEvidence(a: LinkedInProfile, b: LinkedInProfile): boolean {
   return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
 
+// Merging alone can only add: an entry seen twice keeps its longer text, so a description the
+// person shortened or deleted on LinkedIn would survive forever. A section read completely (to
+// the end of its page, with no "Show all" left and no text still clamped) is the current truth
+// for that section and replaces it, entries and fields alike. Partial readings only ever merge,
+// and a complete reading that found nothing never wipes a section.
+export function reconcileSections(merged: LinkedInProfile, observed: LinkedInProfile, complete: readonly ProfileSectionName[]): LinkedInProfile {
+  if (complete.length === 0) return merged;
+  const result = { ...merged };
+  for (const section of complete) {
+    if (section === "about") {
+      if (observed.about) result.about = observed.about;
+    } else if (observed[section].length > 0) {
+      (result as Record<string, unknown>)[section] = observed[section];
+    }
+  }
+  return result;
+}
+
 // One person's evidence across their main page and every details page. The main page refreshes
 // who the person is; a details page only ever adds to what the session already holds, so its
 // section heading can never become the person's identity.
-export function accumulateForPage(accumulated: LinkedInProfile, page: LinkedInProfile, isDetailsPage: boolean): LinkedInProfile {
-  return isDetailsPage ? mergeProfileEvidence(accumulated, { ...page, name: undefined, headline: undefined, location: undefined }) : mergeProfileEvidence(page, accumulated);
+export function accumulateForPage(accumulated: LinkedInProfile, page: LinkedInProfile, isDetailsPage: boolean, complete: readonly ProfileSectionName[] = []): LinkedInProfile {
+  const merged = isDetailsPage ? mergeProfileEvidence(accumulated, { ...page, name: undefined, headline: undefined, location: undefined }) : mergeProfileEvidence(page, accumulated);
+  return reconcileSections(merged, page, complete);
 }

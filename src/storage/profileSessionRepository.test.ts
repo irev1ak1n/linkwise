@@ -127,3 +127,25 @@ describe("one canonical session per person", () => {
     expect((await loadProfileSession("jordan"))?.evidence.languages).toHaveLength(2);
   });
 });
+
+describe("reconciling a stored session", () => {
+  const yearbook = (description: string) => ({ ...EMPTY_PROFILE, name: "Jordan", experience: [{ title: "Yearbook Website Developer", company: "School", dates: "May 2026 - Present", description }], extracted: true });
+
+  it("removes stored text a complete reading no longer shows, and keeps it on a partial one", async () => {
+    await updateProfileSession("jordan", { evidence: yearbook("Built a yearbook website serving 300+ students") }, 1000);
+    await updateProfileSession("jordan", { evidence: yearbook("Built a yearbook website for 4,000+") }, 2000);
+    expect((await loadProfileSession("jordan", 3000))!.evidence.experience[0]!.description).toContain("300+");
+    await updateProfileSession("jordan", { evidence: yearbook("Built a yearbook website for 4,000+"), completeSections: ["experience"] }, 4000);
+    const session = (await loadProfileSession("jordan", 5000))!;
+    expect(session.evidence.experience[0]!.description).toBe("Built a yearbook website for 4,000+");
+    expect(session.lastEvidenceChangeAt).toBe(4000);
+  });
+
+  it("writes only the person's own session, never their saved-profile history", async () => {
+    data["finder.savedProfiles.v1"] = { jordan: { history: ["Built a yearbook website serving 300+ students"] } };
+    await updateProfileSession("jordan", { evidence: yearbook("Old 300+") }, 1000);
+    await updateProfileSession("jordan", { evidence: yearbook("New"), completeSections: ["experience"] }, 2000);
+    expect(data["finder.savedProfiles.v1"]).toEqual({ jordan: { history: ["Built a yearbook website serving 300+ students"] } });
+    expect(await loadProfileSession("sam", 3000)).toBeNull();
+  });
+});

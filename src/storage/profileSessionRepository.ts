@@ -1,6 +1,7 @@
-// One session per person, shared by every page, tab and reload. Evidence only ever merges in.
-import type { LinkedInProfile } from "../models/profile";
-import { mergeProfileEvidence, sameEvidence } from "../linkedin/profileEvidenceAccumulator";
+// One session per person, shared by every page, tab and reload. Evidence merges in, except a
+// section read completely, which replaces what the session held for it.
+import type { LinkedInProfile, ProfileSectionName } from "../models/profile";
+import { mergeProfileEvidence, reconcileSections, sameEvidence } from "../linkedin/profileEvidenceAccumulator";
 import { safeStorageGet, safeStorageGetAll, safeStorageRemove, safeStorageSet } from "./safeChromeStorage";
 
 export const PROFILE_SESSION_KEY_PREFIX = "finder.profileSession.v3:";
@@ -48,7 +49,14 @@ export async function loadProfileSession(profileKey: string, now = Date.now()): 
   return isRetained(session, now) ? session : null;
 }
 
-type SessionUpdate = { evidence?: LinkedInProfile; scannedSection?: string | null; validated?: boolean; truncatedSections?: string[] };
+type SessionUpdate = {
+  evidence?: LinkedInProfile;
+  /** Sections the evidence read completely, so they replace the stored ones. */
+  completeSections?: readonly ProfileSectionName[];
+  scannedSection?: string | null;
+  validated?: boolean;
+  truncatedSections?: string[];
+};
 
 // Updates in one tab run one at a time, so an update that read storage earlier can never write
 // older evidence back over a newer one.
@@ -66,7 +74,7 @@ async function applySessionUpdate(profileKey: string, update: SessionUpdate, now
   const current = isRetained(stored, now) ? stored : null;
   if (!current && !update.evidence) return null;
 
-  const evidence = update.evidence ? (current ? mergeProfileEvidence(update.evidence, current.evidence) : update.evidence) : current!.evidence;
+  const evidence = update.evidence ? (current ? reconcileSections(mergeProfileEvidence(update.evidence, current.evidence), update.evidence, update.completeSections ?? []) : update.evidence) : current!.evidence;
   const evidenceChanged = !current || !sameEvidence(evidence, current.evidence);
   const sections = current?.scannedSections ?? [];
   const newSection = !!update.scannedSection && !sections.includes(update.scannedSection);

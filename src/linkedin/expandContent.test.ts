@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { _internal, expandSeeMoreToggles } from "./expandContent";
+import { _internal, expandSeeMoreToggles, hasCollapsedText } from "./expandContent";
 
 function setBody(html: string): void {
   document.body.innerHTML = html;
@@ -862,5 +862,27 @@ describe("expandSeeMoreToggles - profile detail pages (/details/{section}/, no <
 
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+});
+
+describe("hasCollapsedText", () => {
+  const page = `
+    <main role="main">
+      <section id="exp"><h2>Experience</h2><span>Built a website…</span><button type="button">…see more</button></section>
+      <section id="edu"><h2>Education</h2><span>State University</span></section>
+      <section id="activity"><h2>Activity</h2><button type="button">…see more</button></section>
+    </main>`;
+
+  it("finds clamped text only in the section that still has a toggle", () => {
+    setBody(page);
+    expect(hasCollapsedText(document.getElementById("exp")!)).toBe(true);
+    expect(hasCollapsedText(document.getElementById("edu")!)).toBe(false);
+    expect(hasCollapsedText(document.getElementById("activity")!)).toBe(false);
+  });
+
+  it("stops counting a toggle once LinkWise has expanded it", () => {
+    setBody(page);
+    expandSeeMoreToggles(document);
+    expect(hasCollapsedText(document.getElementById("exp")!)).toBe(false);
   });
 });

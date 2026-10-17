@@ -27,7 +27,7 @@
 // Auto scan always expands safe profile-information toggles, "Analyze as I scroll" only does
 // when the user has turned that on (see expandDetailsStore.ts). Neither mode ever expands a
 // control outside a recognized profile section.
-import { EMPTY_PROFILE, foundSections, type LinkedInProfile } from "../models/profile";
+import { EMPTY_PROFILE, foundSections, type LinkedInProfile, type ProfileSectionName } from "../models/profile";
 import { createCollectionEngine } from "./collectionEngine";
 import { deriveScanCoverage, shouldAttemptAutoScroll } from "./scanCoverage";
 import {
@@ -36,12 +36,14 @@ import {
   extractDetailsPageProfile,
   extractLinkedInProfile,
   extractProfileShell,
+  findDetailsSectionRoot,
+  findProfileSectionRoot,
   isProfileSectionHeading,
   normalizeProfileUrl,
   profileIdentityKey,
 } from "./profileAdapter";
 import { discoverProfileSections, excludeFromAutoScanQueue, truncatedSections } from "./sectionDiscovery";
-import { accumulateForPage, mergeProfileEvidence, sameEvidence } from "./profileEvidenceAccumulator";
+import { accumulateForPage, mergeProfileEvidence, reconcileSections, sameEvidence } from "./profileEvidenceAccumulator";
 import {
   forceCompleteSession,
   hasExceededOverallTimeout,
@@ -76,7 +78,7 @@ import { hydrateOptimizerCache } from "../optimizer/optimizerController";
 import { hydrateSectionCache } from "../optimizer/sectionAnalysis";
 import { hydrateChecklistCache } from "../optimizer/checklistAssessment";
 import { recordProfileShell, setProfileShell } from "../optimizer/profileShellStore";
-import { expandSeeMoreToggles } from "./expandContent";
+import { expandSeeMoreToggles, hasCollapsedText } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
 import { JOB_CARD_SELECTOR } from "./jobs/jobCardDetector";
@@ -239,14 +241,16 @@ const engine = createCollectionEngine({
   isNearDocumentEnd: () => (getScanModeState().mode === "auto" ? reachedEndOfScan() : isNearDocumentEnd()),
   hasEnoughEvidence: hasEnoughEvidenceToSettle,
   onUpdate: (profileKey, profile, collection) => {
-    const merged = withAccumulatedEvidence(profileKey, profile);
+    const scannedToEnd = collection.status === "settled" && collection.reachedDocumentEnd;
+    const complete = scannedToEnd ? completeSectionsOnPage() : [];
+    const merged = withAccumulatedEvidence(profileKey, profile, complete);
     const settled = collection.status === "settled" || (restoredSession && !rescanExpected && sessionKey === profileKey && !scanIsActive());
     if (settled && merged.extracted) {
       autoScanEvidence = merged;
-      const scannedToEnd = collection.status === "settled" && collection.reachedDocumentEnd;
       const onDetails = /\/details\//.test(location.href);
       void updateProfileSession(profileKey, {
         evidence: merged,
+        completeSections: complete,
         validated: collection.status === "settled",
         scannedSection: scannedToEnd ? (onDetails ? detailsPageSection(location.href) : MAIN_PAGE_SECTION) : null,
         ...(scannedToEnd && !onDetails ? { truncatedSections: truncatedSections(document) } : {}),
@@ -405,9 +409,26 @@ function goToNextSectionOrFinish(session: AutoScanSession): void {
   if (next) location.assign(next.url);
 }
 
-function withAccumulatedEvidence(profileKey: string, profile: LinkedInProfile): LinkedInProfile {
+function withAccumulatedEvidence(profileKey: string, profile: LinkedInProfile, complete: readonly ProfileSectionName[] = []): LinkedInProfile {
   if (sessionKey !== profileKey || !autoScanEvidence.extracted) return profile;
-  return accumulateForPage(autoScanEvidence, profile, /\/details\//.test(location.href));
+  return accumulateForPage(autoScanEvidence, profile, /\/details\//.test(location.href), complete);
+}
+
+// The sections this page shows in full, so their reading is the current truth: a details page's
+// own section, or a main-page section with no "Show all" link. Either way, none of its text may
+// still be clamped behind "…more". Only called once the page has been read to the end.
+function completeSectionsOnPage(): ProfileSectionName[] {
+  if (/\/details\//.test(location.href)) {
+    const section = detailsPageSection(location.href);
+    const root = findDetailsSectionRoot(document) ?? document.querySelector("main");
+    return section && root && !hasCollapsedText(root) ? [section] : [];
+  }
+  const truncated = new Set<string>(truncatedSections(document));
+  return detectProfileSections(document).filter((section) => {
+    if (truncated.has(section)) return false;
+    const root = findProfileSectionRoot(document, section);
+    return !!root && !hasCollapsedText(root);
+  });
 }
 
 let manualScan: SectionScanState | null = null;
@@ -450,8 +471,9 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
     : current.profileKey === profileKey && current.profile
       ? current.profile
       : { ...EMPTY_PROFILE };
-  const merged = mergeProfileEvidence(base, sectionProfile);
   const scannedSection = detailsPageSection(currentUrl);
+  const complete = !reading ? completeSectionsOnPage() : [];
+  const merged = reconcileSections(mergeProfileEvidence(base, sectionProfile), sectionProfile, complete);
   if (sameEvidence(merged, base)) {
     if (!reading && !manualScan.validated) void updateProfileSession(profileKey, { scannedSection, validated: true });
     if (!reading) manualScan.validated = true;
@@ -462,7 +484,7 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
   manualScan.published = true;
   if (!reading) manualScan.validated = true;
   autoScanEvidence = merged;
-  void updateProfileSession(profileKey, { evidence: merged, scannedSection, validated: true });
+  void updateProfileSession(profileKey, { evidence: merged, completeSections: complete, scannedSection, validated: true });
   setPanelProfileData({
     profileKey,
     profile: merged,
@@ -591,13 +613,15 @@ function tickAutoScanCrawl(): void {
 
   if (elapsed < SECTION_SETTLE_MS) return;
 
-  expandSeeMoreToggles(document, { restrictToViewport: false });
+  // LinkedIn renders expanded text asynchronously, so read the section on a later tick.
+  if (expandSeeMoreToggles(document, { restrictToViewport: false }) > 0) return;
   const finalSectionProfile = extractDetailsPageProfile(document);
-  autoScanEvidence = mergeProfileEvidence(autoScanEvidence, finalSectionProfile);
+  const complete = completeSectionsOnPage();
+  autoScanEvidence = reconcileSections(mergeProfileEvidence(autoScanEvidence, finalSectionProfile), finalSectionProfile, complete);
   sectionHandledUrl = pending.normalizedUrl;
 
   void (async () => {
-    await updateProfileSession(profileKey, { evidence: autoScanEvidence });
+    await updateProfileSession(profileKey, { evidence: autoScanEvidence, completeSections: complete });
     autoScanSession = markCurrentSectionDone(autoScanSession!);
     await saveAutoScanSession(autoScanSession);
     const verified = await loadAutoScanSession(profileKey);
