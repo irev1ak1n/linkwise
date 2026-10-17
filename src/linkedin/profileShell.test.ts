@@ -34,6 +34,18 @@ describe("extractProfileShell", () => {
     expect(shell.sections).toEqual({ about: null, experience: null, skills: 50, certifications: 3 });
   });
 
+  it("reads connections, followers, Open to Work, and the public profile settings link from the page", () => {
+    setPage(
+      "https://www.linkedin.com/in/jordan/",
+      `${TOP_CARD}<ul><li><a href="https://www.linkedin.com/mynetwork/invite-connect/connections/"><span>500+</span> connections</a></li></ul><button>Open to</button><a href="https://www.linkedin.com/public-profile/settings/?trk=x">Public profile & URL</a>${SECTIONS}<section><h2>Activity</h2><p>921 followers</p></section>`,
+    );
+    expect(extractProfileShell(document)).toMatchObject({ connections: "500+", followers: 921, openToWork: "not_shown", publicProfileSettingsUrl: "https://www.linkedin.com/public-profile/settings/?trk=x" });
+    setPage("https://www.linkedin.com/in/jordan/", `${TOP_CARD}<p>128 connections</p><section><h2>Open to work</h2><p>Software Engineer roles</p></section>`);
+    expect(extractProfileShell(document)).toMatchObject({ connections: "128", openToWork: "shown" });
+    setPage("https://www.linkedin.com/in/jordan/", `${TOP_CARD}${SECTIONS}`);
+    expect(extractProfileShell(document)).toMatchObject({ connections: null, openToWork: null });
+  });
+
   it("notices a missing photo, banner, and Featured section", () => {
     setPage("https://www.linkedin.com/in/jordan/", `<section><h1>Jordan</h1><img src="https://static.licdn.com/aero-v1/sc/h/ghost.svg"></section><section><h2>Featured</h2></section>`);
     const shell = extractProfileShell(document);

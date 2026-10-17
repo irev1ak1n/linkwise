@@ -104,7 +104,7 @@ function findMain(doc: Document): HTMLElement {
 // hurt page responsiveness.
 function findHeadingSection(headings: HTMLElement[], name: ProfileSectionName): HTMLElement | null {
   const matches = matcherFor(name);
-  const match = headings.find((el) => matches((el.textContent ?? "").trim().toLowerCase()));
+  const match = headings.find((el) => matches((el.textContent ?? "").toLowerCase().replace(/\(\d+\)/, "").trim()));
   if (!match) return null;
   // Walk up to the nearest <section>, or a bounded ancestor walk if there isn't one.
   const section = match.closest("section");
@@ -441,7 +441,11 @@ function extractSkills(main: HTMLElement, headings: HTMLElement[]): string[] {
   const section = findHeadingSection(headings, "skills");
   if (section) {
     const items = Array.from(section.querySelectorAll<HTMLElement>("li"));
-    if (items.length > 0) {
+    const blocks = items.length === 0 ? entryBlocks(section, "skills") : [];
+    if (blocks.length > 0) {
+      // Each entry's first line is the skill; the rest is where it's used.
+      for (const block of blocks) if (block[0]!.text.length < 60) skills.push(block[0]!.text);
+    } else if (items.length > 0) {
       for (const item of items) {
         const text = visibleText(item.querySelector<HTMLElement>("span[aria-hidden='true']") ?? item);
         if (text && text.length < 60) skills.push(text);
@@ -607,6 +611,14 @@ export interface ProfileShell {
   hasPhoto: boolean;
   hasBanner: boolean;
   sections: Partial<Record<ProfileSectionName | "featured", number | null>>;
+  /** As LinkedIn shows it, e.g. "500+" or "128". */
+  connections?: string | null;
+  followers?: number | null;
+  /** "shown" when the profile publicly says Open to Work, "not_shown" when only the owner's "Open to"
+   * control is there. Recruiter-only Open to Work is never visible on the page. */
+  openToWork?: "shown" | "not_shown" | null;
+  /** LinkedIn's own link to the public profile settings, where the custom URL is edited. */
+  publicProfileSettingsUrl?: string | null;
 }
 
 const OWNER_CONTROLS = /^(edit profile|add section|add profile section|enhance profile)$/i;
@@ -635,12 +647,47 @@ export function extractProfileShell(doc: Document = document): ProfileShell {
     const name = /^featured\b/i.test(text) ? "featured" : ALL_PROFILE_SECTIONS.find((section) => isSectionHeading(section, text));
     if (name && !(name in sections)) sections[name] = count ? Number(count[1]) : null;
   }
+  const text = spacedText(main);
+  const connections = /(\d[\d,]*\+?)\s*connections?\b/i.exec(text)?.[1] ?? null;
+  const followers = /(\d[\d,]*)\s*followers?\b/i.exec(text)?.[1];
+  const openToControl = !!findOpenToControl(main);
+  const openToWorkShown = /\bopen to work\b/i.test(text) && !/(show|let) recruiters (know )?you.re open to work/i.test(text);
   return {
     isOwnProfile: isOwnProfileView(main, profileIdentityKey(doc.URL)),
     hasPhoto: !!main.querySelector('img[src*="profile-displayphoto"], img[src*="profile-framedphoto"]'),
     hasBanner: !!main.querySelector('img[src*="profile-displaybackgroundimage"]'),
     sections,
+    connections,
+    followers: followers ? Number(followers.replace(/,/g, "")) : null,
+    openToWork: openToWorkShown ? "shown" : openToControl ? "not_shown" : null,
+    publicProfileSettingsUrl: main.querySelector<HTMLAnchorElement>('a[href*="/public-profile/settings"]')?.href ?? null,
   };
+}
+
+// Visible text with a space between elements; textContent runs "500+ connections" into the next label.
+function spacedText(root: HTMLElement): string {
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => (/^(SCRIPT|STYLE|CODE|TEMPLATE)$/.test(node.parentElement?.tagName ?? "") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  const parts: string[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) parts.push(node.nodeValue ?? "");
+  return parts.join(" ").replace(/\s+/g, " ");
+}
+
+// The viewer's own "Open to" button, which opens LinkedIn's Open to Work and similar settings.
+export function findOpenToControl(main: HTMLElement = findMain(document)): HTMLElement | null {
+  return Array.from(main.querySelectorAll<HTMLElement>("button")).find((b) => /^open to$/i.test((b.textContent ?? "").replace(/\s+/g, " ").trim())) ?? null;
+}
+
+// A profile section's own block on the main page, found by its heading.
+export function findProfileSection(name: ProfileSectionName | "featured", doc: Document = document): HTMLElement | null {
+  const main = findMain(doc);
+  for (const heading of Array.from(main.querySelectorAll<HTMLElement>("h2"))) {
+    const text = cleanText(visibleText(heading) ?? heading.textContent) ?? "";
+    const matches = name === "featured" ? /^featured\b/i.test(text) : isSectionHeading(name, text);
+    if (matches) return heading.closest<HTMLElement>("section") ?? heading;
+  }
+  return null;
 }
 
 export type TopCardPart = "photo" | "banner" | "headline";

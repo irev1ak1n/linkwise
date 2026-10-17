@@ -31,6 +31,10 @@ export function mergeShells(previous: ProfileShell, next: ProfileShell): Profile
     hasPhoto: previous.hasPhoto || next.hasPhoto,
     hasBanner: previous.hasBanner || next.hasBanner,
     sections,
+    connections: next.connections ?? previous.connections ?? null,
+    followers: next.followers ?? previous.followers ?? null,
+    openToWork: next.openToWork ?? previous.openToWork ?? null,
+    publicProfileSettingsUrl: next.publicProfileSettingsUrl ?? previous.publicProfileSettingsUrl ?? null,
   };
 }
 

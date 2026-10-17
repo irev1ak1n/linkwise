@@ -234,6 +234,24 @@ describe("extractLinkedInProfile - full profile", () => {
     const profile = extractLinkedInProfile(document);
     expect(profile.name).toBe("Jordan Rivera");
   });
+
+  it("reads skills under a counted heading, without the line saying where each is used", () => {
+    setBody(`
+      <main role="main">
+        <section><h1>Jordan Rivera</h1></section>
+        <section>
+          <div><h2>Skills (12)</h2></div>
+          <p><span>Customer Service</span></p>
+          <p><span>Volunteer Tutor at Riverside Library</span></p>
+          <hr>
+          <p><span>Tutoring</span></p>
+          <hr>
+          <span>Show all</span>
+        </section>
+      </main>
+    `);
+    expect(extractLinkedInProfile(document).skills).toEqual(["Customer Service", "Tutoring"]);
+  });
 });
 
 describe("extractLinkedInProfile - incomplete or non-profile pages", () => {

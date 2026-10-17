@@ -8,7 +8,12 @@ afterEach(() => setProfileShell(null));
 
 describe("profile shell readings", () => {
   it("keeps sections seen earlier while the page scrolls", () => {
-    expect(mergeShells(top, lower)).toEqual({ isOwnProfile: true, hasPhoto: true, hasBanner: true, sections: { about: null, experience: null, skills: 50 } });
+    expect(mergeShells(top, lower)).toMatchObject({ isOwnProfile: true, hasPhoto: true, hasBanner: true, sections: { about: null, experience: null, skills: 50 } });
+  });
+
+  it("keeps the connection count and Open to Work state from the top card as lower sections load", () => {
+    const merged = mergeShells({ ...top, connections: "500+", openToWork: "not_shown", followers: 921 }, { ...lower, connections: null, openToWork: null, followers: null });
+    expect(merged).toMatchObject({ connections: "500+", openToWork: "not_shown", followers: 921 });
   });
 
   it("accumulates per profile and stays complete once the end was seen", () => {
