@@ -8,7 +8,7 @@ import { findGroundedText } from "./validateSignals";
 const MAX_REASON_LENGTH = 700;
 const MAX_SUGGESTION_LENGTH = 300;
 const MAX_SUGGESTIONS = 4;
-const MAX_SUMMARY_LENGTH = 600;
+const MAX_SUMMARY_LENGTH = 1000;
 const DRAFT_LIMITS: Record<OptimizerDraftRequest["section"], number> = { headline: 220, about: 2600, experience: 2000 };
 
 export interface ValidatedAssessment {
@@ -89,6 +89,13 @@ function genericAdd(assessment: SectionAssessment): ValidatedAssessment {
   return { section: assessment.section, state: "add", impact: assessment.impact, reason: GENERIC_ADD[assessment.section], sourceType: "general_best_practice", evidenceIds: [], suggestions: [] };
 }
 
+// The overall summary judges the profile in a few sentences; it isn't a list of the person's achievements.
+export function isProfileEvaluation(summary: string): boolean {
+  const sentences = summary.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0).length;
+  const numbers = summary.match(/\d[\d,.]*\+?/g)?.length ?? 0;
+  return sentences >= 3 && sentences <= 6 && /\bprofile\b/i.test(summary) && numbers <= 1;
+}
+
 export function validateOptimizerResponse(response: OptimizerResponse, request: OptimizeProfileRequest): ValidatedOptimizerResult {
   const evidence = new Map(request.profile.evidence.map((item) => [item.id, item]));
   const presence = new Map(request.sections.map((p) => [p.section, p]));
@@ -134,7 +141,7 @@ export function validateOptimizerResponse(response: OptimizerResponse, request: 
   }
 
   const summary = response.summary.trim();
-  const summaryOk = summary.length <= MAX_SUMMARY_LENGTH && isGrounded(summary, sourcesFor.user_context);
+  const summaryOk = summary.length <= MAX_SUMMARY_LENGTH && isProfileEvaluation(summary) && isGrounded(summary, sourcesFor.user_context);
   return { summary: summaryOk ? summary : "", sections };
 }
 

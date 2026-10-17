@@ -121,3 +121,21 @@ describe("validateDraft", () => {
     expect(validateDraft("x".repeat(300), draftRequest)).toBeNull();
   });
 });
+
+describe("overall summary", () => {
+  const evaluation =
+    "This is a well-structured profile with a clear foundation, but its positioning is not yet specific. Experience descriptions are complete and include measurable results. The writing is clear, although the Headline and About repeat general wording instead of naming a focus. Featured and Projects are missing, which hides the strongest work from a quick visit. Sharpening the Headline and surfacing key work would make the profile feel complete.";
+
+  it("keeps a four-to-five sentence evaluation of the profile", () => {
+    expect(validateOptimizerResponse({ summary: evaluation, assessments: [] }, requestWith()).summary).toBe(evaluation);
+  });
+
+  it("drops a summary that lists the person's achievements instead", () => {
+    const dump = "Built a club website with 300 monthly visitors. Led the Robotics Club web team. Placed 2nd at a regional event.";
+    expect(validateOptimizerResponse({ summary: dump, assessments: [] }, requestWith()).summary).toBe("");
+  });
+
+  it("drops a summary too short to evaluate the profile", () => {
+    expect(validateOptimizerResponse({ summary: "A focused profile. Add Projects.", assessments: [] }, requestWith()).summary).toBe("");
+  });
+});

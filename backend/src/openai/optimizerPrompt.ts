@@ -39,10 +39,14 @@ IMPACT
 
 SUGGESTIONS: 0 to 4 short, concrete, actionable steps per assessment. Each follows the same source rule as its assessment.
 
-SUMMARY: two sentences, at most 35 words and 230 characters in total, on the profile overall and grounded in the evidence.
-- First, the strongest qualities, backed by one or two pieces of concrete evidence (a named role, project, or a number that appears in the evidence), not adjectives like "impressive" or "strong background".
-- Then the two or three biggest optimization opportunities, naming the sections to improve or add next.
-- No resume dump, no score, no generic praise.`;
+SUMMARY: written after the assessments and built from them. It judges how well the LinkedIn profile itself is built, not what the person has accomplished.
+- Four or five sentences, about 75 to 120 words.
+- Sentence 1 is an overall claim about the profile's quality, like the thesis of an essay, and its tone matches the balance of strong, improve, and add assessments.
+- Then: what the profile does well; how clear, organized, well written, and consistently positioned it is; the most important sections to improve or add and why they matter; optionally, the highest-level next step.
+- Synthesize patterns (completeness, organization, clarity, specificity, writing quality, professional positioning, how well evidence is surfaced, consistency across sections, discoverability). Name only the few sections that matter most; never walk through the section list.
+- Talk about how evidence is presented ("Experience descriptions include measurable results"), never restate it ("built a website for 300+ students"). Do not quote achievements, numbers, names, or organizations from the evidence.
+- Judge writing quality overall (readability, generic or repetitive wording, awkward phrasing, tone), not individual punctuation.
+- Precise, professional language: no "impressive", "excellent", "outstanding", no repeated "strong", no vague "could use improvement" without saying what kind. No score.`;
 
 export function buildOptimizerUserPrompt(request: OptimizeProfileRequest): string {
   const evidence = request.profile.evidence.map((item) => ({ id: item.id, section: item.section, text: item.text }));

@@ -17,9 +17,10 @@ export const sectionAssessmentSchema = z.object({
   suggestions: z.array(z.string()),
 });
 
+// The summary comes last so it is written from the assessments above it.
 export const optimizerResponseSchema = z.object({
-  summary: z.string(),
   assessments: z.array(sectionAssessmentSchema),
+  summary: z.string(),
 });
 
 export const optimizerDraftResponseSchema = z.object({
