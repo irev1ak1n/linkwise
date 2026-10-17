@@ -124,6 +124,7 @@ describe("Profile Analyzer dashboard", () => {
     click("Full analysis");
     expect(getAnalyzerPage()).toBe("full");
     expect(container.textContent).toContain("Criteria breakdown");
+    expect(container.querySelector(`[aria-label="What's missing"]`)!.textContent).toContain("No internship");
     expect(container.textContent).toContain("Self-taught");
     expect(container.querySelector(".lw-an-score__value")).toBeNull();
     click("← Back to Profile Analyzer");
