@@ -5,10 +5,10 @@ import { SYSTEM_PROMPT } from "./prompt";
 
 describe("optimizer summary prompt", () => {
   it("asks for an evaluation of the profile itself, opening with an overall claim", () => {
-    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("judges how well the LinkedIn profile itself is built, not what the person has accomplished");
-    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Four or five sentences, about 75 to 120 words");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("judges how well the LinkedIn profile itself is built and presented, not what the person has accomplished");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Three or four sentences, about 55 to 85 words");
     expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Sentence 1 is an overall claim");
-    expect(OPTIMIZER_SYSTEM_PROMPT).toMatch(/completeness, organization, clarity, specificity, writing quality, professional positioning/);
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Never name a section");
     expect(OPTIMIZER_SYSTEM_PROMPT).toContain("never restate it");
   });
 

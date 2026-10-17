@@ -89,11 +89,19 @@ function genericAdd(assessment: SectionAssessment): ValidatedAssessment {
   return { section: assessment.section, state: "add", impact: assessment.impact, reason: GENERIC_ADD[assessment.section], sourceType: "general_best_practice", evidenceIds: [], suggestions: [] };
 }
 
-// The overall summary judges the profile in a few sentences; it isn't a list of the person's achievements.
+// Section names as LinkedIn capitalizes them, which the overall summary leaves to the rows below it.
+const SECTION_NAMES = /\b(Headline|Banner|About|Featured|Experience|Education|Projects|Skills|Licenses|Certifications|Volunteer|Volunteering|Honors|Awards|Organizations|Languages|Location|Open to Work|LinkedIn URL)\b/;
+// Names that only ever mean a section, in any case.
+const SECTION_ONLY_NAMES = /\b(headline|banner|featured|about section|open to work|linkedin url)\b/i;
+
+// The overall summary judges the profile in a few general sentences; it isn't a list of achievements or sections.
 export function isProfileEvaluation(summary: string): boolean {
-  const sentences = summary.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0).length;
+  const sentences = summary.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+  const words = summary.split(/\s+/).length;
   const numbers = summary.match(/\d[\d,.]*\+?/g)?.length ?? 0;
-  return sentences >= 3 && sentences <= 6 && /\bprofile\b/i.test(summary) && numbers <= 1;
+  // A sentence may start with a capitalized common word ("Experience is...").
+  const namesSection = SECTION_ONLY_NAMES.test(summary) || sentences.some((s) => SECTION_NAMES.test(s.replace(/^\S+/, "")));
+  return sentences.length >= 3 && sentences.length <= 5 && words >= 40 && words <= 110 && /\bprofile\b/i.test(summary) && numbers === 0 && !namesSection;
 }
 
 export function validateOptimizerResponse(response: OptimizerResponse, request: OptimizeProfileRequest): ValidatedOptimizerResult {

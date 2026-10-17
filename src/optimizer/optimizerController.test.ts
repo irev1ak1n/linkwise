@@ -40,7 +40,7 @@ describe("optimizerCacheKey", () => {
   it("changes with evidence or user context, not with whitespace around the context", () => {
     const base = { profileKey: "jordan", profile: profile("Builds websites."), shell, userContext: "" };
     const key = optimizerCacheKey(buildOptimizerRequest(base));
-    expect(key).toMatch(/^optimizer-v4:jordan:/);
+    expect(key).toMatch(/^optimizer-v6:jordan:/);
     expect(optimizerCacheKey(buildOptimizerRequest({ ...base, profile: profile("Builds apps.") }))).not.toBe(key);
     expect(optimizerCacheKey(buildOptimizerRequest({ ...base, userContext: "AWS certified" }))).not.toBe(key);
     expect(optimizerCacheKey(buildOptimizerRequest({ ...base, userContext: "  " }))).toBe(key);

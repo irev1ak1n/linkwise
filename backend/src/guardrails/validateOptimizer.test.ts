@@ -124,18 +124,33 @@ describe("validateDraft", () => {
 
 describe("overall summary", () => {
   const evaluation =
-    "This is a well-structured profile with a clear foundation, but its positioning is not yet specific. Experience descriptions are complete and include measurable results. The writing is clear, although the Headline and About repeat general wording instead of naming a focus. Featured and Projects are missing, which hides the strongest work from a quick visit. Sharpening the Headline and surfacing key work would make the profile feel complete.";
+    "This profile has a credible foundation, but its presentation is not yet focused enough for a visitor to scan quickly. The content is mostly complete, and descriptions include concrete, measurable results. Some areas repeat general wording instead of stating a clear professional direction. Tighter prioritization and more concise writing would make the profile feel cohesive and polished.";
 
-  it("keeps a four-to-five sentence evaluation of the profile", () => {
+  it("keeps a three-to-four sentence, general evaluation of the profile", () => {
+    expect(evaluation.split(/\s+/).length).toBeGreaterThanOrEqual(55);
     expect(validateOptimizerResponse({ summary: evaluation, assessments: [] }, requestWith()).summary).toBe(evaluation);
+  });
+
+  it("allows a common word at the start of a sentence", () => {
+    const opening = evaluation.replace("Some areas repeat", "Experience entries repeat");
+    expect(validateOptimizerResponse({ summary: opening, assessments: [] }, requestWith()).summary).toBe(opening);
+  });
+
+  it("drops a summary that names sections, which the rows below already show", () => {
+    const named = evaluation.replace("Some areas repeat", "The Headline and About repeat");
+    expect(validateOptimizerResponse({ summary: named, assessments: [] }, requestWith()).summary).toBe("");
+    const lower = evaluation.replace("Some areas repeat", "The headline and banner repeat");
+    expect(validateOptimizerResponse({ summary: lower, assessments: [] }, requestWith()).summary).toBe("");
   });
 
   it("drops a summary that lists the person's achievements instead", () => {
     const dump = "Built a club website with 300 monthly visitors. Led the Robotics Club web team. Placed 2nd at a regional event.";
     expect(validateOptimizerResponse({ summary: dump, assessments: [] }, requestWith()).summary).toBe("");
+    expect(validateOptimizerResponse({ summary: evaluation.replace("measurable results", "results like 300 monthly visitors"), assessments: [] }, requestWith()).summary).toBe("");
   });
 
-  it("drops a summary too short to evaluate the profile", () => {
-    expect(validateOptimizerResponse({ summary: "A focused profile. Add Projects.", assessments: [] }, requestWith()).summary).toBe("");
+  it("drops a summary too short or too long to read as an evaluation", () => {
+    expect(validateOptimizerResponse({ summary: "A focused profile. Add more. Polish it.", assessments: [] }, requestWith()).summary).toBe("");
+    expect(validateOptimizerResponse({ summary: `${evaluation} ${evaluation}`, assessments: [] }, requestWith()).summary).toBe("");
   });
 });
