@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPersistentCache } from "../ai/persistentCache";
-import { buildChecklistRequest, checklistCacheKey, loadChecklist, type ChecklistOutcome } from "./checklistAssessment";
+import { buildChecklistRequest, checklistCacheKey, loadChecklist, partialList, type ChecklistOutcome } from "./checklistAssessment";
 import { semanticCriteria, type SemanticResult } from "./checklist";
 import type { OptimizeProfileRequestBody } from "./optimizerClient";
 
@@ -52,6 +52,15 @@ describe("checklist cache", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it("makes no new request when moving Next, then Prev, between already checked sections", async () => {
+    const { cache, send } = harness();
+    const about = buildChecklistRequest("about", body("I study software."))!;
+    const experience = buildChecklistRequest("experience", body("I study software."))!;
+    await Promise.all([loadChecklist(about, send, cache), loadChecklist(experience, send, cache)]);
+    for (const request of [experience, about, experience, about]) await loadChecklist(request, send, cache);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
   it("ignores changes to sections the assessment doesn't read", () => {
     const before = checklistCacheKey(buildChecklistRequest("about", body("I study software."))!);
     const after = checklistCacheKey(buildChecklistRequest("about", body("I study software.", "", "Something else entirely"))!);
@@ -73,5 +82,23 @@ describe("checklist cache", () => {
     await loadChecklist(request, failing, cache);
     await loadChecklist(request, failing, cache);
     expect(failing).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("partly read lists", () => {
+  const skills = (text: string, itemCount: number): OptimizeProfileRequestBody => ({
+    profile: { identity: "me", evidence: [{ id: "skills:0", section: "skills", text, evidenceType: "skills" }] },
+    sections: [{ section: "skills", present: true, itemCount, evidenceIds: ["skills:0"] }],
+    userContext: "",
+  });
+
+  it("asks nothing when the page showed only some of the entries", () => {
+    expect(partialList("skills", skills("Customer Service, Tutoring", 50))).toEqual({ read: 2, total: 50 });
+    expect(buildChecklistRequest("skills", skills("Customer Service, Tutoring", 50))).toBeNull();
+  });
+
+  it("checks a list that was read in full", () => {
+    expect(partialList("skills", skills("Python, React", 2))).toBeNull();
+    expect(buildChecklistRequest("skills", skills("Python, React", 2))).not.toBeNull();
   });
 });

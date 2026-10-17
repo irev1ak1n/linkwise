@@ -15,6 +15,10 @@ export function hydrateSectionCache(): Promise<void> {
   return sectionCache.hydrate();
 }
 
+export function whenSectionCacheReady(): Promise<void> {
+  return sectionCache.whenReady();
+}
+
 export function buildSectionRequest(section: AnalyzedSection, body: OptimizeProfileRequestBody): SectionAnalysisRequestBody {
   return { profile: body.profile, section, present: body.sections.find((p) => p.section === section)?.present ?? false, userContext: body.userContext };
 }

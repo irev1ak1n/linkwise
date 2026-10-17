@@ -2,7 +2,7 @@ import { z } from "zod";
 import { MAX_EVIDENCE_ITEMS, evidenceItemSchema } from "./requestSchema";
 import { MAX_USER_CONTEXT_LENGTH } from "./optimizerRequestSchema";
 
-export const CHECKLIST_SECTIONS = ["headline", "about", "experience", "education", "projects", "skills", "volunteering"] as const;
+export const CHECKLIST_SECTIONS = ["headline", "about", "experience", "education", "projects", "skills", "certifications", "volunteering", "honors", "organizations"] as const;
 
 export const checklistRequestSchema = z.object({
   profile: z.object({

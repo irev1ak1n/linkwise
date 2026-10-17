@@ -31,11 +31,24 @@ export function hydrateChecklistCache(): Promise<void> {
   return checklistCache.hydrate();
 }
 
-// Null for sections whose checklist has nothing AI needs to judge.
+export function whenChecklistCacheReady(): Promise<void> {
+  return checklistCache.whenReady();
+}
+
+// How much of a long list the profile page showed, when LinkWise read only part of it.
+export function partialList(section: OptimizerSection, body: OptimizeProfileRequestBody): { read: number; total: number } | null {
+  const own = body.profile.evidence.filter((item) => item.section === section);
+  if (own.length === 0) return null;
+  const read = section === "skills" ? own[0]!.text.split(", ").length : own.length;
+  const total = body.sections.find((p) => p.section === section)?.itemCount ?? 0;
+  return total > read ? { read, total } : null;
+}
+
+// Null for sections whose checklist has nothing AI needs to judge, or whose list was only partly read.
 export function buildChecklistRequest(section: OptimizerSection, body: OptimizeProfileRequestBody): ChecklistRequestBody | null {
   const criteria = semanticCriteria(section);
   const read = SEMANTIC_CONTEXT[section];
-  if (criteria.length === 0 || !read) return null;
+  if (criteria.length === 0 || !read || partialList(section, body)) return null;
   const evidence = body.profile.evidence.filter((item) => read.includes(item.section));
   if (!evidence.some((item) => item.section === section)) return null;
   return {
