@@ -135,29 +135,7 @@ function CompactScore({ state }: { state: MatchDisplayState }) {
   );
 }
 
-function MoreLink({ label, page }: { label: string; page: "full" | "evidence" }) {
-  return (
-    <button type="button" className="lw-an-more" onClick={() => openAnalyzerPage(page)}>
-      {label} →
-    </button>
-  );
-}
-
-function DetailLink({ title, subtitle, page }: { title: string; subtitle: string; page: "full" | "evidence" }) {
-  return (
-    <button type="button" className="lw-opt-card" onClick={() => openAnalyzerPage(page)}>
-      <span className="lw-opt-card__text">
-        <span className="lw-opt-card__title">{title}</span>
-        <span className="lw-opt-card__subtitle">{subtitle}</span>
-      </span>
-      <span className="lw-opt-card__chevron" aria-hidden="true">
-        ›
-      </span>
-    </button>
-  );
-}
-
-// The quick read, in decision order: how strong, who, why, what to do, then the way deeper.
+// The quick read: how strong, who, and why. Full analysis and Evidence stay reachable by route for a later UI.
 function Dashboard({ final, goal, state, status, savedBar, highlights }: { final: FinalAnalysis; goal: Goal; state: MatchDisplayState; status: ReactNode; savedBar?: ReactNode; highlights?: ReactNode }) {
   const { analysis } = final;
   const reasons = analysis.strengths.slice(0, TOP_REASONS);
@@ -181,20 +159,12 @@ function Dashboard({ final, goal, state, status, savedBar, highlights }: { final
               </li>
             ))}
           </ul>
-          {analysis.strengths.length > TOP_REASONS && <MoreLink label={`View all ${analysis.strengths.length}`} page="full" />}
         </section>
       )}
 
       {analysis.strengths.length === 0 && analysis.gaps.length === 0 && <p className="lw-empty">No criteria to evaluate for this goal yet.</p>}
 
-      <RecommendationCard label={analysis.recommendation.label} reason={analysis.recommendation.reason} sentences={1} />
-
       {highlights}
-
-      <nav className="lw-opt-cards" aria-label="Analysis details">
-        <DetailLink title="Full analysis" subtitle="Recommendation, criteria, deeper reasoning" page="full" />
-        <DetailLink title="Evidence" subtitle="Profile evidence behind this score" page="evidence" />
-      </nav>
     </div>
   );
 }

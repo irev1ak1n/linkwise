@@ -1853,13 +1853,6 @@ export function getPanelStyles(widthPx: number): string {
     text-transform: uppercase;
     color: #8a949c;
   }
-  .lw-dash .lw-fa-decision .lw-fa-label {
-    margin-bottom: 4px;
-    font-size: 11px;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: #8a949c;
-  }
   .lw-dash .lw-an-summary {
     margin: 0;
     font-size: 14px;
