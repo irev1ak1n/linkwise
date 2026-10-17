@@ -1869,5 +1869,61 @@ export function getPanelStyles(widthPx: number): string {
     font-size: 12.5px;
     line-height: 1.4;
   }
+  .lw-hl {
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid #e8ecef;
+  }
+  .lw-hl .lw-an-heading {
+    font-size: 11px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #8a949c;
+  }
+  .lw-hl .lw-signals__toggle {
+    justify-content: space-between;
+    font-size: 13px;
+  }
+  .lw-hl .lw-signals__hint {
+    display: block;
+    margin: 1px 0 0;
+  }
+  .lw-hl__more {
+    border: 1px solid #e1e6ea;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .lw-hl__more > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: pointer;
+    list-style: none;
+  }
+  .lw-hl__more > summary::-webkit-details-marker {
+    display: none;
+  }
+  .lw-hl__more > summary > span:first-child {
+    flex: 1;
+  }
+  .lw-hl__more > summary::after {
+    content: "›";
+    color: #8a949c;
+    font-size: 18px;
+    line-height: 1;
+    transition: transform 0.15s ease;
+  }
+  .lw-hl__more[open] > summary::after {
+    transform: rotate(90deg);
+  }
+  .lw-hl__more > :not(summary) {
+    margin: 0 12px 10px;
+  }
 `;
 }

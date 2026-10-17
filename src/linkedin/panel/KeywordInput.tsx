@@ -33,7 +33,7 @@ export function KeywordInput({ value, onChange, color, onColorChange }: KeywordI
   return (
     <div className="lw-keywords">
       <label className="lw-keywords">
-        <span className="lw-keywords__label">Highlight keywords</span>
+        <span className="lw-keywords__label">Keywords</span>
         <textarea
           className="lw-keywords__input"
           rows={2}
@@ -43,6 +43,7 @@ export function KeywordInput({ value, onChange, color, onColorChange }: KeywordI
           onChange={(e) => setDraft(e.target.value)}
         />
       </label>
+      <p className="lw-scan-mode__hint">Comma or newline separated.</p>
       {draft.trim() !== "" && <HighlightColorPicker label="Keyword color" color={color} onChange={onColorChange} />}
     </div>
   );

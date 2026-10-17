@@ -2,6 +2,7 @@ import type { SignalAnalysisState } from "../../ai/signalAnalysisController";
 import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
 import { sectionLabel } from "./sectionLabels";
 import { KeywordInput } from "./KeywordInput";
+import { parseKeywords } from "../keywordHighlights";
 import { HighlightColorPicker } from "./HighlightColorPicker";
 import type { HighlightColor } from "../highlightPalette";
 
@@ -36,9 +37,12 @@ function SignalStatus({ analysis, highlighted, updatingSection }: Pick<SignalMod
   return (
     <>
       {note}
-      <details className="lw-signals__facts" open>
+      <details className="lw-hl__more lw-signals__facts">
         <summary>
-          High-signal facts <span className="lw-signals__count">{highlighted} highlighted</span>
+          <span>High-signal facts</span>
+          <span className="lw-signals__count" title={`${highlighted} highlighted on the profile`}>
+            {analysis.facts.length}
+          </span>
         </summary>
         <ul>
           {analysis.facts.map((fact) => (
@@ -50,18 +54,26 @@ function SignalStatus({ analysis, highlighted, updatingSection }: Pick<SignalMod
   );
 }
 
+// Profile Analyzer's highlighting controls: one row each, details only when opened.
 export function SignalModeSection({ enabled, analysis, highlighted, onChange, keywords, onKeywordsChange, color, onColorChange, keywordColor, onKeywordColorChange, updatingSection }: SignalModeSectionProps) {
   return (
-    <div className="lw-signals">
+    <section className="lw-signals lw-hl" aria-label="Profile highlights">
+      <h3 className="lw-an-heading">Profile highlights</h3>
       <label className="lw-signals__toggle">
-        <input type="checkbox" checked={enabled} onChange={(e) => onChange(e.target.checked)} />
         <span>
-          Signal Mode <span className="lw-signals__hint">Highlight useful evidence</span>
+          Signal Mode <span className="lw-signals__hint">Highlight useful evidence directly on the profile.</span>
         </span>
+        <input type="checkbox" role="switch" checked={enabled} onChange={(e) => onChange(e.target.checked)} />
       </label>
       {enabled && <HighlightColorPicker color={color} onChange={onColorChange} />}
       {enabled && <SignalStatus analysis={analysis} highlighted={highlighted} updatingSection={updatingSection} />}
-      <KeywordInput value={keywords} onChange={onKeywordsChange} color={keywordColor} onColorChange={onKeywordColorChange} />
-    </div>
+      <details className="lw-hl__more">
+        <summary>
+          <span>Highlight keywords</span>
+          {parseKeywords(keywords).length > 0 && <span className="lw-signals__count">{parseKeywords(keywords).length}</span>}
+        </summary>
+        <KeywordInput value={keywords} onChange={onKeywordsChange} color={keywordColor} onColorChange={onKeywordColorChange} />
+      </details>
+    </section>
   );
 }
