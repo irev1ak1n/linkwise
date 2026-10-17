@@ -201,34 +201,62 @@ export function getPanelStyles(widthPx: number): string {
 
   /* Hands-free reading speed and state, under the Auto scan options. */
 
-  /* Scan screen: live progress through the profile's sections. */
+  /* Scan screen: one surface, one real progress bar, flat section rows. */
   .lw-scan {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-    border: 1px solid #e1e6ea;
+    gap: 12px;
+    padding: 14px 14px 12px;
+    border: 1px solid #e3e7f3;
     border-radius: 14px;
-    background: linear-gradient(180deg, #f7f9ff 0%, #fff 70%);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 64, 0.04);
   }
-  .lw-scan__reading {
-    margin: 0;
-    font-size: 14px;
-    color: #38434f;
-    overflow-wrap: anywhere;
+  .lw-scan__head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lw-scan__eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6a4fd0;
   }
   .lw-scan__name {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.25;
     color: #1a1a1a;
-    font-size: 15px;
+    overflow-wrap: anywhere;
   }
   .lw-scan__goal {
-    margin: 2px 0 0;
+    margin: 0;
     font-size: 12px;
-    color: #56687a;
+    line-height: 1.4;
+    color: #8a949c;
   }
   .lw-scan__goal span {
     font-weight: 600;
-    color: #38434f;
+    color: #56687a;
+  }
+  .lw-scan__progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lw-scan__phase {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1e7b34;
+    animation: lw-scan-fade 0.3s ease;
   }
   .lw-scan__status {
     display: flex;
@@ -238,73 +266,51 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-scan__message {
     margin: 0;
+    font-size: 13px;
     font-weight: 600;
     color: #2b3a8f;
     animation: lw-scan-fade 0.3s ease;
   }
   .lw-scan__percent {
-    font-size: 12px;
-    font-weight: 700;
-    color: #5b3fb5;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #8a949c;
     font-variant-numeric: tabular-nums;
   }
   .lw-scan__bar {
-    position: relative;
-    height: 6px;
-    border-radius: 3px;
-    background: #e6e9f5;
+    height: 4px;
+    border-radius: 2px;
+    background: #eceef6;
     overflow: hidden;
   }
   .lw-scan__fill {
     height: 100%;
-    border-radius: 3px;
+    border-radius: 2px;
     background: linear-gradient(90deg, #0a66c2, #6a4fd0);
     transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .lw-scan.is-scanning .lw-scan__fill,
   .lw-scan.is-analyzing .lw-scan__fill {
-    background-image: linear-gradient(90deg, #0a66c2, #6a4fd0), linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
-    background-size: 100% 100%, 40% 100%;
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent), linear-gradient(90deg, #0a66c2, #6a4fd0);
+    background-size: 40% 100%, 100% 100%;
     background-repeat: no-repeat;
-    background-blend-mode: overlay;
-    animation: lw-scan-shimmer 1.6s linear infinite;
+    animation: lw-scan-shimmer 1.8s linear infinite;
+  }
+  .lw-scan.is-complete .lw-scan__fill {
+    background: linear-gradient(90deg, #0a66c2, #1e7b34);
   }
   .lw-scan.is-error .lw-scan__fill {
-    background: #c37d0d;
+    background: #9aa5ad;
   }
   .lw-scan.is-error .lw-scan__message {
-    color: #8a5a00;
+    color: #56687a;
   }
   .lw-scan__result {
     margin: 0;
     font-size: 15px;
     font-weight: 700;
-    color: #057642;
+    color: #1a1a1a;
     animation: lw-scan-fade 0.3s ease;
-  }
-  .lw-scan__handoff {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11.5px;
-    font-weight: 600;
-    color: #56687a;
-  }
-  .lw-scan__handoff-arrow {
-    flex: 1;
-    height: 2px;
-    border-radius: 1px;
-    background: linear-gradient(90deg, #0a66c2 0%, #6a4fd0 50%, #e6e9f5 50%);
-    background-size: 200% 100%;
-    animation: lw-scan-flow 1.2s linear infinite;
-  }
-  .lw-scan__label {
-    margin: 4px 0 0;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: #8a949c;
   }
   .lw-scan__rows {
     list-style: none;
@@ -312,65 +318,47 @@ export function getPanelStyles(widthPx: number): string {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
   }
   .lw-scan-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     min-width: 0;
-    padding: 6px 10px;
-    border-radius: 9px;
-    background: #fff;
-    border: 1px solid #edf0f3;
+    padding: 5px 8px;
+    border-radius: 7px;
+    font-size: 13px;
     color: #8a949c;
-    transition: background 0.35s ease, border-color 0.35s ease, color 0.35s ease;
+    transition: background 0.3s ease, color 0.3s ease;
   }
   .lw-scan-row.is-scanning {
     color: #1a1a1a;
-    background: #f1f0fd;
-    border-color: #d9d3f7;
+    background: #f4f2fd;
   }
   .lw-scan-row.is-complete {
     color: #1a1a1a;
-    background: #f3faf5;
-    border-color: #dcefe2;
-  }
-  .lw-scan-row.is-not_found,
-  .lw-scan-row.is-skipped {
-    color: #8a949c;
-    background: #fafbfc;
-  }
-  .lw-scan-row__icon {
-    width: 15px;
-    height: 15px;
-    flex-shrink: 0;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    opacity: 0.8;
   }
   .lw-scan-row__label {
     flex: 1;
     min-width: 0;
-    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .lw-scan-row.is-scanning .lw-scan-row__label,
+  .lw-scan-row.is-complete .lw-scan-row__label {
+    font-weight: 600;
+  }
   .lw-scan-row__detail {
     flex-shrink: 0;
     font-size: 11.5px;
-    color: #56687a;
+    color: #8a949c;
   }
   .lw-scan-row.is-scanning .lw-scan-row__detail {
-    color: #5b3fb5;
+    color: #6a4fd0;
   }
   .lw-scan-mark {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
@@ -378,16 +366,25 @@ export function getPanelStyles(widthPx: number): string {
     border-radius: 50%;
   }
   .lw-scan-mark.is-pending {
+    width: 10px;
+    height: 10px;
+    margin: 2px;
     border: 1.5px solid #cfd6dd;
-    width: 13px;
-    height: 13px;
   }
   .lw-scan-mark.is-scanning {
-    width: 13px;
-    height: 13px;
-    border: 2px solid #d9d3f7;
-    border-top-color: #6a4fd0;
-    animation: lw-scan-spin 0.8s linear infinite;
+    position: relative;
+    width: 8px;
+    height: 8px;
+    margin: 3px;
+    background: #6a4fd0;
+  }
+  .lw-scan-mark.is-scanning::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: rgba(106, 79, 208, 0.25);
+    animation: lw-scan-pulse 1.4s ease-out infinite;
   }
   .lw-scan-mark.is-absent {
     font-size: 12px;
@@ -407,13 +404,17 @@ export function getPanelStyles(widthPx: number): string {
     stroke-dashoffset: 0;
     animation: lw-scan-check 0.35s ease-out;
   }
-  .lw-scan.is-complete .lw-scan-mark.is-complete path {
+  .lw-scan-mark.is-complete {
+    animation: lw-scan-pop 0.3s ease-out;
+  }
+  .lw-scan.is-complete .lw-scan-row .lw-scan-mark.is-complete,
+  .lw-scan.is-complete .lw-scan-row .lw-scan-mark.is-complete path {
     animation: none;
   }
   .lw-scan__hint {
     margin: 0;
     font-size: 12px;
-    color: #56687a;
+    color: #8a949c;
   }
   .lw-scan__actions {
     display: flex;
@@ -439,26 +440,28 @@ export function getPanelStyles(widthPx: number): string {
     from { stroke-dashoffset: 10; }
     to { stroke-dashoffset: 0; }
   }
+  @keyframes lw-scan-pop {
+    from { transform: scale(0.6); opacity: 0.4; }
+    to { transform: none; opacity: 1; }
+  }
+  @keyframes lw-scan-pulse {
+    from { transform: scale(0.6); opacity: 1; }
+    to { transform: scale(1.6); opacity: 0; }
+  }
   @keyframes lw-scan-fade {
     from { opacity: 0; transform: translateY(2px); }
     to { opacity: 1; transform: none; }
   }
   @keyframes lw-scan-shimmer {
-    from { background-position: 0 0, -40% 0; }
-    to { background-position: 0 0, 140% 0; }
-  }
-  @keyframes lw-scan-flow {
-    from { background-position: 100% 0; }
-    to { background-position: 0 0; }
+    from { background-position: -40% 0, 0 0; }
+    to { background-position: 140% 0, 0 0; }
   }
   @media (prefers-reduced-motion: reduce) {
     .lw-scan *,
+    .lw-scan *::after,
     .lw-scan {
       animation: none !important;
       transition: none !important;
-    }
-    .lw-scan-mark.is-scanning {
-      border-color: #6a4fd0;
     }
   }
 

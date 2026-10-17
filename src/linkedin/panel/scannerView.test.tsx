@@ -42,7 +42,8 @@ describe("ScannerView", () => {
   it("shows the person, the goal, the live message and every row's state", () => {
     act(() => root!.render(<ScannerView profileName="Jordan Rivera" goalName="Web Developer Intern" scanMode="auto" state={scanning} />));
     expect(container.querySelector(".lw-scan__name")!.textContent).toBe("Jordan Rivera");
-    expect(container.textContent).toContain("For Web Developer Intern");
+    expect(container.textContent).toContain("Matching for Web Developer Intern");
+    expect(container.querySelector(".lw-scan__eyebrow")!.textContent).toBe("Reading profile");
     expect(container.querySelector("[role=status]")!.textContent).toBe("Scanning experience…");
     expect([...container.querySelectorAll(".lw-scan-row")].map((row) => row.getAttribute("aria-label"))).toEqual([
       "About: complete",
@@ -77,9 +78,39 @@ describe("ScannerView", () => {
     expect(container.textContent).toContain("Analyze what was found");
   });
 
+  it("has one progress bar, one status line, and no decorative stage strip", () => {
+    act(() => root!.render(<ScannerView scanMode="auto" state={scanning} />));
+    expect(container.querySelectorAll("[role=progressbar]")).toHaveLength(1);
+    expect(container.querySelectorAll("[role=status]")).toHaveLength(1);
+    expect(container.querySelectorAll(".lw-scan-row.is-scanning")).toHaveLength(1);
+    expect(container.textContent).not.toMatch(/Profile data|Match analysis/);
+  });
+
+  it("marks a section found only once it was read, and a missing one as not found", () => {
+    act(() => root!.render(<ScannerView scanMode="auto" state={scanning} />));
+    expect(container.querySelector('[aria-label="Projects: not found"] .lw-scan-mark.is-absent')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Projects: not found"] .lw-scan-mark.is-complete')).toBeNull();
+    expect(container.querySelector('[aria-label="Education: pending"] .lw-scan-mark.is-pending')).not.toBeNull();
+  });
+
+  it("says the profile was scanned while the match is analyzed", () => {
+    const read = scanning.sections.map((row) => ({ ...row, status: row.status === "not_found" ? row.status : ("complete" as const) }));
+    act(() => root!.render(<ScannerView scanMode="auto" state={{ ...scanning, sections: read, status: "analyzing", active: null, progress: 90, message: "Analyzing match…" }} />));
+    expect(container.querySelector(".lw-scan__phase")!.textContent).toBe("Profile scanned");
+    expect(container.querySelector("[role=status]")!.textContent).toBe("Analyzing match…");
+  });
+
+  it("never claims the profile was scanned while sections are still unread", () => {
+    act(() => root!.render(<ScannerView scanMode="scroll" state={{ ...scanning, status: "analyzing", active: null, progress: 17, message: "Analyzing match…" }} />));
+    expect(container.querySelector(".lw-scan__phase")).toBeNull();
+    expect(container.querySelector(".lw-scan__percent")).toBeNull();
+    expect(container.querySelector(".lw-scan__eyebrow")!.textContent).toBe("Profile coverage");
+  });
+
   it("shows the match on completion", () => {
     act(() => root!.render(<ScannerView scanMode="auto" state={{ ...scanning, status: "complete", progress: 100, message: "Profile scan complete" }} resultLabel="96% · Strong match" />));
     expect(container.textContent).toContain("96% · Strong match");
+    expect(container.querySelector(".lw-scan__phase")!.textContent).toBe("Profile analyzed");
     expect(container.querySelector("[role=progressbar]")!.getAttribute("aria-valuenow")).toBe("100");
   });
 });
