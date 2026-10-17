@@ -37,10 +37,13 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   const ready = ownProfile && pageRead && isFinal && contextLoaded && profileKey !== null && profile !== null;
   const readingFor = useRef<string | null>(null);
 
+  // Read again whenever the profile isn't fully read, e.g. after visiting another profile replaced its reading.
   useEffect(() => {
     if (!ownProfile || pageRead || !profileKey || readingFor.current === profileKey) return;
     readingFor.current = profileKey;
-    void readWholeProfile();
+    void readWholeProfile().finally(() => {
+      if (readingFor.current === profileKey) readingFor.current = null;
+    });
   }, [ownProfile, pageRead, profileKey]);
 
   useEffect(() => {

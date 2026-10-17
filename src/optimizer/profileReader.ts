@@ -28,11 +28,14 @@ export async function readWholeProfile(doc: Document = document): Promise<void> 
   for (let step = 0; step < MAX_STEPS && settledSteps < SETTLED_STEPS; step++) {
     container.scrollTop += STEP_PX;
     await sleep(STEP_DELAY_MS);
+    // LinkedIn navigated elsewhere mid-read: this page isn't the profile being read.
+    if (profileIdentityKey(doc.URL) !== profileKey) return;
     recordProfileShell(profileKey, extractProfileShell(doc), false);
     const atEnd = container.scrollTop + container.clientHeight >= container.scrollHeight - END_MARGIN_PX;
     settledSteps = atEnd && container.scrollHeight === lastHeight ? settledSteps + 1 : 0;
     lastHeight = container.scrollHeight;
   }
+  if (profileIdentityKey(doc.URL) !== profileKey) return;
   recordProfileShell(profileKey, extractProfileShell(doc), true);
   container.scrollTop = start;
 }
