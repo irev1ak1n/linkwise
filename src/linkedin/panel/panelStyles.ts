@@ -601,11 +601,6 @@ export function getPanelStyles(widthPx: number): string {
     outline: 2px solid #1d2226;
     outline-offset: 1px;
   }
-  .lw-keywords {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
   .lw-keywords__label {
     font-size: 11.5px;
     color: #56687a;
@@ -1033,6 +1028,21 @@ export function getPanelStyles(widthPx: number): string {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  .lw-focus__empty {
+    color: #8a949c;
+  }
+  .lw-focus.is-editing {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lw-focus.is-editing .lw-an-goal__text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lw-focus.is-editing .lw-goal__actions {
+    justify-content: flex-end;
   }
   .lw-an-scan {
     border: 1px solid #e1e6ea;

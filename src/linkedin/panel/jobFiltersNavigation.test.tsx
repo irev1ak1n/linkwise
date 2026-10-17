@@ -154,16 +154,47 @@ describe("job cards and the settings store", () => {
 });
 
 describe("Profile Highlights inside Profile Analyzer", () => {
-  it("is part of the Analyzer, with compact rows for facts and keywords", async () => {
+  it("is part of the Analyzer, holding only highlight appearance", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     const section = container.querySelector('[aria-label="Profile highlights"]')!;
     expect(section).not.toBeNull();
     expect(section.textContent).toContain("Signal Mode");
     expect(section.textContent).toContain("Highlight useful evidence directly on the profile.");
-    const keywords = [...section.querySelectorAll("details")].find((d) => d.textContent?.includes("Highlight keywords"))!;
-    expect(keywords.open).toBe(false);
-    expect(keywords.querySelector("textarea")).not.toBeNull();
+    expect(section.querySelector("textarea")).toBeNull();
+    expect(section.textContent).not.toContain("Highlight keywords");
+  });
+
+  it("puts Focus on right under Looking for, as the only keyword editor", async () => {
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    const focus = container.querySelector('[aria-label="Focus on"]')!;
+    expect(focus).not.toBeNull();
+    expect(focus.previousElementSibling!.textContent).toMatch(/Who are you looking for|Looking for/);
+    expect(focus.nextElementSibling?.className ?? "").not.toContain("lw-hl");
+    await act(async () => [...focus.querySelectorAll("button")].find((b) => b.textContent === "Edit")!.click());
+    expect(container.querySelectorAll("textarea[placeholder='Python, robotics, volunteer']")).toHaveLength(1);
+  });
+
+  it("saves Focus on locally, without touching the goal, the analysis, or AI", async () => {
+    const { getGoalStoreState } = await import("./goalStore");
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    const goalBefore = JSON.stringify(getGoalStoreState());
+    const sendMessage = (globalThis as unknown as { chrome: { runtime: { sendMessage: ReturnType<typeof vi.fn> } } }).chrome.runtime.sendMessage;
+    sendMessage.mockClear();
+    const focus = () => container.querySelector('[aria-label="Focus on"]')!;
+    await act(async () => [...focus().querySelectorAll("button")].find((b) => b.textContent === "Edit")!.click());
+    const textarea = focus().querySelector("textarea")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, "Python, TSA");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => [...focus().querySelectorAll("button")].find((b) => b.textContent === "Save")!.click());
+    expect(stored["finder.highlightKeywords.v1"]).toBe("Python, TSA");
+    expect(focus().textContent).toContain("Python, TSA");
+    expect(JSON.stringify(getGoalStoreState())).toBe(goalBefore);
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it("still turns Signal Mode on from the Analyzer", async () => {

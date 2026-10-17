@@ -17,6 +17,7 @@ import { autoExpandPreference } from "./autoExpandPreference";
 import { useStoredPreference } from "./useStoredPreference";
 import { JobFiltersPage } from "./JobFiltersPage";
 import { SignalModeSection } from "./SignalModeSection";
+import { FocusOnSection } from "./FocusOnSection";
 import { highlightKeywordsPreference } from "./keywordPreference";
 import { highlightColorPreference } from "./highlightColorPreference";
 import { keywordColorPreference } from "./keywordColorPreference";
@@ -116,7 +117,6 @@ export function PanelApp({ onClose }: PanelAppProps) {
         highlighted={signalMode.highlighted}
         onChange={signalMode.setSignalModeEnabled}
         keywords={highlightKeywords}
-        onKeywordsChange={highlightKeywordsPreference.set}
         color={highlightColor}
         onColorChange={highlightColorPreference.set}
         keywordColor={keywordColor}
@@ -199,6 +199,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
           <>
             <ToolHead title="Profile Analyzer" />
             <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
+            <FocusOnSection keywords={highlightKeywords} onSave={highlightKeywordsPreference.set} />
             {profileKey !== null && (
               <details className="lw-an-scan" open={!isFinal}>
                 <summary>

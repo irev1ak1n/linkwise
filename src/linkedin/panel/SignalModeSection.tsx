@@ -1,4 +1,3 @@
-import { KeywordInput } from "./KeywordInput";
 import { parseKeywords } from "../keywordHighlights";
 import { HighlightColorPicker } from "./HighlightColorPicker";
 import type { HighlightColor } from "../highlightPalette";
@@ -7,16 +6,17 @@ interface SignalModeSectionProps {
   enabled: boolean;
   highlighted: number;
   onChange: (enabled: boolean) => void;
+  /** The Focus on keywords, only to know whether their color applies. They are edited up top. */
   keywords: string;
-  onKeywordsChange: (keywords: string) => void;
   color: HighlightColor;
   onColorChange: (color: HighlightColor) => void;
   keywordColor: HighlightColor;
   onKeywordColorChange: (color: HighlightColor) => void;
 }
 
-// Controls for highlighting the LinkedIn page; what the analysis found lives in Key Evidence.
-export function SignalModeSection({ enabled, highlighted, onChange, keywords, onKeywordsChange, color, onColorChange, keywordColor, onKeywordColorChange }: SignalModeSectionProps) {
+// How highlighting looks on the LinkedIn page. What to focus on is set beside Looking for, and
+// what the analysis found lives in Key Evidence.
+export function SignalModeSection({ enabled, highlighted, onChange, keywords, color, onColorChange, keywordColor, onKeywordColorChange }: SignalModeSectionProps) {
   return (
     <section className="lw-signals lw-hl" aria-label="Profile highlights">
       <h3 className="lw-an-heading">Profile highlights</h3>
@@ -27,14 +27,8 @@ export function SignalModeSection({ enabled, highlighted, onChange, keywords, on
         </span>
         <input type="checkbox" role="switch" checked={enabled} onChange={(e) => onChange(e.target.checked)} />
       </label>
-      {enabled && <HighlightColorPicker color={color} onChange={onColorChange} />}
-      <details className="lw-hl__more">
-        <summary>
-          <span>Highlight keywords</span>
-          {parseKeywords(keywords).length > 0 && <span className="lw-signals__count">{parseKeywords(keywords).length}</span>}
-        </summary>
-        <KeywordInput value={keywords} onChange={onKeywordsChange} color={keywordColor} onColorChange={onKeywordColorChange} />
-      </details>
+      {enabled && <HighlightColorPicker label="Signal color" color={color} onChange={onColorChange} />}
+      {parseKeywords(keywords).length > 0 && <HighlightColorPicker label="Keyword color" color={keywordColor} onChange={onKeywordColorChange} />}
     </section>
   );
 }
