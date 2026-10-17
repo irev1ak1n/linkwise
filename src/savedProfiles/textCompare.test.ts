@@ -51,6 +51,12 @@ describe("metrics", () => {
     ]);
   });
 
+  it("reads the unit after a plain number, and ignores class years", () => {
+    expect(extractMetrics("Sold 250 event tickets for the '26 prom")).toMatchObject([{ value: 250, unit: "event", text: "250 event tickets" }]);
+    expect(extractMetrics("Served 300+ students and staff")).toMatchObject([{ text: "300+ students" }]);
+    expect(extractMetrics("Reached 500+ people through the website")).toMatchObject([{ text: "500+ people" }]);
+  });
+
   it("treats small drifts as minor and large ones as major", () => {
     const [small] = compareMetrics(extractMetrics("300 students"), extractMetrics("310 students"));
     expect(small!.significance).toBe("minor");

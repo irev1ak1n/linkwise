@@ -8,7 +8,7 @@ import type { ChangeDirection, ChangeSignificance } from "./types";
 const DURATION = /\b\d+\s*(?:yrs?|years?|mos?|months?)\b/gi;
 
 const FILLER = new Set(
-  "a an the and or of in on at to for with is are was were be been being as by from my our their his her its this that these those over more than about around nearly almost approximately roughly up into via using used while who which also".split(
+  "a an the and or of in on at to for with is are was were be been being as by from my our their his her its this that these those over more than about around nearly almost approximately roughly up into via using used while who which also through across per each during within among including".split(
     " ",
   ),
 );
@@ -74,18 +74,24 @@ export interface Metric {
   percent: boolean;
 }
 
-const METRIC = /(\$|€|£)?(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k|m|thousand|million)?(\+)?(?:\s*(%|percent\b))?(?:\s+([a-z][a-z-]*))?/gi;
+// A class year like "'26" is not a quantity.
+const METRIC = /(\$|€|£)?(?<!['’\d.,])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?:\s*(k|m|thousand|million)\b)?(\+)?(?:\s*(%|percent\b))?(?:\s+([a-z][a-z-]*)(?:\s+([a-z][a-z-]*))?)?/gi;
+const METRIC_CORE = /^(\$|€|£)?[\d.,]+(?:\s*(k|m|thousand|million)\b)?\+?(?:\s*(%|percent\b))?/i;
 const SCALE: Record<string, number> = { k: 1e3, thousand: 1e3, m: 1e6, million: 1e6 };
 
 export function extractMetrics(text: string | undefined): Metric[] {
   const metrics: Metric[] = [];
   for (const match of stripDurations(text ?? "").matchAll(METRIC)) {
-    const [whole, currency, digits, scale, plus, percent, word] = match;
+    const [whole, currency, digits, scale, plus, percent, word, nextWord] = match;
     const value = Number(digits!.replace(/,/g, "")) * (scale ? SCALE[scale.toLowerCase()]! : 1);
     const isYear = Number.isInteger(value) && value >= 1900 && value <= 2100 && !scale && !plus && !percent && !currency;
     if (isYear || value === 0) continue;
-    const unitWord = word && !FILLER.has(word.toLowerCase()) ? stem(word.toLowerCase()) : "";
-    metrics.push({ value, unit: currency ? currency : percent ? "%" : unitWord, text: whole!.trim(), percent: !!percent });
+    const named = !!word && !FILLER.has(word.toLowerCase());
+    // "250 event tickets" reads whole; "300+ students and" stops at the plural noun.
+    const twoWords = named && !!nextWord && !FILLER.has(nextWord.toLowerCase()) && !/s$/i.test(word!);
+    const core = METRIC_CORE.exec(whole!)![0];
+    const text = named ? `${core} ${twoWords ? `${word} ${nextWord}` : word}` : core;
+    metrics.push({ value, unit: currency ? currency : percent ? "%" : named ? stem(word!.toLowerCase()) : "", text: text.trim(), percent: !!percent });
   }
   return metrics;
 }
