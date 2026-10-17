@@ -24,7 +24,7 @@ describe("SignalModeSection", () => {
     expect(html).toContain("Signal Mode");
     expect(html).toContain("Signal color");
     expect(html).toContain("Keyword color");
-    expect(html).not.toMatch(/High-signal facts|Key evidence|Highlight keywords|Focus on|<textarea/i);
+    expect(html).not.toMatch(/High-signal facts|Key evidence|Highlight keywords|Highlight on profile|<textarea/i);
     expect(html).toContain("12 passages highlighted on the profile.");
   });
 
@@ -40,7 +40,7 @@ describe("SignalModeSection", () => {
     expect(render(false)).not.toContain("Signal color");
   });
 
-  it("offers a keyword color only once there are Focus on keywords", () => {
+  it("offers a keyword color only once there are Highlight on profile terms", () => {
     expect(render(false, { keywords: "  , " })).not.toContain("Keyword color");
     const html = render(false, { keywords: "Python, TSA", keywordColor: "violet" });
     expect(html).toContain("Keyword color");

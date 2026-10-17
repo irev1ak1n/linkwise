@@ -165,10 +165,10 @@ describe("Profile Highlights inside Profile Analyzer", () => {
     expect(section.textContent).not.toContain("Highlight keywords");
   });
 
-  it("puts Focus on right under Looking for, as the only keyword editor", async () => {
+  it("puts Highlight on profile right under Looking for, as the only keyword editor", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
-    const focus = container.querySelector('[aria-label="Focus on"]')!;
+    const focus = container.querySelector('[aria-label="Highlight on profile"]')!;
     expect(focus).not.toBeNull();
     expect(focus.previousElementSibling!.textContent).toMatch(/Who are you looking for|Looking for/);
     expect(focus.nextElementSibling?.className ?? "").not.toContain("lw-hl");
@@ -176,14 +176,14 @@ describe("Profile Highlights inside Profile Analyzer", () => {
     expect(container.querySelectorAll("textarea[placeholder='Python, robotics, volunteer']")).toHaveLength(1);
   });
 
-  it("saves Focus on locally, without touching the goal, the analysis, or AI", async () => {
+  it("saves Highlight on profile locally, without touching the goal, the analysis, or AI", async () => {
     const { getGoalStoreState } = await import("./goalStore");
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     const goalBefore = JSON.stringify(getGoalStoreState());
     const sendMessage = (globalThis as unknown as { chrome: { runtime: { sendMessage: ReturnType<typeof vi.fn> } } }).chrome.runtime.sendMessage;
     sendMessage.mockClear();
-    const focus = () => container.querySelector('[aria-label="Focus on"]')!;
+    const focus = () => container.querySelector('[aria-label="Highlight on profile"]')!;
     await act(async () => [...focus().querySelectorAll("button")].find((b) => b.textContent === "Edit")!.click());
     const textarea = focus().querySelector("textarea")!;
     await act(async () => {

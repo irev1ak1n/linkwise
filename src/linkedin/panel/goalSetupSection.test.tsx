@@ -48,6 +48,10 @@ function type(value: string) {
 }
 
 describe("editing the active goal", () => {
+  it("puts Cancel before Save", () => {
+    expect([...container.querySelectorAll(".lw-goal__actions button")].map((b) => b.textContent)).toEqual(["Cancel", "Save"]);
+  });
+
   it("keeps Save visible but disabled until something actually changes", () => {
     expect(save()).toBeTruthy();
     expect(save().disabled).toBe(true);

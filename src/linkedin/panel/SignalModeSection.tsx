@@ -6,7 +6,7 @@ interface SignalModeSectionProps {
   enabled: boolean;
   highlighted: number;
   onChange: (enabled: boolean) => void;
-  /** The Focus on keywords, only to know whether their color applies. They are edited up top. */
+  /** The Highlight on profile terms, only to know whether their color applies. They are edited up top. */
   keywords: string;
   color: HighlightColor;
   onColorChange: (color: HighlightColor) => void;

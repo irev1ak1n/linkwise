@@ -1032,18 +1032,6 @@ export function getPanelStyles(widthPx: number): string {
   .lw-focus__empty {
     color: #8a949c;
   }
-  .lw-focus.is-editing {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .lw-focus.is-editing .lw-an-goal__text {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .lw-focus.is-editing .lw-goal__actions {
-    justify-content: flex-end;
-  }
   .lw-an-scan {
     border: 1px solid #e1e6ea;
     border-radius: 10px;

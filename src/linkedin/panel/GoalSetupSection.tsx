@@ -126,6 +126,11 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
         <div className="lw-goal__actions">
           {editable ? (
             <>
+              {hasActiveGoal && (
+                <button type="button" className="button" disabled={generating} onClick={handleCancel}>
+                  Cancel
+                </button>
+              )}
               <button
                 type="button"
                 className="button button--primary"
@@ -135,11 +140,6 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
               >
                 {generating ? (hasActiveGoal ? "Saving…" : "Creating criteria…") : hasActiveGoal ? "Save" : "Create criteria"}
               </button>
-              {hasActiveGoal && (
-                <button type="button" className="button" disabled={generating} onClick={handleCancel}>
-                  Cancel
-                </button>
-              )}
             </>
           ) : null}
         </div>
