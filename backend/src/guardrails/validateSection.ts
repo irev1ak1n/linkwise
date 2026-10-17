@@ -37,18 +37,10 @@ function grounded(text: string, sources: string): boolean {
 
 export function validateSectionAnalysis(response: SectionAnalysisResponse, request: SectionAnalysisRequest): ValidatedSectionAnalysis {
   const sources = profileSources(request.profile, request.userContext);
-  const findings =
-    request.section === "headline"
-      ? response.findings
-          .filter((f, index, all) => all.findIndex((other) => other.aspect === f.aspect) === index)
-          .map((f) => ({ ...f, note: f.note.trim() }))
-          .filter((f) => f.note.length <= MAX_NOTE_LENGTH && grounded(f.note, sources))
-      : [];
   const ideas = response.ideas.map((idea) => idea.trim()).filter((idea) => idea.length <= MAX_NOTE_LENGTH && grounded(idea, sources)).slice(0, MAX_IDEAS);
   const summary = response.summary.trim();
-  // Presence is known from the page, so it decides the banner and a missing headline, not the model.
-  const state = request.section === "banner" ? (request.present ? "strong" : "improve") : !request.present ? "missing" : findings.some((f) => f.verdict === "improve") ? "improve" : response.status;
-  return { state, summary: summary.length <= MAX_SUMMARY_LENGTH && grounded(summary, sources) ? summary : "", findings, ideas };
+  // Presence is known from the page, so it decides the banner's state, not the model.
+  return { state: request.present ? "strong" : "improve", summary: summary.length <= MAX_SUMMARY_LENGTH && grounded(summary, sources) ? summary : "", findings: [], ideas };
 }
 
 export function isGroundedHeadline(headline: string, request: HeadlineGenerationRequest): boolean {

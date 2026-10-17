@@ -26,17 +26,19 @@ function appWith(clients: { sectionClient?: StructuredClient; headlineClient?: S
 }
 
 describe("POST /api/optimizer-section", () => {
-  it("analyzes the current headline", async () => {
+  it("suggests banner ideas from the profile", async () => {
     const prompts: string[] = [];
-    const client = fakeClient({ status: "improve", summary: "Your headline only names your school.", findings: [{ aspect: "skills", verdict: "improve", note: "Add Python or C++." }], ideas: [] }, prompts);
-    const res = await request(appWith({ sectionClient: client })).post("/api/optimizer-section").send({ profile, section: "headline", present: true });
-    expect(res.body).toMatchObject({ status: "section", section: "headline", state: "improve", findings: [{ aspect: "skills" }] });
-    expect(prompts[0]).toContain('current headline:\n"Student at Westfield High"');
+    const client = fakeClient({ status: "strong", summary: "", findings: [], ideas: ["A Python and C++ code motif"] }, prompts);
+    const res = await request(appWith({ sectionClient: client })).post("/api/optimizer-section").send({ profile, section: "banner", present: true });
+    expect(res.body).toMatchObject({ status: "section", section: "banner", state: "strong", ideas: ["A Python and C++ code motif"] });
+    expect(prompts[0]).toContain("custom banner present: true");
   });
 
-  it("rejects sections without a detail analysis", async () => {
-    const res = await request(appWith({})).post("/api/optimizer-section").send({ profile, section: "skills", present: true });
-    expect(res.status).toBe(400);
+  it("rejects sections without a detail analysis, including the headline, which the checklist covers", async () => {
+    for (const section of ["skills", "headline"]) {
+      const res = await request(appWith({})).post("/api/optimizer-section").send({ profile, section, present: true });
+      expect(res.status).toBe(400);
+    }
   });
 });
 

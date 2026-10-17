@@ -7,7 +7,7 @@ const profileSchema = z.object({
   evidence: z.array(evidenceItemSchema).max(MAX_EVIDENCE_ITEMS),
 });
 
-export const ANALYZED_SECTIONS = ["banner", "headline"] as const;
+export const ANALYZED_SECTIONS = ["banner"] as const;
 
 export const sectionAnalysisRequestSchema = z.object({
   profile: profileSchema,

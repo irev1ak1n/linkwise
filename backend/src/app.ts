@@ -7,7 +7,7 @@ import { handleAnalyzeProfile } from "./routes/analyzeProfile";
 import { handleGenerateCriteria } from "./routes/generateCriteria";
 import { handleAnalyzeSignals } from "./routes/analyzeSignals";
 import { handleOptimizeProfile, handleOptimizerDraft } from "./routes/optimizeProfile";
-import { handleHeadlineGeneration, handleSectionAnalysis } from "./routes/optimizerSection";
+import { handleChecklist, handleHeadlineGeneration, handleSectionAnalysis } from "./routes/optimizerSection";
 import { handleCompareProfile } from "./routes/compareProfile";
 import type { AnalysisClient } from "./openai/client";
 import type { CriteriaGenerationClient } from "./openai/criteriaClient";
@@ -26,6 +26,7 @@ export interface CreateAppOptions {
   sectionClient?: StructuredClient;
   headlineClient?: StructuredClient;
   compareClient?: StructuredClient;
+  checklistClient?: StructuredClient;
   timeoutMs?: number;
 }
 
@@ -71,6 +72,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.post("/api/optimizer-headlines", (req: Request, res: Response) => {
     void handleHeadlineGeneration(req, res, { config, client: options.headlineClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/optimizer-checklist", (req: Request, res: Response) => {
+    void handleChecklist(req, res, { config, client: options.checklistClient, timeoutMs: options.timeoutMs });
   });
 
   app.post("/api/compare-profile", (req: Request, res: Response) => {

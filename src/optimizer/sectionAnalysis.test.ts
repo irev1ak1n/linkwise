@@ -24,12 +24,11 @@ function harness() {
 describe("section analysis cache", () => {
   it("takes presence from the section map", () => {
     expect(buildSectionRequest("banner", body("x")).present).toBe(false);
-    expect(buildSectionRequest("headline", body("x")).present).toBe(true);
   });
 
   it("asks once for an unchanged profile, even when opened repeatedly", async () => {
     const { cache, send } = harness();
-    const request = buildSectionRequest("headline", body("Student developer"));
+    const request = buildSectionRequest("banner", body("Student developer"));
     const [first, second] = await Promise.all([loadSectionAnalysis(request, send, cache), loadSectionAnalysis(request, send, cache)]);
     await loadSectionAnalysis(request, send, cache);
     expect(send).toHaveBeenCalledTimes(1);
@@ -39,20 +38,20 @@ describe("section analysis cache", () => {
 
   it("asks again when the evidence or the user's context changes", async () => {
     const { cache, send } = harness();
-    await loadSectionAnalysis(buildSectionRequest("headline", body("Student developer")), send, cache);
-    await loadSectionAnalysis(buildSectionRequest("headline", body("Web developer")), send, cache);
-    await loadSectionAnalysis(buildSectionRequest("headline", body("Web developer", "I know Rust")), send, cache);
+    await loadSectionAnalysis(buildSectionRequest("banner", body("Student developer")), send, cache);
+    await loadSectionAnalysis(buildSectionRequest("banner", body("Web developer")), send, cache);
+    await loadSectionAnalysis(buildSectionRequest("banner", body("Web developer", "I know Rust")), send, cache);
     expect(send).toHaveBeenCalledTimes(3);
   });
 
-  it("keys sections apart", () => {
-    expect(sectionCacheKey(buildSectionRequest("headline", body("x")))).not.toBe(sectionCacheKey(buildSectionRequest("banner", body("x"))));
+  it("keys different profiles apart", () => {
+    expect(sectionCacheKey(buildSectionRequest("banner", body("x")))).not.toBe(sectionCacheKey(buildSectionRequest("banner", body("y"))));
   });
 
   it("doesn't cache failures", async () => {
     const { cache } = harness();
     const failing = vi.fn(() => ({ requestId: "r", promise: Promise.resolve<SectionAnalysisOutcome>({ status: "unavailable", reason: "timeout" }), cancel: vi.fn() }));
-    const request = buildSectionRequest("headline", body("x"));
+    const request = buildSectionRequest("banner", body("x"));
     await loadSectionAnalysis(request, failing, cache);
     await loadSectionAnalysis(request, failing, cache);
     expect(failing).toHaveBeenCalledTimes(2);

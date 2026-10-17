@@ -69,7 +69,7 @@ export function requestOptimizerDraft(payload: OptimizerDraftRequestBody): Pendi
 
 export interface SectionAnalysisRequestBody {
   profile: OptimizerProfilePayload;
-  section: "banner" | "headline";
+  section: "banner";
   present: boolean;
   userContext: string;
 }

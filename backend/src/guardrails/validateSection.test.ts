@@ -11,7 +11,7 @@ const profile = {
   ],
 };
 
-const sectionRequest = (section: "headline" | "banner", present = true): SectionAnalysisRequest => ({ profile, section, present, userContext: "" });
+const sectionRequest = (present = true): SectionAnalysisRequest => ({ profile, section: "banner", present, userContext: "" });
 
 const generation: HeadlineGenerationRequest = {
   profile,
@@ -24,36 +24,16 @@ const generation: HeadlineGenerationRequest = {
 };
 
 describe("validateSectionAnalysis", () => {
-  it("keeps grounded headline findings and drops invented ones", () => {
-    const result = validateSectionAnalysis(
-      {
-        status: "strong",
-        summary: "Your headline states a direction but none of the C++ or web development skills shown in Education.",
-        findings: [
-          { aspect: "role", verdict: "good", note: "It clearly says Software Engineer." },
-          { aspect: "skills", verdict: "improve", note: "Add C++ or web development, which your profile shows." },
-          { aspect: "differentiation", verdict: "improve", note: "Mention your Google internship." },
-        ],
-        ideas: [],
-      },
-      sectionRequest("headline"),
-    );
-    expect(result.findings.map((f) => f.aspect)).toEqual(["role", "skills"]);
-    expect(result.state).toBe("improve");
-    expect(result.summary).toContain("C++");
-  });
-
-  it("decides Missing and the banner state from presence, not the model", () => {
+  it("decides the banner state from presence, not the model", () => {
     const empty = { status: "strong" as const, summary: "", findings: [], ideas: [] };
-    expect(validateSectionAnalysis(empty, sectionRequest("headline", false)).state).toBe("missing");
-    expect(validateSectionAnalysis(empty, sectionRequest("banner", false)).state).toBe("improve");
-    expect(validateSectionAnalysis(empty, sectionRequest("banner", true)).state).toBe("strong");
+    expect(validateSectionAnalysis(empty, sectionRequest(false)).state).toBe("improve");
+    expect(validateSectionAnalysis(empty, sectionRequest(true)).state).toBe("strong");
   });
 
   it("keeps only banner ideas grounded in the profile", () => {
     const result = validateSectionAnalysis(
       { status: "strong", summary: "", findings: [{ aspect: "role", verdict: "good", note: "x" }], ideas: ["A screenshot of the Robotics Club site you built", "A photo from your NASA internship"] },
-      sectionRequest("banner"),
+      sectionRequest(),
     );
     expect(result.ideas).toEqual(["A screenshot of the Robotics Club site you built"]);
     expect(result.findings).toEqual([]);

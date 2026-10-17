@@ -941,12 +941,76 @@ export function getPanelStyles(widthPx: number): string {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 2px;
   }
-  .lw-opt-checklist li::before {
-    content: "☐";
-    color: #0a66c2;
-    margin-right: 6px;
+  .lw-opt-check {
+    display: flex;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border-left: 3px solid transparent;
+  }
+  .lw-opt-check.is-pass { border-color: #1e7b34; background: #f3faf5; }
+  .lw-opt-check.is-improve { border-color: #c37d0d; background: #fff8ec; }
+  .lw-opt-check.is-unverifiable,
+  .lw-opt-check.is-not_applicable { border-color: #cfd6dd; background: #f7f8fa; }
+  .lw-opt-check.is-checking { border-color: #d9d3f7; background: #f7f6fe; }
+  .lw-opt-check__mark {
+    flex-shrink: 0;
+    width: 14px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .lw-opt-check.is-pass .lw-opt-check__mark { color: #1e7b34; }
+  .lw-opt-check.is-improve .lw-opt-check__mark { color: #c37d0d; }
+  .lw-opt-check.is-unverifiable .lw-opt-check__mark,
+  .lw-opt-check.is-not_applicable .lw-opt-check__mark { color: #8a949c; }
+  .lw-opt-check.is-checking .lw-opt-check__mark::before {
+    content: "";
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border: 2px solid #d9d3f7;
+    border-top-color: #6a4fd0;
+    border-radius: 50%;
+    animation: lw-scan-spin 0.8s linear infinite;
+  }
+  .lw-opt-check__text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .lw-opt-check__label {
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  .lw-opt-check.is-unverifiable .lw-opt-check__label { color: #56687a; }
+  .lw-opt-check__tag {
+    margin-left: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #5b3fb5;
+    background: #f1edfc;
+    border-radius: 8px;
+    padding: 0 5px;
+    vertical-align: 1px;
+  }
+  .lw-opt-check__detail {
+    font-size: 12px;
+    color: #56687a;
+    overflow-wrap: anywhere;
+  }
+  .lw-opt-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .lw-opt-summary__count {
+    font-size: 12px;
+    font-weight: 600;
+    color: #38434f;
   }
   .lw-opt-tips {
     margin: 0;

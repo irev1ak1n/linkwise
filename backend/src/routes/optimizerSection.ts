@@ -3,9 +3,12 @@ import { headlineGenerationRequestSchema, sectionAnalysisRequestSchema } from ".
 import { trimOptimizerEvidence } from "../validation/optimizerRequestSchema";
 import { headlineOptionsResponseSchema, sectionAnalysisResponseSchema, type HeadlineOptionsResponse, type SectionAnalysisResponse } from "../openai/optimizerSchema";
 import { createOpenAiStructuredClient, requestStructured } from "../openai/structuredClient";
-import { BANNER_ANALYSIS_PROMPT, HEADLINE_ANALYSIS_PROMPT, HEADLINE_GENERATION_PROMPT, buildHeadlineUserPrompt, buildSectionUserPrompt } from "../openai/sectionPrompt";
+import { BANNER_ANALYSIS_PROMPT, HEADLINE_GENERATION_PROMPT, buildHeadlineUserPrompt, buildSectionUserPrompt } from "../openai/sectionPrompt";
 import { validateHeadlineOptions, validateSectionAnalysis } from "../guardrails/validateSection";
 import { invalidRequest, sendFailure, type OptimizerDeps } from "./optimizeProfile";
+import { checklistRequestSchema } from "../validation/checklistRequestSchema";
+import { CHECKLIST_SYSTEM_PROMPT, buildChecklistUserPrompt, checklistResponseSchema, type ChecklistResponse } from "../openai/checklistSchema";
+import { validateChecklist } from "../guardrails/validateChecklist";
 
 export async function handleSectionAnalysis(req: Request, res: Response, deps: OptimizerDeps): Promise<void> {
   const parsed = sectionAnalysisRequestSchema.safeParse(req.body);
@@ -15,7 +18,7 @@ export async function handleSectionAnalysis(req: Request, res: Response, deps: O
   const result = await requestStructured<SectionAnalysisResponse>(
     deps.config,
     () => createOpenAiStructuredClient(deps.config, sectionAnalysisResponseSchema, "optimizer_section"),
-    request.section === "headline" ? HEADLINE_ANALYSIS_PROMPT : BANNER_ANALYSIS_PROMPT,
+    BANNER_ANALYSIS_PROMPT,
     buildSectionUserPrompt(request),
     { timeoutMs: deps.timeoutMs, client: deps.client },
   );
@@ -42,4 +45,20 @@ export async function handleHeadlineGeneration(req: Request, res: Response, deps
     return;
   }
   res.status(200).json({ status: "headlines", model: deps.config.openAiModel, options });
+}
+
+export async function handleChecklist(req: Request, res: Response, deps: OptimizerDeps): Promise<void> {
+  const parsed = checklistRequestSchema.safeParse(req.body);
+  if (!parsed.success) return invalidRequest(res);
+  const request = trimOptimizerEvidence(parsed.data);
+
+  const result = await requestStructured<ChecklistResponse>(
+    deps.config,
+    () => createOpenAiStructuredClient(deps.config, checklistResponseSchema, "optimizer_checklist"),
+    CHECKLIST_SYSTEM_PROMPT,
+    buildChecklistUserPrompt(request),
+    { timeoutMs: deps.timeoutMs, client: deps.client },
+  );
+  if (result.status !== "ok") return sendFailure(res, "optimizer-checklist", result);
+  res.status(200).json({ status: "checklist", model: deps.config.openAiModel, section: request.section, results: validateChecklist(result.data, request) });
 }

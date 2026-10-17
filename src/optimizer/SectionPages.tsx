@@ -1,27 +1,33 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { LinkedInProfile } from "../models/profile";
 import type { ProfileShell } from "../linkedin/profileAdapter";
+import { buildEvidencePayload } from "../ai/evidencePayload";
 import type { OptimizeProfileRequestBody } from "./optimizerClient";
 import { SECTION_GUIDANCE, DETAIL_SECTIONS } from "./sectionGuidance";
 import { neighborSections, openOptimizerPage } from "./optimizerNav";
-import { buildSectionRequest, cachedSectionAnalysis, useSectionAnalysis, type SectionAnalysisView } from "./sectionAnalysis";
+import { buildSectionRequest, useSectionAnalysis } from "./sectionAnalysis";
+import { buildChecklistRequest, cachedChecklist, useChecklistAssessment } from "./checklistAssessment";
+import {
+  CHECKLISTS,
+  NO_SECTION_TEXT,
+  evaluateChecklist,
+  semanticCriteria,
+  summarizeChecklist,
+  type ChecklistContext,
+  type ChecklistState,
+  type ChecklistSummary,
+  type EvaluatedCriterion,
+  type SemanticState,
+} from "./checklist";
 import { goToTopCardPart, openLinkedInEditor } from "./topCardActions";
-import type { OptimizerSection } from "./sections";
-import type { HeadlineAspect, SectionAnalysisDTO, SectionAnalysisState, SectionAssessmentDTO } from "./optimizerTypes";
+import { buildSectionMap, sectionInfo, type OptimizerSection, type SectionPresence } from "./sections";
+import type { SectionAssessmentDTO } from "./optimizerTypes";
 
-export const STATUS_LABEL: Record<SectionAnalysisState, string> = { strong: "Looking Good", improve: "Needs Improvement", missing: "Missing" };
-const STATUS_MARK: Record<SectionAnalysisState, string> = { strong: "✓", improve: "!", missing: "!" };
-const ASPECT_LABEL: Record<HeadlineAspect, string> = {
-  role: "Role or direction",
-  skills: "Skills",
-  keywords: "Searchable keywords",
-  specificity: "Specificity",
-  focus: "Focus",
-  differentiation: "What sets you apart",
-  readability: "Readability",
-  accuracy: "Accuracy",
-};
-const PART_NAME: Partial<Record<OptimizerSection, string>> = { photo: "profile photo", banner: "banner", headline: "headline" };
+export const STATUS_LABEL: Record<ChecklistState, string> = { strong: "Looking Good", improve: "Needs Improvement", missing: "Missing" };
+const STATUS_MARK: Record<ChecklistState, string> = { strong: "✓", improve: "!", missing: "!" };
+const IMPACT_LABEL = { high: "High impact", medium: "Medium impact", low: "Low impact" } as const;
+const TOP_CARD: Partial<Record<OptimizerSection, "photo" | "banner" | "headline">> = { photo: "photo", banner: "banner", headline: "headline" };
+const PART_NAME: Record<"photo" | "banner" | "headline", string> = { photo: "profile photo", banner: "banner", headline: "headline" };
 
 export interface SectionContext {
   shell: ProfileShell;
@@ -31,19 +37,31 @@ export interface SectionContext {
   overall: SectionAssessmentDTO[];
 }
 
-// Photo and banner status come straight from the page; the headline's from its own analysis when
-// it has run, else from the overall review.
-export function sectionStatus(section: OptimizerSection, context: SectionContext, analysis?: SectionAnalysisDTO): SectionAnalysisState | null {
-  if (section === "photo") return context.shell.hasPhoto ? "strong" : "missing";
-  if (section === "banner") return context.shell.hasBanner ? "strong" : "improve";
-  if (section === "headline" && !context.profile.headline) return "missing";
-  if (analysis) return analysis.state;
-  const overall = context.overall.find((a) => a.section === section);
-  return overall ? (overall.state === "add" ? "missing" : overall.state) : null;
+function presenceOf(section: OptimizerSection, context: SectionContext): { presence: SectionPresence; checklist: ChecklistContext } {
+  const evidence = context.body?.profile.evidence ?? buildEvidencePayload(context.profile);
+  const sections = context.body?.sections ?? buildSectionMap(context.profile, context.shell, evidence);
+  const presence = sections.find((p) => p.section === section)!;
+  return { presence, checklist: { profile: context.profile, presence, evidence } };
 }
 
-function cachedAnalysis(section: OptimizerSection, body: OptimizeProfileRequestBody | null): SectionAnalysisDTO | undefined {
-  return body && (section === "headline" || section === "banner") ? cachedSectionAnalysis(buildSectionRequest(section, body)) : undefined;
+// What the section's semantic criteria can rely on: their AI verdicts, or why there are none.
+function semanticStateFor(section: OptimizerSection, context: SectionContext, live?: SemanticState): SemanticState {
+  if (semanticCriteria(section).length === 0) return { status: "ready", results: [] };
+  if (!context.body) return { status: "idle" };
+  const request = buildChecklistRequest(section, context.body);
+  if (!request) return { status: "unavailable", reason: NO_SECTION_TEXT };
+  if (live) return live;
+  const cached = cachedChecklist(request);
+  return cached ? { status: "ready", results: cached } : { status: "idle" };
+}
+
+// A section's status from its own checklist. Before the AI half is known, the overall review fills in.
+export function sectionStatus(section: OptimizerSection, context: SectionContext): ChecklistState | null {
+  const { presence, checklist } = presenceOf(section, context);
+  const summary = summarizeChecklist(presence.present, evaluateChecklist(section, checklist, semanticStateFor(section, context)));
+  if (summary.state) return summary.state;
+  const overall = context.overall.find((a) => a.section === section);
+  return overall ? (overall.state === "add" ? "missing" : overall.state) : null;
 }
 
 function SectionIcon({ section }: { section: OptimizerSection }) {
@@ -61,21 +79,20 @@ function SectionIcon({ section }: { section: OptimizerSection }) {
         <path d="M3 15l5-4 4 3 3-2 6 4" />
       </>
     ),
-    headline: (
-      <>
-        <rect x="3" y="4" width="18" height="16" rx="2" />
-        <path d="M7 9h10M7 13h7" />
-      </>
-    ),
   };
   return (
     <svg className="lw-opt-card__icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-      {paths[section]}
+      {paths[section] ?? (
+        <>
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M7 9h10M7 13h7" />
+        </>
+      )}
     </svg>
   );
 }
 
-function StatusMark({ status }: { status: SectionAnalysisState | null }) {
+function StatusMark({ status }: { status: ChecklistState | null }) {
   if (!status) return null;
   return (
     <span className={`lw-opt-status is-${status}`} title={STATUS_LABEL[status]} aria-label={STATUS_LABEL[status]}>
@@ -87,32 +104,66 @@ function StatusMark({ status }: { status: SectionAnalysisState | null }) {
 export function SectionCards({ context }: { context: SectionContext }) {
   return (
     <nav className="lw-opt-cards" aria-label="Profile Optimizer sections">
-      {DETAIL_SECTIONS.map((section) => {
-        const guidance = SECTION_GUIDANCE[section]!;
-        const status = sectionStatus(section, context, cachedAnalysis(section, context.body));
-        return (
-          <button key={section} type="button" className="lw-opt-card" onClick={() => openOptimizerPage({ name: "section", section })}>
-            <SectionIcon section={section} />
-            <span className="lw-opt-card__title">{guidance.title}</span>
-            <StatusMark status={status} />
-            {guidance.aiCapable && <span className="lw-opt-ai">✨ AI</span>}
-            <span className="lw-opt-card__chevron" aria-hidden="true">
-              ›
-            </span>
-          </button>
-        );
-      })}
+      {DETAIL_SECTIONS.map((section) => (
+        <button key={section} type="button" className="lw-opt-card" onClick={() => openOptimizerPage({ name: "section", section })}>
+          <SectionIcon section={section} />
+          <span className="lw-opt-card__title">{SECTION_GUIDANCE[section].title}</span>
+          <StatusMark status={sectionStatus(section, context)} />
+          {semanticCriteria(section).length > 0 && <span className="lw-opt-ai">✨ AI</span>}
+          <span className="lw-opt-card__chevron" aria-hidden="true">
+            ›
+          </span>
+        </button>
+      ))}
     </nav>
   );
 }
 
+const CRITERION_MARK: Record<EvaluatedCriterion["status"], string> = { pass: "✓", improve: "!", unverifiable: "○", not_applicable: "—", checking: "" };
+const CRITERION_STATE: Record<EvaluatedCriterion["status"], string> = {
+  pass: "Meets criterion",
+  improve: "Needs improvement",
+  unverifiable: "Can't verify automatically",
+  not_applicable: "Not applicable",
+  checking: "Checking",
+};
+
+export function ChecklistRows({ criteria }: { criteria: EvaluatedCriterion[] }) {
+  return (
+    <ul className="lw-opt-checklist">
+      {criteria.map((criterion) => (
+        <li key={criterion.id} className={`lw-opt-check is-${criterion.status}`} aria-label={`${criterion.label}: ${CRITERION_STATE[criterion.status]}`}>
+          <span className="lw-opt-check__mark" aria-hidden="true">
+            {CRITERION_MARK[criterion.status]}
+          </span>
+          <span className="lw-opt-check__text">
+            <span className="lw-opt-check__label">
+              {criterion.label}
+              {criterion.verification === "semantic" && criterion.status !== "unverifiable" && <span className="lw-opt-check__tag">AI</span>}
+            </span>
+            <span className="lw-opt-check__detail">{criterion.explanation}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function summaryText(summary: ChecklistSummary): string {
+  if (summary.verifiable === 0) return summary.checking ? "Checking…" : "Nothing LinkWise can verify automatically";
+  return `${summary.passed} of ${summary.verifiable} verifiable criteria met${summary.checking ? " so far" : ""}`;
+}
+
 export function SectionPage({ section, context }: { section: OptimizerSection; context: SectionContext }) {
-  const guidance = SECTION_GUIDANCE[section]!;
+  const guidance = SECTION_GUIDANCE[section];
   const { prev, next } = neighborSections(section);
-  const analyzed = section === "headline" || section === "banner";
-  const request = analyzed && context.body && (section !== "headline" || context.profile.headline) ? buildSectionRequest(section, context.body) : null;
-  const { view, retry } = useSectionAnalysis(request);
-  const status = sectionStatus(section, context, view.status === "ready" ? view.analysis : undefined);
+  const { presence, checklist } = useMemo(() => presenceOf(section, context), [section, context]);
+  const request = presence.present && context.body ? buildChecklistRequest(section, context.body) : null;
+  const { state: live, retry } = useChecklistAssessment(request);
+  const semanticState = semanticStateFor(section, context, request ? live : undefined);
+  const criteria = evaluateChecklist(section, checklist, semanticState);
+  const summary = summarizeChecklist(presence.present, criteria);
+  const part = TOP_CARD[section];
 
   return (
     <article className="lw-opt-page">
@@ -132,29 +183,38 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
       <h3 className="lw-opt-page__title">{guidance.title}</h3>
       <p className="lw-opt-page__description">{guidance.description}</p>
 
-      <section className="lw-opt-block">
-        <h4>Profile assessment</h4>
-        {status && <span className={`lw-opt-badge is-${status}`}>{STATUS_LABEL[status]}</span>}
-        <Assessment section={section} context={context} view={view} onRetry={retry} />
-      </section>
+      {presence.present ? (
+        <>
+          <section className="lw-opt-block" aria-label="Profile assessment">
+            <div className="lw-opt-summary">
+              {summary.state && <span className={`lw-opt-badge is-${summary.state}`}>{STATUS_LABEL[summary.state]}</span>}
+              <span className="lw-opt-summary__count">{summaryText(summary)}</span>
+            </div>
+            {section === "headline" && context.profile.headline && <blockquote className="lw-opt-quote">{context.profile.headline}</blockquote>}
+            {!context.body && semanticCriteria(section).length > 0 && <p className="lw-scan-mode__hint">Reading your profile before the AI checks run…</p>}
+            <ChecklistRows criteria={criteria} />
+            {live.status === "unavailable" && request && (
+              <button type="button" className="lw-button lw-button--secondary" onClick={retry}>
+                Try the AI checks again
+              </button>
+            )}
+          </section>
+          {section === "banner" && <BannerIdeas context={context} />}
+        </>
+      ) : (
+        <MissingSection section={section} context={context} />
+      )}
 
-      <section className="lw-opt-block">
-        <h4>Checklist</h4>
-        <ul className="lw-opt-checklist">
-          {guidance.checklist.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="lw-opt-block">
-        <h4>Best practices</h4>
-        <ul className="lw-opt-tips">
-          {guidance.bestPractices.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
+      {presence.present && (
+        <section className="lw-opt-block">
+          <h4>Best practices</h4>
+          <ul className="lw-opt-tips">
+            {guidance.bestPractices.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {section === "headline" && (
         <section className="lw-opt-block">
@@ -166,93 +226,62 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
         </section>
       )}
 
-      <TopCardActions section={section} />
+      {part && <TopCardActions part={part} />}
     </article>
   );
 }
 
-function Assessment({ section, context, view, onRetry }: { section: OptimizerSection; context: SectionContext; view: SectionAnalysisView; onRetry: () => void }) {
-  if (section === "photo") {
-    return (
-      <p>
-        {context.shell.hasPhoto
-          ? "LinkWise found a profile photo. It doesn't analyze the image itself, so use the checklist below to review it."
-          : "LinkWise didn't find a profile photo on your profile. Adding one is one of the quickest ways to make your profile more recognizable."}
-      </p>
-    );
-  }
-  const intro =
-    section === "banner" ? (
-      <p>
-        {context.shell.hasBanner
-          ? "LinkWise found a custom banner. It doesn't analyze the image itself, so use the checklist below to review it."
-          : "LinkWise didn't find a custom banner, so your profile appears to use LinkedIn's default background."}
-      </p>
-    ) : context.profile.headline ? (
-      <blockquote className="lw-opt-quote">{context.profile.headline}</blockquote>
-    ) : (
-      <p>You don't have a headline yet. Without one, people see little about you beyond your name.</p>
-    );
+// An absent section is one recommendation, not a wall of failed criteria.
+function MissingSection({ section, context }: { section: OptimizerSection; context: SectionContext }) {
+  const guidance = SECTION_GUIDANCE[section];
+  const overall = context.overall.find((a) => a.section === section && a.state === "add");
+  const impact = overall ? IMPACT_LABEL[overall.impact] : sectionInfo(section).core ? IMPACT_LABEL.high : "Optional";
+  const contents = CHECKLISTS[section].filter((c) => c.verification !== "visual").map((c) => c.advice);
   return (
     <>
-      {intro}
-      <AiAnalysis section={section} view={view} onRetry={onRetry} waiting={!context.body} />
+      <section className="lw-opt-block" aria-label="Profile assessment">
+        <div className="lw-opt-summary">
+          <span className="lw-opt-badge is-missing">{STATUS_LABEL.missing}</span>
+          <span className="lw-opt-summary__count">{impact}</span>
+        </div>
+        <p>{guidance.missing}</p>
+      </section>
+      <section className="lw-opt-block">
+        <h4>What a strong {guidance.title} section includes</h4>
+        <ul className="lw-opt-tips">
+          {contents.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </section>
     </>
   );
 }
 
-function AiAnalysis({ section, view, onRetry, waiting }: { section: OptimizerSection; view: SectionAnalysisView; onRetry: () => void; waiting: boolean }) {
-  if (waiting) return <p className="lw-scan-mode__hint">Reading your profile…</p>;
-  if (view.status === "idle") return null;
-  if (view.status === "loading") return <p className="lw-scan-mode__hint">{section === "headline" ? "Reviewing your headline…" : "Finding banner ideas from your profile…"}</p>;
-  if (view.status === "unavailable") {
-    return (
-      <div className="lw-opt-ai-block">
-        <p className="lw-scan-mode__hint">AI analysis is unavailable right now ({view.reason}).</p>
-        <button type="button" className="lw-button lw-button--secondary" onClick={onRetry}>
-          Try again
-        </button>
-      </div>
-    );
-  }
-  const { summary, findings, ideas } = view.analysis;
+// Banner ideas drawn from the rest of the profile; LinkWise never judges the image itself.
+function BannerIdeas({ context }: { context: SectionContext }) {
+  const request = context.body ? buildSectionRequest("banner", context.body) : null;
+  const { view } = useSectionAnalysis(request);
+  if (view.status !== "ready" || view.analysis.ideas.length === 0) return null;
   return (
-    <div className="lw-opt-ai-block">
-      <span className="lw-opt-ai">✨ AI analysis of your profile</span>
-      {summary && <p>{summary}</p>}
-      {findings.length > 0 && (
-        <ul className="lw-opt-findings">
-          {findings.map((finding) => (
-            <li key={finding.aspect} className={`is-${finding.verdict}`}>
-              <span className="lw-opt-findings__mark">{finding.verdict === "good" ? "✓" : "!"}</span>
-              <span>
-                <strong>{ASPECT_LABEL[finding.aspect]}:</strong> {finding.note}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {ideas.length > 0 && (
-        <>
-          <p className="lw-opt-subhead">Ideas based on your profile</p>
-          <ul className="lw-opt-tips">
-            {ideas.map((idea) => (
-              <li key={idea}>{idea}</li>
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
+    <section className="lw-opt-block">
+      <h4>Banner ideas from your profile</h4>
+      {view.analysis.summary && <p>{view.analysis.summary}</p>}
+      <ul className="lw-opt-tips">
+        {view.analysis.ideas.map((idea) => (
+          <li key={idea}>{idea}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-function TopCardActions({ section }: { section: OptimizerSection }) {
+function TopCardActions({ part }: { part: "photo" | "banner" | "headline" }) {
   const [missing, setMissing] = useState(false);
-  const part = section as "photo" | "banner" | "headline";
   return (
     <section className="lw-opt-block lw-opt-actions">
       <button type="button" className="lw-button" onClick={() => setMissing(!goToTopCardPart(part))}>
-        Go to {PART_NAME[section]}
+        Go to {PART_NAME[part]}
       </button>
       <button type="button" className="lw-button" onClick={() => setMissing(!openLinkedInEditor(part))}>
         Edit on LinkedIn

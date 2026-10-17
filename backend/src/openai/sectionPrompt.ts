@@ -3,20 +3,6 @@ import type { HeadlineGenerationRequest, SectionAnalysisRequest } from "../valid
 const evidenceJson = (request: { profile: { evidence: { id: string; section: string; text: string }[] } }) =>
   JSON.stringify(request.profile.evidence.map((item) => ({ id: item.id, section: item.section, text: item.text })), null, 2);
 
-export const HEADLINE_ANALYSIS_PROMPT = `You review the headline on a person's OWN LinkedIn profile for LinkWise. Judge the actual current headline against the rest of the profile evidence.
-
-Return:
-- status: "strong" if the headline already works well and changes would be minor, otherwise "improve". Do not invent problems to have something to say.
-- summary: two or three sentences of specific, honest feedback in second person ("Your headline..."). Say what works and the most valuable change.
-- findings: one entry per aspect you can judge, each with verdict "good" or "improve" and a short note specific to this headline:
-  role (communicates a role or direction), skills (useful expertise), keywords (terms people would search for, given the evidence), specificity (specific rather than filler), focus (not overloaded with unrelated terms), differentiation (something that sets the person apart), readability (easy to read), accuracy (matches the evidence).
-- ideas: leave empty.
-
-Rules:
-- Quote or name only words, skills, schools, employers, numbers, and achievements that appear in the headline, the evidence, or the user's own context.
-- When suggesting what to add, point to things the evidence actually shows (for example a skill listed in Education or a result in Experience).
-- No generic advice, no buzzwords, no recruiter cliches.`;
-
 export const BANNER_ANALYSIS_PROMPT = `You suggest banner ideas for a person's OWN LinkedIn profile for LinkWise. You cannot see the banner image itself: you only know whether a custom banner exists.
 
 Return:
@@ -28,9 +14,7 @@ Return:
 Rules: mention only fields, projects, schools, organizations, and achievements that appear in the evidence or the user's own context. No numbers that are not in the evidence.`;
 
 export function buildSectionUserPrompt(request: SectionAnalysisRequest): string {
-  const headline = request.profile.evidence.find((item) => item.section === "headline")?.text ?? "";
-  const subject = request.section === "headline" ? `current headline:\n${JSON.stringify(headline)}` : `custom banner present: ${request.present}`;
-  return `${subject}\n\nevidence:\n${evidenceJson(request)}\n\nuser's own context (NOT on LinkedIn):\n${JSON.stringify(request.userContext)}`;
+  return `custom banner present: ${request.present}\n\nevidence:\n${evidenceJson(request)}\n\nuser's own context (NOT on LinkedIn):\n${JSON.stringify(request.userContext)}`;
 }
 
 export const HEADLINE_GENERATION_PROMPT = `You write LinkedIn headline options for a person's OWN profile, for them to review and copy. You never post anything.
