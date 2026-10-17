@@ -125,6 +125,18 @@ describe("Profile Analyzer dashboard", () => {
     expect(section.textContent).not.toContain("Builds websites");
   });
 
+  it("places Key Evidence between Why they match and Profile Highlights, from the signal analysis", () => {
+    const signals = { status: "ready" as const, profileKey: "jordan", highlights: [], facts: [{ text: "Built the club website in React", evidenceId: "experience:0" }] };
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => root!.render(<AnalysisView result={result} goal={goal} profile={profile} aiState={ready as Extract<AiAnalysisState, { status: "ready" }>} signalAnalysis={signals} highlights={<section aria-label="Profile highlights">H</section>} />));
+    const order = [...container.querySelector(".lw-dash")!.children].map((el) => el.getAttribute("aria-label") ?? el.className);
+    expect(order.slice(1)).toEqual(["Summary", "Why they match", "Key evidence", "Profile highlights"]);
+    expect(container.querySelector('[aria-label="Key evidence"]')!.textContent).toContain("Built the club website in React");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("ends with Profile Highlights", () => {
     container = document.createElement("div");
     document.body.appendChild(container);

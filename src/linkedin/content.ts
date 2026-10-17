@@ -88,6 +88,8 @@ import { highlightColorPreference } from "./panel/highlightColorPreference";
 import { keywordColorPreference } from "./panel/keywordColorPreference";
 import { SignalHighlighter } from "./signalHighlighter";
 import { getSignalModeState, initSignalModeStore, publishSignalAnalysis, subscribeSignalModeStore } from "./panel/signalModeStore";
+import { isPanelVisible, subscribePanelVisibility } from "./panel/panelVisibilityStore";
+import { panelToolPreference } from "../optimizer/optimizerPreferences";
 import { isExtensionContextValid, watchForContextInvalidation } from "./extensionContext";
 
 const DOCUMENT_END_MARGIN_PX = 600;
@@ -634,9 +636,14 @@ registerCleanup(() => {
 });
 
 let signalHref = "";
+// Profile Analyzer's Key Evidence reads the same analysis, so it runs while the Analyzer is open too.
+function analyzerOpen(): boolean {
+  return isPanelVisible() && panelToolPreference.getState().value === "analyzer";
+}
 function tickSignals(): void {
   signalHref = location.href;
-  signalRuntime.tick(signalTickInput(getSignalModeState().enabled, location.href, getPanelProfileData()));
+  const highlight = getSignalModeState().enabled;
+  signalRuntime.tick(signalTickInput(highlight || analyzerOpen(), location.href, getPanelProfileData(), highlight));
 }
 
 // Photo, banner, and section headings only exist on the main profile page, so details pages keep
@@ -781,6 +788,16 @@ registerCleanup(keywordColorPreference.subscribe(() => keywordHighlighter.setCol
 
 highlightColorPreference.init();
 registerCleanup(highlightColorPreference.subscribe(() => signalHighlighter.setColor(highlightColorPreference.getState().value)));
+
+panelToolPreference.init();
+let signalAnalyzerOpen = analyzerOpen();
+const retickForAnalyzer = () => {
+  if (analyzerOpen() === signalAnalyzerOpen) return;
+  signalAnalyzerOpen = analyzerOpen();
+  if (!torndown) tickSignals();
+};
+registerCleanup(subscribePanelVisibility(retickForAnalyzer));
+registerCleanup(panelToolPreference.subscribe(retickForAnalyzer));
 
 initSignalModeStore();
 let signalModeEnabled = getSignalModeState().enabled;

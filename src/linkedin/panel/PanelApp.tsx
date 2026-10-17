@@ -113,7 +113,6 @@ export function PanelApp({ onClose }: PanelAppProps) {
     profileKey === null ? null : (
       <SignalModeSection
         enabled={signalMode.enabled}
-        analysis={signalMode.analysis}
         highlighted={signalMode.highlighted}
         onChange={signalMode.setSignalModeEnabled}
         keywords={highlightKeywords}
@@ -122,7 +121,6 @@ export function PanelApp({ onClose }: PanelAppProps) {
         onColorChange={highlightColorPreference.set}
         keywordColor={keywordColor}
         onKeywordColorChange={keywordColorPreference.set}
-        updatingSection={updatingSection}
       />
     );
 
@@ -167,7 +165,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
       );
     }
 
-    return <AnalysisView profileKey={profileKey} result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} highlights={highlights} />;
+    return <AnalysisView profileKey={profileKey} result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} highlights={highlights} signalAnalysis={signalMode.analysis} />;
   }
 
   return (

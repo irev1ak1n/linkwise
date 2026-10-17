@@ -9,7 +9,10 @@ import type { PanelProfileData } from "./panel/panelStore";
 export const INLINE_MIN_IMPORTANCE = 0.5;
 
 export interface SignalTickInput {
+  /** Run the analysis: Signal Mode is on, or Profile Analyzer is open to show its Key Evidence. */
   enabled: boolean;
+  /** Paint the highlights on the page: Signal Mode itself. Defaults to enabled. */
+  highlight?: boolean;
   href: string;
   profileKey: string | null;
   profile: LinkedInProfile | null;
@@ -25,11 +28,12 @@ export function isProfileSessionPage(href: string): boolean {
 }
 
 // Panel data can still describe the previous profile for a tick after SPA navigation.
-export function signalTickInput(enabled: boolean, href: string, data: PanelProfileData): SignalTickInput {
+export function signalTickInput(enabled: boolean, href: string, data: PanelProfileData, highlight = enabled): SignalTickInput {
   const profileKey = profileIdentityKey(href);
   const current = profileKey !== null && data.profileKey === profileKey;
   return {
     enabled,
+    highlight,
     href,
     profileKey,
     profile: current ? data.profile : null,
@@ -53,16 +57,18 @@ export function createSignalRuntime(options: SignalRuntimeOptions) {
   const { highlighter, publish } = options;
   const controller = options.createController?.(() => paint()) ?? new SignalAnalysisController({ onChange: () => paint() });
   let activeProfileKey: string | null = null;
+  let highlightOn = false;
 
   function paint(): void {
     const state = controller.getState();
-    const current = state.status === "ready" && state.profileKey === activeProfileKey;
+    const current = state.status === "ready" && state.profileKey === activeProfileKey && highlightOn;
     const count = current ? highlighter.render(signalTargets(state.highlights)) : 0;
     if (!current) highlighter.clear();
     publish(activeProfileKey ? state : { status: "idle" }, count);
   }
 
   function tick(input: SignalTickInput): void {
+    highlightOn = input.highlight ?? input.enabled;
     if (!input.enabled || !input.profileKey || !isProfileSessionPage(input.href)) {
       activeProfileKey = null;
       controller.reset();

@@ -88,7 +88,7 @@ describe("signalTickInput", () => {
 
   it("ignores the previous profile's data right after SPA navigation", () => {
     const input = signalTickInput(true, "https://www.linkedin.com/in/sam/", { profileKey: "jordan", profile: profile("x"), collection });
-    expect(input).toEqual({ enabled: true, href: "https://www.linkedin.com/in/sam/", profileKey: "sam", profile: null, ready: false });
+    expect(input).toEqual({ enabled: true, highlight: true, href: "https://www.linkedin.com/in/sam/", profileKey: "sam", profile: null, ready: false });
   });
 
   it("is not ready while an auto scan is still crawling", () => {
@@ -120,6 +120,21 @@ describe("createSignalRuntime", () => {
     expect(entries.size).toBe(0);
     runtime.tick(input);
     expect(entries.get(QUOTE_HIGHLIGHT)!.ranges).toHaveLength(1);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("analyzes for Key Evidence without highlighting the page while Signal Mode is off", async () => {
+    setPage("Led a 4-person web team");
+    const { runtime, request, published } = harness();
+    const input = { enabled: true, highlight: false, href: JORDAN, profileKey: "jordan", profile: profile("Led a 4-person web team"), ready: true };
+    runtime.tick(input);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(published.at(-1)).toMatchObject({ status: "ready", facts: [{ text: "Led a 4-person web team" }] });
+    expect(entries.size).toBe(0);
+    runtime.tick({ ...input, highlight: true });
+    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges).toHaveLength(1);
+    runtime.tick(input);
+    expect(entries.size).toBe(0);
     expect(request).toHaveBeenCalledTimes(1);
   });
 

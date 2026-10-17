@@ -568,39 +568,12 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a949c;
     margin-left: 4px;
   }
-  .lw-signals__status {
-    margin: 0;
-    font-size: 11.5px;
-    color: #56687a;
-  }
-  .lw-signals__status--error {
-    color: #b24020;
-  }
-  .lw-signals__facts summary {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    color: #56687a;
-    cursor: pointer;
-  }
   .lw-signals__count {
     font-weight: 400;
     text-transform: none;
     letter-spacing: 0;
     color: #8a949c;
     margin-left: 4px;
-  }
-  .lw-signals__facts ul {
-    margin: 6px 0 0;
-    padding-left: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .lw-signals__facts li {
-    font-size: 12px;
-    line-height: 1.35;
   }
   .lw-colors {
     display: flex;
@@ -1861,6 +1834,19 @@ export function getPanelStyles(widthPx: number): string {
     font-size: 14px;
     line-height: 1.5;
     color: #1a1a1a;
+  }
+  .lw-key-evidence {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #1a1a1a;
+  }
+  .lw-key-evidence li::marker {
+    color: #6a4fd0;
   }
   .lw-dash__none {
     margin: 0;

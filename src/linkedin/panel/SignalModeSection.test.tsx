@@ -1,91 +1,57 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SignalModeSection } from "./SignalModeSection";
-import type { SignalAnalysisState } from "../../ai/signalAnalysisController";
 
-function render(enabled: boolean, analysis: SignalAnalysisState, highlighted = 0): string {
-  return renderToStaticMarkup(<SignalModeSection enabled={enabled} analysis={analysis} highlighted={highlighted} onChange={() => {}} keywords="" onKeywordsChange={() => {}} color="blue" onColorChange={() => {}} keywordColor="orange" onKeywordColorChange={() => {}} />);
+function render(enabled: boolean, overrides: { keywords?: string; color?: "blue" | "yellow"; keywordColor?: "orange" | "violet"; highlighted?: number } = {}): string {
+  return renderToStaticMarkup(
+    <SignalModeSection
+      enabled={enabled}
+      highlighted={overrides.highlighted ?? 0}
+      onChange={() => {}}
+      keywords={overrides.keywords ?? ""}
+      onKeywordsChange={() => {}}
+      color={overrides.color ?? "blue"}
+      onColorChange={() => {}}
+      keywordColor={overrides.keywordColor ?? "orange"}
+      onKeywordColorChange={() => {}}
+    />,
+  );
 }
 
 describe("SignalModeSection", () => {
-  it("shows only the toggle when off", () => {
-    const html = render(false, { status: "idle" });
+  it("holds only the highlighting controls, never the analysis's facts", () => {
+    const html = render(true, { highlighted: 12 });
+    expect(html).toContain("Profile highlights");
     expect(html).toContain("Signal Mode");
-    expect(html).not.toContain("lw-signals__status");
+    expect(html).toContain("Highlight color");
+    expect(html).toContain("Highlight keywords");
+    expect(html).not.toMatch(/High-signal facts|Key evidence/i);
+    expect(html).toContain("12 passages highlighted on the profile.");
   });
 
-  it("lists grounded facts compactly when ready", () => {
-    const html = render(true, {
-      status: "ready",
-      profileKey: "jordan",
-      highlights: [],
-      facts: [
-        { text: "Led 4-person web team", evidenceId: "experience:0" },
-        { text: "300+ visitors reached", evidenceId: "experience:0" },
-      ],
-    }, 2);
-    expect(html).toContain("High-signal facts");
-    expect(html).toContain("2 highlighted");
-    expect(html.match(/<li>/g)).toHaveLength(2);
-  });
-
-  it("states clearly when AI signal analysis is unavailable", () => {
-    expect(render(true, { status: "unavailable", reason: "not_configured" })).toContain("AI signal analysis unavailable");
-  });
-
-  it("keeps facts visible while signals update with a new section", () => {
-    const html = renderToStaticMarkup(
-      <SignalModeSection
-        enabled
-        analysis={{ status: "ready", profileKey: "jordan", highlights: [], facts: [{ text: "Led 4-person web team", evidenceId: "experience:0" }], updating: true }}
-        highlighted={1}
-        onChange={() => {}}
-        keywords=""
-        onKeywordsChange={() => {}}
-        color="blue"
-        onColorChange={() => {}}
-        keywordColor="orange"
-        onKeywordColorChange={() => {}}
-        updatingSection="education"
-      />,
-    );
-    expect(html).toContain("Updating signals with Education…");
-    expect(html).toContain("Led 4-person web team");
-  });
-
-  it("says so when a profile has no strong evidence", () => {
-    expect(render(true, { status: "ready", profileKey: "sam", highlights: [], facts: [] })).toContain("No strong evidence found");
+  it("explains Signal Mode until it has highlighted something", () => {
+    expect(render(false)).toContain("Highlight useful evidence directly on the profile.");
+    expect(render(true)).toContain("Highlight useful evidence directly on the profile.");
   });
 
   it("offers the keyword input whether or not Signal Mode is on, showing the saved list", () => {
     for (const enabled of [false, true]) {
-      const html = renderToStaticMarkup(
-        <SignalModeSection enabled={enabled} analysis={{ status: "idle" }} highlighted={0} onChange={() => {}} keywords={"Python, TSA"} onKeywordsChange={() => {}} color="blue" onColorChange={() => {}} keywordColor="orange" onKeywordColorChange={() => {}} />,
-      );
+      const html = render(enabled, { keywords: "Python, TSA" });
       expect(html).toContain("Highlight keywords");
       expect(html).toContain("Python, TSA");
     }
   });
 
   it("offers the eight highlight colors with the chosen one marked, only while Signal Mode is on", () => {
-    const html = renderToStaticMarkup(
-      <SignalModeSection enabled analysis={{ status: "idle" }} highlighted={0} onChange={() => {}} keywords="" onKeywordsChange={() => {}} color="yellow" onColorChange={() => {}} keywordColor="orange" onKeywordColorChange={() => {}} />,
-    );
-    expect(html).toContain("Highlight color");
+    const html = render(true, { color: "yellow" });
     expect(html.match(/role="radio"/g)).toHaveLength(8);
-    expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-checked="true" aria-label="Yellow"/);
-    expect(render(false, { status: "idle" })).not.toContain("Highlight color");
+    expect(render(false)).not.toContain("Highlight color");
   });
 
   it("offers a keyword color only once there are keywords to highlight", () => {
-    const renderWith = (keywords: string) =>
-      renderToStaticMarkup(
-        <SignalModeSection enabled={false} analysis={{ status: "idle" }} highlighted={0} onChange={() => {}} keywords={keywords} onKeywordsChange={() => {}} color="blue" onColorChange={() => {}} keywordColor="violet" onKeywordColorChange={() => {}} />,
-      );
-    expect(renderWith("")).not.toContain("Keyword color");
-    expect(renderWith("   ")).not.toContain("Keyword color");
-    const html = renderWith("Python, TSA");
+    expect(render(false, { keywords: "   " })).not.toContain("Keyword color");
+    const html = render(false, { keywords: "Python, TSA", keywordColor: "violet" });
     expect(html).toContain("Keyword color");
     expect(html).toMatch(/aria-checked="true" aria-label="Violet"/);
   });

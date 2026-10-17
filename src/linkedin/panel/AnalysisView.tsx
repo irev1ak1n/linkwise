@@ -12,6 +12,8 @@ import type { AiAnalysisState } from "./useAiAnalysis";
 import type { Goal } from "../../models/goal";
 import type { LinkedInProfile } from "../../models/profile";
 import { SavedProfileBar } from "../../savedProfiles/SavedProfilesView";
+import type { SignalAnalysisState } from "../../ai/signalAnalysisController";
+import { KeyEvidence } from "./KeyEvidence";
 import { useSavedProfileTracking } from "../../savedProfiles/useSavedProfileTracking";
 
 interface AnalysisViewProps {
@@ -24,8 +26,10 @@ interface AnalysisViewProps {
   aiState: Extract<AiAnalysisState, { status: "ready" } | { status: "unavailable" }>;
   onRetry?: () => void;
   updatingSection?: string | null;
-  /** Profile Highlights controls, shown on the dashboard after the recommendation. */
+  /** Profile Highlights controls, the dashboard's last section. */
   highlights?: ReactNode;
+  /** The signal analysis behind Signal Mode, whose facts are the dashboard's Key Evidence. */
+  signalAnalysis?: SignalAnalysisState;
 }
 
 const TOP_REASONS = 4;
@@ -34,7 +38,7 @@ const TOP_REASONS = 4;
 // relevance to the current goal, not a judgment of the person. The dashboard is the quick
 // decision; Full analysis and Evidence go deeper over the same result, so switching pages
 // never asks for anything new.
-export function AnalysisView({ profileKey = null, result, goal, profile, aiState, onRetry, updatingSection, highlights }: AnalysisViewProps) {
+export function AnalysisView({ profileKey = null, result, goal, profile, aiState, onRetry, updatingSection, highlights, signalAnalysis }: AnalysisViewProps) {
   const page = useSyncExternalStore(subscribeAnalyzerPage, getAnalyzerPage, getAnalyzerPage);
   const evidence = useMemo(() => buildProfileEvidence(profile), [profile]);
   const final = useMemo(() => {
@@ -71,7 +75,15 @@ export function AnalysisView({ profileKey = null, result, goal, profile, aiState
       ) : page === "evidence" ? (
         <EvidencePage final={final} profile={profile} narrative={narrative} state={state} />
       ) : (
-        <Dashboard final={final} goal={goal} state={state} status={status} savedBar={savedBar} highlights={highlights} />
+        <Dashboard
+          final={final}
+          goal={goal}
+          state={state}
+          status={status}
+          savedBar={savedBar}
+          highlights={highlights}
+          keyEvidence={signalAnalysis && <KeyEvidence analysis={signalAnalysis} updatingSection={updatingSection} exclude={confirmedCriteria(goal, final.result, TOP_REASONS).flatMap((c) => (c.detail ? [c.detail] : []))} />}
+        />
       )}
     </div>
   );
@@ -136,7 +148,7 @@ function CompactScore({ state }: { state: MatchDisplayState }) {
 }
 
 // The quick read: how strong, who, and why. Full analysis and Evidence stay reachable by route for a later UI.
-function Dashboard({ final, goal, state, status, savedBar, highlights }: { final: FinalAnalysis; goal: Goal; state: MatchDisplayState; status: ReactNode; savedBar?: ReactNode; highlights?: ReactNode }) {
+function Dashboard({ final, goal, state, status, savedBar, highlights, keyEvidence }: { final: FinalAnalysis; goal: Goal; state: MatchDisplayState; status: ReactNode; savedBar?: ReactNode; highlights?: ReactNode; keyEvidence?: ReactNode }) {
   const { analysis } = final;
   const confirmed = confirmedCriteria(goal, final.result, TOP_REASONS);
   return (
@@ -167,6 +179,8 @@ function Dashboard({ final, goal, state, status, savedBar, highlights }: { final
       )}
 
       {analysis.strengths.length === 0 && analysis.gaps.length === 0 && <p className="lw-empty">No criteria to evaluate for this goal yet.</p>}
+
+      {keyEvidence}
 
       {highlights}
     </div>
