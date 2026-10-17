@@ -26,7 +26,6 @@ import type { SectionAssessmentDTO } from "./optimizerTypes";
 
 // What the overview row and the detail page both show for a section.
 export type DisplayStatus = "strong" | "improve" | "add" | "partial" | "unverifiable";
-export const ROW_LABEL: Record<DisplayStatus, string> = { strong: "Strong", improve: "Improve", add: "Add", partial: "Partial", unverifiable: "Can't verify" };
 export const STATUS_LABEL: Record<DisplayStatus, string> = { strong: "Looking Good", improve: "Needs Improvement", add: "Missing", partial: "Partly verified", unverifiable: "Can't verify" };
 const IMPACT_LABEL = { high: "High impact", medium: "Medium impact", low: "Low impact" } as const;
 
@@ -166,16 +165,9 @@ function SectionIcon({ section, className = "lw-opt-card__icon" }: { section: Op
   );
 }
 
-function RowStatus({ section, context }: { section: OptimizerSection; context: SectionContext }) {
-  const { status, impact } = sectionDisplay(section, context);
-  if (!status) return <span className="lw-opt-card__meta">Checking…</span>;
-  return (
-    <span className="lw-opt-card__meta">
-      <span className={`lw-opt-row-status is-${status}`}>{ROW_LABEL[status]}</span>
-      {impact && <span className="lw-opt-card__impact"> · {impact}</span>}
-    </span>
-  );
-}
+const STATUS_MARK: Record<DisplayStatus, string> = { strong: "✓", improve: "!", add: "!", partial: "–", unverifiable: "–" };
+// Spoken and tooltip names for the row's status circle.
+export const MARK_LABEL: Record<DisplayStatus, string> = { strong: "Strong", improve: "Needs improvement", add: "Missing section", partial: "Partly verified", unverifiable: "Can't verify" };
 
 export function SectionCards({ context }: { context: SectionContext }) {
   return (
@@ -184,18 +176,25 @@ export function SectionCards({ context }: { context: SectionContext }) {
         <section key={group.title} className="lw-opt-group" aria-label={group.title}>
           <h4 className="lw-opt-group__title">{group.title}</h4>
           <div className="lw-opt-cards">
-            {group.sections.map((section) => (
-              <button key={section} type="button" className="lw-opt-card" onClick={() => openOptimizerPage({ name: "section", section })}>
-                <SectionIcon section={section} />
-                <span className="lw-opt-card__text">
-                  <span className="lw-opt-card__title">{SECTION_GUIDANCE[section].title}</span>
-                  <RowStatus section={section} context={context} />
-                </span>
-                <span className="lw-opt-card__chevron" aria-hidden="true">
-                  ›
-                </span>
-              </button>
-            ))}
+            {group.sections.map((section) => {
+              const title = SECTION_GUIDANCE[section].title;
+              const { status, impact } = sectionDisplay(section, context);
+              const label = status ? [MARK_LABEL[status], impact].filter(Boolean).join(" · ") : "Checking";
+              return (
+                <button key={section} type="button" className="lw-opt-card" aria-label={`${title}. ${label}.`} title={label} onClick={() => openOptimizerPage({ name: "section", section })}>
+                  <SectionIcon section={section} />
+                  <span className="lw-opt-card__title">{title}</span>
+                  {status && (
+                    <span className={`lw-opt-status is-${status}`} aria-hidden="true">
+                      {STATUS_MARK[status]}
+                    </span>
+                  )}
+                  <span className="lw-opt-card__chevron" aria-hidden="true">
+                    ›
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
       ))}

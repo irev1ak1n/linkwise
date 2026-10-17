@@ -104,37 +104,50 @@ describe("section assessment", () => {
 });
 
 describe("overview rows", () => {
-  const rowOf = (html: string, title: string) => html.slice(html.indexOf(`>${title}<`), html.indexOf("</button>", html.indexOf(`>${title}<`)));
+  const rowOf = (html: string, title: string) => {
+    const start = html.lastIndexOf("<button", html.indexOf(`>${title}<`));
+    return html.slice(start, html.indexOf("</button>", start));
+  };
 
-  it("shows status on every row and impact only where there is something to do", () => {
-    const ctx = context({ overall: [overall("featured", "add", "high")] });
+  it("keep the compact design: icon, title, status circle, chevron, and nothing else", () => {
+    const html = renderToStaticMarkup(<SectionCards context={context({ overall: [overall("featured", "add", "high")] })} />);
+    const row = rowOf(html, "Featured");
+    expect(row).toMatch(/<svg class="lw-opt-card__icon"[\s\S]*<span class="lw-opt-card__title">Featured<\/span><span class="lw-opt-status is-add" aria-hidden="true">!<\/span><span class="lw-opt-card__chevron"/);
+    expect(html).not.toMatch(/High impact<\/span>|lw-opt-card__meta|lw-opt-badge/);
+  });
+
+  it("map each status to its circle", () => {
+    const ctx = context({ profile: { ...EMPTY_PROFILE, headline: "Passionate, motivated student", extracted: true }, overall: [overall("featured", "add", "high"), overall("headline", "strong", "low")] });
     const html = renderToStaticMarkup(<SectionCards context={ctx} />);
-    expect(html.match(/class="lw-opt-card__meta"/g)).toHaveLength(18);
-    expect(rowOf(html, "Featured")).toContain("Add</span><span class=\"lw-opt-card__impact\"> · High impact");
-    expect(rowOf(html, "Network")).toContain(">Strong<");
-    expect(rowOf(html, "Network")).not.toContain("impact");
-    expect(rowOf(html, "LinkedIn URL")).toContain(">Strong<");
+    expect(rowOf(html, "Network")).toContain('lw-opt-status is-strong" aria-hidden="true">✓<');
+    expect(rowOf(html, "Headline")).toContain('lw-opt-status is-improve" aria-hidden="true">!<');
+    expect(rowOf(html, "Featured")).toContain('lw-opt-status is-add" aria-hidden="true">!<');
+    expect(rowOf(html, "Profile Photo")).toContain('lw-opt-status is-partial" aria-hidden="true">–<');
+    expect(rowOf(html, "Open to Work")).toContain('lw-opt-status is-unverifiable" aria-hidden="true">–<');
+  });
+
+  it("say the status, and impact where there's something to do, without relying on color", () => {
+    const html = renderToStaticMarkup(<SectionCards context={context({ overall: [overall("featured", "add", "high")] })} />);
+    expect(rowOf(html, "Featured")).toContain('aria-label="Featured. Missing section · High impact." title="Missing section · High impact"');
+    expect(rowOf(html, "Network")).toContain('aria-label="Network. Strong."');
+    expect(rowOf(html, "Open to Work")).toContain('aria-label="Open to Work. Can&#x27;t verify."');
+    expect(rowOf(html, "Profile Photo")).toContain('aria-label="Profile Photo. Partly verified."');
   });
 
   it("never calls a section Strong when most of its checklist can't be verified", () => {
-    const html = renderToStaticMarkup(<SectionCards context={context()} />);
-    expect(rowOf(html, "Profile Photo")).toContain(">Partial<");
     expect(sectionDisplay("photo", context())).toEqual({ status: "partial", impact: null });
   });
 
   it("shows Open to Work as Can't verify, never Strong or Improve", () => {
     expect(sectionDisplay("openToWork", context())).toEqual({ status: "unverifiable", impact: null });
     expect(sectionDisplay("openToWork", context({ shell: shell(true, false, { openToWork: null }) })).status).toBe("unverifiable");
-    const html = renderToStaticMarkup(<SectionCards context={context()} />);
-    expect(rowOf(html, "Open to Work")).toContain("is-unverifiable\">Can&#x27;t verify<");
-    expect(renderToStaticMarkup(<SectionPage section="openToWork" context={context()} />)).toContain('lw-opt-badge is-unverifiable');
+    expect(renderToStaticMarkup(<SectionPage section="openToWork" context={context()} />)).toContain("lw-opt-badge is-unverifiable");
   });
 
-  it("keeps long titles on their own line, with the status beneath", () => {
+  it("are whole-row buttons, so long titles sit beside the circle in one row", () => {
     const html = renderToStaticMarkup(<SectionCards context={context()} />);
-    for (const title of ["Licenses &amp; Certifications", "Volunteer Experience", "Honors &amp; Awards"]) {
-      expect(html).toContain(`<span class="lw-opt-card__text"><span class="lw-opt-card__title">${title}</span><span class="lw-opt-card__meta">`);
-    }
+    expect(html.match(/<button type="button" class="lw-opt-card"/g)).toHaveLength(18);
+    for (const title of ["Licenses &amp; Certifications", "Volunteer Experience", "Honors &amp; Awards"]) expect(rowOf(html, title)).toContain(`<span class="lw-opt-card__title">${title}</span>`);
   });
 });
 
@@ -160,7 +173,7 @@ describe("overview and detail agree", () => {
     const detail = renderToStaticMarkup(<SectionPage section="headline" context={ctx} />);
     expect(detail).toContain("Needs Improvement");
     expect(detail).toContain("Medium impact");
-    expect(renderToStaticMarkup(<SectionCards context={ctx} />)).toMatch(/Headline<\/span><span class="lw-opt-card__meta"><span class="lw-opt-row-status is-improve">Improve<\/span><span class="lw-opt-card__impact"> · Medium impact/);
+    expect(renderToStaticMarkup(<SectionCards context={ctx} />)).toContain('aria-label="Headline. Needs improvement · Medium impact."');
   });
 
   it("keeps the review's state while the detail checks are still pending", () => {
