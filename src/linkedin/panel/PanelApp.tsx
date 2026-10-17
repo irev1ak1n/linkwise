@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useCollectionData } from "./useCollectionData";
 import { useGoalStore } from "./useGoalStore";
 import { useAiAnalysis } from "./useAiAnalysis";
@@ -29,16 +29,13 @@ import { AnalysisView } from "./AnalysisView";
 import { getAnalyzerPage, subscribeAnalyzerPage, syncAnalyzerProfile } from "./analyzerNav";
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
 import { OptimizerView } from "../../optimizer/OptimizerView";
-import { panelToolPreference, type PanelTool } from "../../optimizer/optimizerPreferences";
+import { panelToolPreference } from "../../optimizer/optimizerPreferences";
+import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
+import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
+import { BackLink, MainMenu, ToolHead } from "./MainMenu";
 
-const TOOLS: { tool: PanelTool; label: string }[] = [
-  { tool: "analyzer", label: "Profile Analyzer" },
-  { tool: "optimizer", label: "Profile Optimizer" },
-  { tool: "highlights", label: "Smart Highlights" },
-  { tool: "jobs", label: "Job Filters" },
-  { tool: "saved", label: "Saved Profiles" },
-];
+const openMenu = () => panelToolPreference.set("menu");
 
 interface PanelAppProps {
   onClose: () => void;
@@ -64,9 +61,8 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
   const { value: tool } = useStoredPreference(panelToolPreference);
-  // Back from Job Filters returns to whichever profile tool was open.
-  const profileTool = useRef<PanelTool>(tool === "jobs" || tool === "saved" ? "analyzer" : tool);
-  if (tool !== "jobs" && tool !== "saved") profileTool.current = tool;
+  const optimizerPage = useSyncExternalStore(subscribeOptimizerPage, getOptimizerPage, getOptimizerPage);
+  const savedPage = useSyncExternalStore(subscribeSavedPage, getSavedPage, getSavedPage);
   const [forcedKeys, setForcedKeys] = useState<Set<string>>(new Set());
   const analyzerPage = useSyncExternalStore(subscribeAnalyzerPage, getAnalyzerPage, getAnalyzerPage);
   useEffect(() => syncAnalyzerProfile(profileKey), [profileKey]);
@@ -112,35 +108,66 @@ export function PanelApp({ onClose }: PanelAppProps) {
     setForcedKeys((prev) => new Set(prev).add(profileKey));
   }
 
+  // Profile Highlights work on any profile, whether or not an analysis is on screen yet.
+  const highlights =
+    profileKey === null ? null : (
+      <SignalModeSection
+        enabled={signalMode.enabled}
+        analysis={signalMode.analysis}
+        highlighted={signalMode.highlighted}
+        onChange={signalMode.setSignalModeEnabled}
+        keywords={highlightKeywords}
+        onKeywordsChange={highlightKeywordsPreference.set}
+        color={highlightColor}
+        onColorChange={highlightColorPreference.set}
+        keywordColor={keywordColor}
+        onKeywordColorChange={keywordColorPreference.set}
+        updatingSection={updatingSection}
+      />
+    );
+
   function renderProfileSection() {
     if (profileKey === null) {
       return <p className="lw-empty">Open a LinkedIn profile to analyze it.</p>;
     }
     if (!profile || !collection) {
-      return <p className="lw-empty">Loading profile…</p>;
+      return (
+        <>
+          <p className="lw-empty">Loading profile…</p>
+          {highlights}
+        </>
+      );
     }
     if (!goal) {
-      return <p className="lw-empty">No active goal set yet — describe who you're looking for above.</p>;
+      return (
+        <>
+          <p className="lw-empty">No active goal set yet — describe who you're looking for above.</p>
+          {highlights}
+        </>
+      );
     }
-    if (!result || !scanState) return null;
+    if (!result || !scanState) return highlights;
     // The scan screen covers collection and the analysis request, then hands over to the results.
     if (!isFinal || aiState.status === "idle" || aiState.status === "loading" || handoff.showingComplete) {
       const final = aiState.status === "ready" ? matchDisplayState(aiState.outcome.result) : null;
       return (
-        <ScannerView
-          key={profileKey}
-          profileName={isProfileSectionHeading(profile.name) ? undefined : profile.name}
-          goalName={goal.name}
-          scanMode={scanMode}
-          state={scanFailed ? { ...scanState, status: "error", message: "Could not finish scanning" } : scanState}
-          resultLabel={final ? `${"scorePercent" in final ? `${final.scorePercent}% · ` : ""}${matchDisplayLabel(final)}` : undefined}
-          onAnalyzeNow={handleAnalyzeNow}
-          onRetry={() => location.reload()}
-        />
+        <>
+          <ScannerView
+            key={profileKey}
+            profileName={isProfileSectionHeading(profile.name) ? undefined : profile.name}
+            goalName={goal.name}
+            scanMode={scanMode}
+            state={scanFailed ? { ...scanState, status: "error", message: "Could not finish scanning" } : scanState}
+            resultLabel={final ? `${"scorePercent" in final ? `${final.scorePercent}% · ` : ""}${matchDisplayLabel(final)}` : undefined}
+            onAnalyzeNow={handleAnalyzeNow}
+            onRetry={() => location.reload()}
+          />
+          {highlights}
+        </>
       );
     }
 
-    return <AnalysisView profileKey={profileKey} result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} />;
+    return <AnalysisView profileKey={profileKey} result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} highlights={highlights} />;
   }
 
   return (
@@ -152,56 +179,27 @@ export function PanelApp({ onClose }: PanelAppProps) {
         </button>
       </header>
       <div className="lw-panel__body">
-        <div className="lw-tools" role="tablist" aria-label="LinkWise tool">
-          {TOOLS.map((option) => (
-            <button
-              key={option.tool}
-              type="button"
-              role="tab"
-              aria-selected={tool === option.tool}
-              className={`lw-tools__tab${tool === option.tool ? " is-active" : ""}`}
-              onClick={() => panelToolPreference.set(option.tool)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        {tool === "saved" ? (
-          <SavedProfilesView />
+        {tool === "menu" ? (
+          <MainMenu onOpen={panelToolPreference.set} />
+        ) : tool === "saved" ? (
+          <>
+            {savedPage.page === "list" && <BackLink label="Back to Menu" onClick={openMenu} />}
+            <SavedProfilesView />
+          </>
         ) : tool === "jobs" ? (
-          <JobFiltersPage settings={jobsSettings} onChange={setJobsSettings} onBack={() => panelToolPreference.set(profileTool.current)} />
+          <JobFiltersPage settings={jobsSettings} onChange={setJobsSettings} onBack={openMenu} />
         ) : tool === "optimizer" ? (
-          <OptimizerView profileKey={profileKey} profile={profile} isFinal={isFinal} onAnalyzeNow={handleAnalyzeNow} />
-        ) : tool === "highlights" ? (
-          <section className="lw-jobs-page">
-            <div>
-              <h3 className="lw-opt-page__title">Smart Highlights</h3>
-              <p className="lw-scan-mode__hint">Highlight the most useful details while you read a profile.</p>
-            </div>
-            {profileKey === null ? (
-              <p className="lw-empty">Open a LinkedIn profile to use Smart Highlights.</p>
-            ) : (
-              <SignalModeSection
-                enabled={signalMode.enabled}
-                analysis={signalMode.analysis}
-                highlighted={signalMode.highlighted}
-                onChange={signalMode.setSignalModeEnabled}
-                keywords={highlightKeywords}
-                onKeywordsChange={highlightKeywordsPreference.set}
-                color={highlightColor}
-                onColorChange={highlightColorPreference.set}
-                keywordColor={keywordColor}
-                onKeywordColorChange={keywordColorPreference.set}
-                updatingSection={updatingSection}
-              />
-            )}
-          </section>
+          <>
+            {optimizerPage.name === "home" && <ToolHead title="Profile Optimizer" />}
+            <OptimizerView profileKey={profileKey} profile={profile} isFinal={isFinal} onAnalyzeNow={handleAnalyzeNow} />
+          </>
         ) : !goalsLoaded ? (
           <p className="lw-empty">Loading your goals…</p>
         ) : analysisReady && analyzerPage !== "home" ? (
           renderProfileSection()
         ) : (
           <>
+            <ToolHead title="Profile Analyzer" />
             <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
             {profileKey !== null && (
               <details className="lw-an-scan" open={!isFinal}>

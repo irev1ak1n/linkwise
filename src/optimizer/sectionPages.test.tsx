@@ -57,7 +57,7 @@ describe("every overview item has a detail page", () => {
   it("gives each one a title, status, checklist, guidance, navigation, and actions", () => {
     DETAIL_SECTIONS.forEach((section, index) => {
       const html = renderToStaticMarkup(<SectionPage section={section} context={context()} />);
-      expect(html).toContain("← Back to All");
+      expect(html).toContain("← Back to Profile Optimizer");
       expect(html).toContain(`${index + 1} / 18`);
       expect(html).toContain(`<h3 class="lw-od-title">${SECTION_GUIDANCE[section].title.replace("&", "&amp;")}</h3>`);
       expect(html).toContain('aria-label="Checklist"');

@@ -13,7 +13,7 @@ const pickers = (html: string) => [...html.matchAll(/role="radiogroup" aria-labe
 describe("JobFiltersPage", () => {
   it("renders every job setting with Back, as segmented controls", () => {
     const html = render();
-    expect(html).toContain("← Back");
+    expect(html).toContain("← Back to Menu");
     expect(html).toContain("Job Filters");
     expect(html).toContain("Customize how LinkedIn job listings are hidden or highlighted.");
     for (const label of ["Applied jobs", "Viewed jobs", "Saved jobs", "Action"]) {

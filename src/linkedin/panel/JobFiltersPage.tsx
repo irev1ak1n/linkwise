@@ -80,7 +80,7 @@ export function JobFiltersPage({ settings, onChange, onBack }: JobFiltersPagePro
   return (
     <div className="lw-jobs-page">
       <button type="button" className="lw-opt-back" onClick={onBack}>
-        ← Back
+        ← Back to Menu
       </button>
       <div>
         <h3 className="lw-opt-page__title">Job Filters</h3>

@@ -1008,29 +1008,30 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a949c;
   }
 
-  .lw-tools {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
+  .lw-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
-  .lw-tools__tab {
-    font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 7px 8px;
-    border: 1px solid #d0d7dd;
-    border-radius: 8px;
-    background: #fff;
-    color: #38434f;
-    cursor: pointer;
+  .lw-menu .lw-menu__item {
+    padding: 12px 14px;
+    box-shadow: none;
   }
-  .lw-tools__tab:hover {
-    border-color: #a9c4e0;
+  .lw-menu .lw-menu__item:hover {
+    background: #f7f9fb;
+    border-color: #c9d6e2;
+    box-shadow: none;
   }
-  .lw-tools__tab.is-active {
-    background: #0a66c2;
-    border-color: #0a66c2;
-    color: #fff;
+  .lw-tool-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lw-tool-head__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a1a1a;
   }
 
   .lw-an-goal {

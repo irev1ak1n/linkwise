@@ -7,7 +7,7 @@ import { DEFAULT_JOBS_SETTINGS } from "../../models/jobsSettings";
 import { PanelApp } from "./PanelApp";
 import { setPanelProfileData } from "./panelStore";
 import { getJobsSettingsState, setJobsSettings, subscribeJobsSettingsStore } from "./jobsSettingsStore";
-import { panelToolPreference } from "../../optimizer/optimizerPreferences";
+import { decodePanelTool, panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { resetJobsRuntime, runJobsTick } from "../jobs/jobsRuntime";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -59,7 +59,7 @@ const radio = (group: string, text: string) =>
 installChrome();
 
 beforeEach(() => {
-  panelToolPreference.set("analyzer");
+  panelToolPreference.set("menu");
   setJobsSettings(DEFAULT_JOBS_SETTINGS);
   for (const key of Object.keys(stored)) delete stored[key];
   set.mockClear();
@@ -71,41 +71,71 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("Job Filters navigation", () => {
+const menuItems = () => [...container.querySelectorAll(".lw-menu .lw-menu__item .lw-opt-card__title")].map((el) => el.textContent);
+const openFromMenu = async (label: string) => act(async () => [...container.querySelectorAll<HTMLButtonElement>(".lw-menu__item")].find((b) => b.textContent?.includes(label))!.click());
+const back = async (label: string) => act(async () => button(`← ${label}`).click());
+
+describe("LinkWise menu", () => {
+  it("lists exactly the four tools, one per row, with no Smart Highlights or tab bar", async () => {
+    await mountPanel();
+    expect(menuItems()).toEqual(["Profile Analyzer", "Profile Optimizer", "Job Filters", "Saved Profiles"]);
+    expect(container.querySelector(".lw-menu")!.children).toHaveLength(4);
+    expect(container.textContent).not.toContain("Smart Highlights");
+    expect(container.querySelector('[role="tablist"]')).toBeNull();
+  });
+
+  it("shows the tool list only on the menu, and every tool leads back to it", async () => {
+    await mountPanel();
+    for (const label of ["Profile Analyzer", "Profile Optimizer", "Job Filters", "Saved Profiles"]) {
+      await openFromMenu(label);
+      expect(container.querySelector(".lw-menu")).toBeNull();
+      await back("Back to Menu");
+      expect(menuItems()).toHaveLength(4);
+    }
+  });
+
+  it("keeps a tool's state when leaving for the menu and coming back", async () => {
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    const before = container.querySelector(".lw-panel__body")!.textContent;
+    await back("Back to Menu");
+    await openFromMenu("Profile Analyzer");
+    expect(container.querySelector(".lw-panel__body")!.textContent).toBe(before);
+  });
+
+  it("remembers the open tool across panel reopenings", async () => {
+    await mountPanel();
+    await openFromMenu("Job Filters");
+    expect(stored["finder.panelTool.v1"]).toBe("jobs");
+  });
+
+  it("opens an old Smart Highlights choice in Profile Analyzer", () => {
+    expect(decodePanelTool("highlights")).toBe("analyzer");
+    expect(decodePanelTool("menu")).toBe("menu");
+    expect(decodePanelTool("nonsense")).toBeUndefined();
+  });
+});
+
+describe("Job Filters page", () => {
   it("keeps job controls off the profile page and opens them as their own page", async () => {
     await mountPanel();
+    await openFromMenu("Profile Analyzer");
     expect(container.textContent).not.toContain("Applied jobs");
-    expect(container.textContent).not.toContain("Keyword filters");
-    await act(async () => button("Job Filters").click());
+    await back("Back to Menu");
+    await openFromMenu("Job Filters");
     expect(container.textContent).toContain("Customize how LinkedIn job listings are hidden or highlighted.");
     expect(container.textContent).toContain("Applied jobs");
     expect(container.textContent).toContain("Case-insensitive matching");
   });
 
-  it("returns to the profile tool with its state, via Back", async () => {
-    await mountPanel();
-    const before = container.querySelector(".lw-panel__body")!.textContent;
-    await act(async () => button("Job Filters").click());
-    await act(async () => button("← Back").click());
-    expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("Profile Analyzer");
-    expect(container.querySelector(".lw-panel__body")!.textContent).toBe(before);
-  });
-
   it("updates and saves the shared jobs settings, with a color choice only for Highlight", async () => {
     await mountPanel();
-    await act(async () => button("Job Filters").click());
+    await openFromMenu("Job Filters");
     expect(container.querySelector('[aria-label="Viewed jobs color"]')).toBeNull();
     await act(async () => radio("Viewed jobs", "Highlight").click());
     expect(getJobsSettingsState().settings.viewedAction).toBe("highlight");
     expect(container.querySelector('[aria-label="Viewed jobs color"]')).not.toBeNull();
     expect(set).toHaveBeenCalledWith({ "finder.jobsSettings.v1": expect.objectContaining({ viewedAction: "highlight" }) });
-    expect(container.textContent).toContain("Highlight viewed jobs");
-  });
-
-  it("remembers the open tool across panel reopenings", async () => {
-    await mountPanel();
-    await act(async () => button("Job Filters").click());
-    expect(stored["finder.panelTool.v1"]).toBe("jobs");
   });
 });
 
@@ -123,20 +153,23 @@ describe("job cards and the settings store", () => {
   });
 });
 
-describe("Smart Highlights separation", () => {
-  it("keeps highlight controls out of Profile Analyzer and on their own page", async () => {
+describe("Profile Highlights inside Profile Analyzer", () => {
+  it("is part of the Analyzer, with compact rows for facts and keywords", async () => {
     await mountPanel();
-    expect(container.textContent).not.toContain("Signal Mode");
-    expect(container.textContent).not.toContain("Highlight keywords");
-    await act(async () => button("Smart Highlights").click());
-    expect(container.textContent).toContain("Signal Mode");
-    expect(container.querySelector(".lw-signals")).not.toBeNull();
+    await openFromMenu("Profile Analyzer");
+    const section = container.querySelector('[aria-label="Profile highlights"]')!;
+    expect(section).not.toBeNull();
+    expect(section.textContent).toContain("Signal Mode");
+    expect(section.textContent).toContain("Highlight useful evidence directly on the profile.");
+    const keywords = [...section.querySelectorAll("details")].find((d) => d.textContent?.includes("Highlight keywords"))!;
+    expect(keywords.open).toBe(false);
+    expect(keywords.querySelector("textarea")).not.toBeNull();
   });
 
-  it("still turns Signal Mode on from its own page", async () => {
+  it("still turns Signal Mode on from the Analyzer", async () => {
     const { getSignalModeState } = await import("./signalModeStore");
     await mountPanel();
-    await act(async () => button("Smart Highlights").click());
+    await openFromMenu("Profile Analyzer");
     const toggle = container.querySelector<HTMLInputElement>(".lw-signals__toggle input")!;
     const before = getSignalModeState().enabled;
     await act(async () => toggle.click());

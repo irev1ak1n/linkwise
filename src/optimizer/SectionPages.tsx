@@ -253,7 +253,7 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
     <article className="lw-od">
       <div className="lw-od-top">
         <button type="button" className="lw-opt-back" onClick={() => openOptimizerPage({ name: "home" })}>
-          ← Back to All
+          ← Back to Profile Optimizer
         </button>
         <span className="lw-od-count">
           {position} / {DETAIL_SECTIONS.length}

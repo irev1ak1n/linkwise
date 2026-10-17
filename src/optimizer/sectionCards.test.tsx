@@ -38,14 +38,14 @@ afterEach(() => {
 });
 
 describe("overview rows", () => {
-  it("open their own detail page, and Back to All returns to the list", () => {
+  it("open their own detail page, and Back to Profile Optimizer returns to the list", () => {
     act(() => root.render(<Overview />));
     DETAIL_SECTIONS.forEach((section, index) => {
       const row = container.querySelectorAll<HTMLButtonElement>(".lw-opt-card")[index]!;
       act(() => row.click());
       expect(getOptimizerPage()).toEqual({ name: "section", section });
       expect(container.querySelector(".lw-od-title")?.textContent).toBe(SECTION_GUIDANCE[section].title);
-      act(() => Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes("Back to All"))!.click());
+      act(() => Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes("Back to Profile Optimizer"))!.click());
       expect(container.querySelectorAll(".lw-opt-card")).toHaveLength(18);
     });
   });

@@ -173,7 +173,7 @@ function SavedDetail({ profileKey }: { profileKey: string }) {
   const saved = list.find((profile) => profile.profileKey === profileKey);
   const back = (
     <button type="button" className="lw-opt-back" onClick={() => openSavedPage({ page: "list" })}>
-      ← Saved profiles
+      ← Back to Saved Profiles
     </button>
   );
   if (!saved) return <div className="lw-opt-page">{back}<p className="lw-empty">{loaded ? "This profile is no longer saved." : "Loading…"}</p></div>;
