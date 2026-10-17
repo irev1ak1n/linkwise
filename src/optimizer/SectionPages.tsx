@@ -5,11 +5,11 @@ import { buildEvidencePayload } from "../ai/evidencePayload";
 import type { OptimizeProfileRequestBody } from "./optimizerClient";
 import { SECTION_GUIDANCE, DETAIL_SECTIONS } from "./sectionGuidance";
 import { neighborSections, openOptimizerPage } from "./optimizerNav";
-import { buildSectionRequest, useSectionAnalysis } from "./sectionAnalysis";
-import { buildChecklistRequest, cachedChecklist, useChecklistAssessment } from "./checklistAssessment";
+import { buildSectionRequest, cachedSectionAnalysis } from "./sectionAnalysis";
+import { buildChecklistRequest, cachedChecklist, partialList, useChecklistAssessment } from "./checklistAssessment";
 import {
-  CHECKLISTS,
   NO_SECTION_TEXT,
+  SETTING_SECTIONS,
   evaluateChecklist,
   semanticCriteria,
   summarizeChecklist,
@@ -19,17 +19,16 @@ import {
   type EvaluatedCriterion,
   type SemanticState,
 } from "./checklist";
-import { goToTopCardPart, openLinkedInEditor } from "./topCardActions";
-import { buildSectionMap, sectionInfo, type OptimizerSection, type SectionPresence } from "./sections";
+import { sectionActions } from "./sectionActions";
+import { SECTION_GROUPS, buildSectionMap, sectionInfo, type OptimizerSection, type SectionPresence } from "./sections";
 import type { SectionAssessmentDTO } from "./optimizerTypes";
 
 export const STATUS_LABEL: Record<ChecklistState, string> = { strong: "Looking Good", improve: "Needs Improvement", missing: "Missing" };
 const STATUS_MARK: Record<ChecklistState, string> = { strong: "✓", improve: "!", missing: "!" };
 const IMPACT_LABEL = { high: "High impact", medium: "Medium impact", low: "Low impact" } as const;
-const TOP_CARD: Partial<Record<OptimizerSection, "photo" | "banner" | "headline">> = { photo: "photo", banner: "banner", headline: "headline" };
-const PART_NAME: Record<"photo" | "banner" | "headline", string> = { photo: "profile photo", banner: "banner", headline: "headline" };
 
 export interface SectionContext {
+  profileKey?: string | null;
   shell: ProfileShell;
   profile: LinkedInProfile;
   // Null until the profile has been fully read, which AI analysis needs.
@@ -40,14 +39,16 @@ export interface SectionContext {
 function presenceOf(section: OptimizerSection, context: SectionContext): { presence: SectionPresence; checklist: ChecklistContext } {
   const evidence = context.body?.profile.evidence ?? buildEvidencePayload(context.profile);
   const sections = context.body?.sections ?? buildSectionMap(context.profile, context.shell, evidence);
-  const presence = sections.find((p) => p.section === section)!;
-  return { presence, checklist: { profile: context.profile, presence, evidence } };
+  const presence = sections.find((p) => p.section === section) ?? { section, present: SETTING_SECTIONS.includes(section), itemCount: null, evidenceIds: [] };
+  return { presence, checklist: { profile: context.profile, presence, evidence, shell: context.shell, profileKey: context.profileKey ?? null } };
 }
 
 // What the section's semantic criteria can rely on: their AI verdicts, or why there are none.
 function semanticStateFor(section: OptimizerSection, context: SectionContext, live?: SemanticState): SemanticState {
   if (semanticCriteria(section).length === 0) return { status: "ready", results: [] };
   if (!context.body) return { status: "idle" };
+  const partial = partialList(section, context.body);
+  if (partial) return { status: "unavailable", reason: `LinkWise read only ${partial.read} of your ${partial.total} entries here, so it can't judge the full list.` };
   const request = buildChecklistRequest(section, context.body);
   if (!request) return { status: "unavailable", reason: NO_SECTION_TEXT };
   if (live) return live;
@@ -55,34 +56,95 @@ function semanticStateFor(section: OptimizerSection, context: SectionContext, li
   return cached ? { status: "ready", results: cached } : { status: "idle" };
 }
 
-// A section's status from its own checklist. Before the AI half is known, the overall review fills in.
-export function sectionStatus(section: OptimizerSection, context: SectionContext): ChecklistState | null {
+export function sectionChecklist(section: OptimizerSection, context: SectionContext, live?: SemanticState): { presence: SectionPresence; criteria: EvaluatedCriterion[]; summary: ChecklistSummary } {
   const { presence, checklist } = presenceOf(section, context);
-  const summary = summarizeChecklist(presence.present, evaluateChecklist(section, checklist, semanticStateFor(section, context)));
+  const criteria = presence.present ? evaluateChecklist(section, checklist, semanticStateFor(section, context, live)) : [];
+  return { presence, criteria, summary: summarizeChecklist(presence.present, criteria) };
+}
+
+// A section's status, from its own checklist. Before the AI half is known, the overall review fills in.
+export function sectionStatus(section: OptimizerSection, context: SectionContext): ChecklistState | null {
+  const { summary } = sectionChecklist(section, context);
   if (summary.state) return summary.state;
   const overall = context.overall.find((a) => a.section === section);
   return overall ? (overall.state === "add" ? "missing" : overall.state) : null;
 }
 
-function SectionIcon({ section }: { section: OptimizerSection }) {
-  const paths: Partial<Record<OptimizerSection, ReactNode>> = {
-    photo: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <circle cx="12" cy="10" r="3" />
-        <path d="M6.5 18c1.4-2.2 3.3-3.2 5.5-3.2s4.1 1 5.5 3.2" />
-      </>
-    ),
-    banner: (
-      <>
-        <rect x="3" y="5" width="18" height="14" rx="2" />
-        <path d="M3 15l5-4 4 3 3-2 6 4" />
-      </>
-    ),
-  };
+// The overall review, with each section's state taken from its checklist so the overview and the
+// detail page never disagree. The review keeps its impact and its reasoning.
+export function reconcileAssessments(context: SectionContext): SectionAssessmentDTO[] {
+  return context.overall.map((assessment) => {
+    const state = sectionChecklist(assessment.section, context).summary.state;
+    if (!state) return assessment;
+    const next = state === "missing" ? "add" : state;
+    if (next === assessment.state) return assessment;
+    return { ...assessment, state: next, impact: next === "strong" ? "low" : assessment.state === "strong" ? "medium" : assessment.impact, suggestions: next === "strong" ? [] : assessment.suggestions };
+  });
+}
+
+const ICONS: Partial<Record<OptimizerSection, ReactNode>> = {
+  photo: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M6.5 18c1.4-2.2 3.3-3.2 5.5-3.2s4.1 1 5.5 3.2" />
+    </>
+  ),
+  banner: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 15l5-4 4 3 3-2 6 4" />
+    </>
+  ),
+  experience: (
+    <>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M3 12h18" />
+    </>
+  ),
+  education: <path d="M2 9l10-5 10 5-10 5zM6 11v5c1.7 1.3 3.7 2 6 2s4.3-.7 6-2v-5" />,
+  projects: <path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" />,
+  skills: <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l3 3M15 15l3 3M18 6l-3 3M9 15l-3 3" />,
+  certifications: (
+    <>
+      <circle cx="12" cy="9" r="5" />
+      <path d="M9 13.5L7.5 21l4.5-2.5 4.5 2.5-1.5-7.5" />
+    </>
+  ),
+  languages: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9M12 3c-2.5 2.5-3.5 5.5-3.5 9s1 6.5 3.5 9" />
+    </>
+  ),
+  honors: <path d="M7 4h10v4a5 5 0 0 1-10 0zM12 13v4M8 21h8M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4" />,
+  volunteering: <path d="M12 20s-8-5-8-10.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15 12 20 12 20z" />,
+  location: (
+    <>
+      <path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </>
+  ),
+  url: <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />,
+  openToWork: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.5l2.5 2.5L16 9.5" />
+    </>
+  ),
+  network: (
+    <>
+      <circle cx="9" cy="9" r="3" />
+      <circle cx="17" cy="10" r="2.5" />
+      <path d="M3.5 19c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5M15 15c2.5 0 4.5 1.3 5.3 4" />
+    </>
+  ),
+};
+
+function SectionIcon({ section, className = "lw-opt-card__icon" }: { section: OptimizerSection; className?: string }) {
   return (
-    <svg className="lw-opt-card__icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-      {paths[section] ?? (
+    <svg className={className} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICONS[section] ?? (
         <>
           <rect x="3" y="4" width="18" height="16" rx="2" />
           <path d="M7 9h10M7 13h7" />
@@ -103,17 +165,23 @@ function StatusMark({ status }: { status: ChecklistState | null }) {
 
 export function SectionCards({ context }: { context: SectionContext }) {
   return (
-    <nav className="lw-opt-cards" aria-label="Profile Optimizer sections">
-      {DETAIL_SECTIONS.map((section) => (
-        <button key={section} type="button" className="lw-opt-card" onClick={() => openOptimizerPage({ name: "section", section })}>
-          <SectionIcon section={section} />
-          <span className="lw-opt-card__title">{SECTION_GUIDANCE[section].title}</span>
-          <StatusMark status={sectionStatus(section, context)} />
-          {semanticCriteria(section).length > 0 && <span className="lw-opt-ai">✨ AI</span>}
-          <span className="lw-opt-card__chevron" aria-hidden="true">
-            ›
-          </span>
-        </button>
+    <nav className="lw-opt-groups" aria-label="Profile Optimizer sections">
+      {SECTION_GROUPS.map((group) => (
+        <section key={group.title} className="lw-opt-group" aria-label={group.title}>
+          <h4 className="lw-opt-group__title">{group.title}</h4>
+          <div className="lw-opt-cards">
+            {group.sections.map((section) => (
+              <button key={section} type="button" className="lw-opt-card" onClick={() => openOptimizerPage({ name: "section", section })}>
+                <SectionIcon section={section} />
+                <span className="lw-opt-card__title">{SECTION_GUIDANCE[section].title}</span>
+                <StatusMark status={sectionStatus(section, context)} />
+                <span className="lw-opt-card__chevron" aria-hidden="true">
+                  ›
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
       ))}
     </nav>
   );
@@ -130,18 +198,15 @@ const CRITERION_STATE: Record<EvaluatedCriterion["status"], string> = {
 
 export function ChecklistRows({ criteria }: { criteria: EvaluatedCriterion[] }) {
   return (
-    <ul className="lw-opt-checklist">
+    <ul className="lw-od-checks">
       {criteria.map((criterion) => (
-        <li key={criterion.id} className={`lw-opt-check is-${criterion.status}`} aria-label={`${criterion.label}: ${CRITERION_STATE[criterion.status]}`}>
-          <span className="lw-opt-check__mark" aria-hidden="true">
+        <li key={criterion.id} className={`lw-od-check is-${criterion.status}`} aria-label={`${criterion.label}: ${CRITERION_STATE[criterion.status]}`}>
+          <span className="lw-od-check__mark" aria-hidden="true">
             {CRITERION_MARK[criterion.status]}
           </span>
-          <span className="lw-opt-check__text">
-            <span className="lw-opt-check__label">
-              {criterion.label}
-              {criterion.verification === "semantic" && criterion.status !== "unverifiable" && <span className="lw-opt-check__tag">AI</span>}
-            </span>
-            <span className="lw-opt-check__detail">{criterion.explanation}</span>
+          <span className="lw-od-check__text">
+            <span className="lw-od-check__label">{criterion.label}</span>
+            <span className="lw-od-check__detail">{criterion.explanation}</span>
           </span>
         </li>
       ))}
@@ -151,124 +216,103 @@ export function ChecklistRows({ criteria }: { criteria: EvaluatedCriterion[] }) 
 
 export function summaryText(summary: ChecklistSummary): string {
   if (summary.verifiable === 0) return summary.checking ? "Checking…" : "Nothing LinkWise can verify automatically";
-  return `${summary.passed} of ${summary.verifiable} verifiable criteria met${summary.checking ? " so far" : ""}`;
+  return `${summary.passed} of ${summary.verifiable} verifiable checks passed${summary.checking ? " so far" : ""}`;
 }
 
 export function SectionPage({ section, context }: { section: OptimizerSection; context: SectionContext }) {
   const guidance = SECTION_GUIDANCE[section];
   const { prev, next } = neighborSections(section);
-  const { presence, checklist } = useMemo(() => presenceOf(section, context), [section, context]);
+  const position = DETAIL_SECTIONS.indexOf(section) + 1;
+  const { presence } = useMemo(() => presenceOf(section, context), [section, context]);
   const request = presence.present && context.body ? buildChecklistRequest(section, context.body) : null;
   const { state: live, retry } = useChecklistAssessment(request);
-  const semanticState = semanticStateFor(section, context, request ? live : undefined);
-  const criteria = evaluateChecklist(section, checklist, semanticState);
-  const summary = summarizeChecklist(presence.present, criteria);
-  const part = TOP_CARD[section];
+  const { criteria, summary } = sectionChecklist(section, context, request ? live : undefined);
+  const overall = context.overall.find((a) => a.section === section);
+  const missingImpact = overall?.state === "add" ? IMPACT_LABEL[overall.impact] : sectionInfo(section)?.core ? IMPACT_LABEL.high : "Optional";
+  const rows: EvaluatedCriterion[] = presence.present
+    ? criteria
+    : [{ id: `${section}-missing`, label: `${guidance.title} is not on your profile`, verification: "deterministic", status: "improve", explanation: guidance.missing, evidenceIds: [] }];
+  const actions = sectionActions(section, { profileKey: context.profileKey ?? null, present: presence.present, shell: context.shell });
 
   return (
-    <article className="lw-opt-page">
-      <button type="button" className="lw-opt-back" onClick={() => openOptimizerPage({ name: "home" })}>
-        ← Back to Profile Optimizer
-      </button>
-      <div className="lw-opt-pager">
+    <article className="lw-od">
+      <div className="lw-od-top">
+        <button type="button" className="lw-opt-back" onClick={() => openOptimizerPage({ name: "home" })}>
+          ← Back to All
+        </button>
+        <span className="lw-od-count">
+          {position} / {DETAIL_SECTIONS.length}
+        </span>
+      </div>
+      <div className="lw-od-pager">
         <button type="button" disabled={!prev} onClick={() => prev && openOptimizerPage({ name: "section", section: prev })}>
           ‹ Prev
         </button>
-        <span>{guidance.title}</span>
+        <span className="lw-od-pager__title">
+          <SectionIcon section={section} className="lw-od-pager__icon" />
+          {guidance.title}
+        </span>
         <button type="button" disabled={!next} onClick={() => next && openOptimizerPage({ name: "section", section: next })}>
           Next ›
         </button>
       </div>
 
-      <h3 className="lw-opt-page__title">{guidance.title}</h3>
-      <p className="lw-opt-page__description">{guidance.description}</p>
+      <header className="lw-od-head">
+        <h3 className="lw-od-title">{guidance.title}</h3>
+        <div className="lw-od-status">
+          {summary.state && <span className={`lw-opt-badge is-${summary.state}`}>{STATUS_LABEL[summary.state]}</span>}
+          <span className="lw-od-status__text">{presence.present ? summaryText(summary) : missingImpact}</span>
+        </div>
+        <p className="lw-od-description">{guidance.description}</p>
+        {section === "headline" && context.profile.headline && <blockquote className="lw-opt-quote">{context.profile.headline}</blockquote>}
+      </header>
 
-      {presence.present ? (
-        <>
-          <section className="lw-opt-block" aria-label="Profile assessment">
-            <div className="lw-opt-summary">
-              {summary.state && <span className={`lw-opt-badge is-${summary.state}`}>{STATUS_LABEL[summary.state]}</span>}
-              <span className="lw-opt-summary__count">{summaryText(summary)}</span>
-            </div>
-            {section === "headline" && context.profile.headline && <blockquote className="lw-opt-quote">{context.profile.headline}</blockquote>}
-            {!context.body && semanticCriteria(section).length > 0 && <p className="lw-scan-mode__hint">Reading your profile before the AI checks run…</p>}
-            <ChecklistRows criteria={criteria} />
-            {live.status === "unavailable" && request && (
-              <button type="button" className="lw-button lw-button--secondary" onClick={retry}>
-                Try the AI checks again
-              </button>
-            )}
-          </section>
-          {section === "banner" && <BannerIdeas context={context} />}
-        </>
-      ) : (
-        <MissingSection section={section} context={context} />
-      )}
+      <section className="lw-od-section" aria-label="Checklist">
+        <h4 className="lw-od-heading">Checklist</h4>
+        {presence.present && !context.body && semanticCriteria(section).length > 0 && <p className="lw-scan-mode__hint">Reading your profile before the AI checks run…</p>}
+        <ChecklistRows criteria={rows} />
+        {live.status === "unavailable" && request && (
+          <button type="button" className="lw-scan__link" onClick={retry}>
+            Try the AI checks again
+          </button>
+        )}
+      </section>
 
-      {presence.present && (
-        <section className="lw-opt-block">
-          <h4>Best practices</h4>
-          <ul className="lw-opt-tips">
-            {guidance.bestPractices.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <section className="lw-od-section" aria-label="How to improve">
+        <h4 className="lw-od-heading">How to improve</h4>
+        <ul className="lw-od-tips">
+          {guidance.howToImprove.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </section>
+
+      {section === "banner" && presence.present && <BannerIdeas context={context} />}
 
       {section === "headline" && (
-        <section className="lw-opt-block">
-          <h4>AI headline writer</h4>
-          <p className="lw-scan-mode__hint">Get headline options built only from your profile and what you tell LinkWise.</p>
+        <section className="lw-od-section">
+          <h4 className="lw-od-heading">AI headline writer</h4>
+          <p className="lw-od-description">Get headline options built only from your profile and what you tell LinkWise.</p>
           <button type="button" className="lw-button lw-button--secondary" onClick={() => openOptimizerPage({ name: "generate", section: "headline" })}>
             ✨ Generate using AI
           </button>
         </section>
       )}
 
-      {part && <TopCardActions part={part} />}
+      <ActionBar actions={actions} />
     </article>
   );
 }
 
-// An absent section is one recommendation, not a wall of failed criteria.
-function MissingSection({ section, context }: { section: OptimizerSection; context: SectionContext }) {
-  const guidance = SECTION_GUIDANCE[section];
-  const overall = context.overall.find((a) => a.section === section && a.state === "add");
-  const impact = overall ? IMPACT_LABEL[overall.impact] : sectionInfo(section).core ? IMPACT_LABEL.high : "Optional";
-  const contents = CHECKLISTS[section].filter((c) => c.verification !== "visual").map((c) => c.advice);
-  return (
-    <>
-      <section className="lw-opt-block" aria-label="Profile assessment">
-        <div className="lw-opt-summary">
-          <span className="lw-opt-badge is-missing">{STATUS_LABEL.missing}</span>
-          <span className="lw-opt-summary__count">{impact}</span>
-        </div>
-        <p>{guidance.missing}</p>
-      </section>
-      <section className="lw-opt-block">
-        <h4>What a strong {guidance.title} section includes</h4>
-        <ul className="lw-opt-tips">
-          {contents.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
-    </>
-  );
-}
-
-// Banner ideas drawn from the rest of the profile; LinkWise never judges the image itself.
+// Banner ideas drawn from the rest of the profile, loaded with the overview; LinkWise never judges the image itself.
 function BannerIdeas({ context }: { context: SectionContext }) {
-  const request = context.body ? buildSectionRequest("banner", context.body) : null;
-  const { view } = useSectionAnalysis(request);
-  if (view.status !== "ready" || view.analysis.ideas.length === 0) return null;
+  const analysis = context.body ? cachedSectionAnalysis(buildSectionRequest("banner", context.body)) : undefined;
+  if (!analysis || analysis.ideas.length === 0) return null;
   return (
-    <section className="lw-opt-block">
-      <h4>Banner ideas from your profile</h4>
-      {view.analysis.summary && <p>{view.analysis.summary}</p>}
-      <ul className="lw-opt-tips">
-        {view.analysis.ideas.map((idea) => (
+    <section className="lw-od-section" aria-label="Banner ideas">
+      <h4 className="lw-od-heading">Banner ideas from your profile</h4>
+      <ul className="lw-od-tips">
+        {analysis.ideas.map((idea) => (
           <li key={idea}>{idea}</li>
         ))}
       </ul>
@@ -276,17 +320,18 @@ function BannerIdeas({ context }: { context: SectionContext }) {
   );
 }
 
-function TopCardActions({ part }: { part: "photo" | "banner" | "headline" }) {
+// Stays at the bottom of the panel; it sits in the page flow, so it never hides the last content.
+function ActionBar({ actions }: { actions: ReturnType<typeof sectionActions> }) {
   const [missing, setMissing] = useState(false);
+  if (actions.length === 0) return null;
   return (
-    <section className="lw-opt-block lw-opt-actions">
-      <button type="button" className="lw-button" onClick={() => setMissing(!goToTopCardPart(part))}>
-        Go to {PART_NAME[part]}
-      </button>
-      <button type="button" className="lw-button" onClick={() => setMissing(!openLinkedInEditor(part))}>
-        Edit on LinkedIn
-      </button>
-      {missing && <p className="lw-scan-mode__hint">LinkWise couldn't find that on this page.</p>}
-    </section>
+    <footer className="lw-od-actions">
+      {actions.map((action) => (
+        <button key={action.label} type="button" className="lw-button" onClick={() => setMissing(!action.run())}>
+          {action.label}
+        </button>
+      ))}
+      {missing && <p className="lw-od-actions__note">LinkWise couldn't find that on this page.</p>}
+    </footer>
   );
 }

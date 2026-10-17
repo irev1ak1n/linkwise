@@ -8,7 +8,11 @@ import { OptimizerController, buildOptimizerRequest, type OptimizerReady, type O
 import { requestOptimizerDraft } from "./optimizerClient";
 import { readWholeProfile } from "./profileReader";
 import { getOptimizerPage, subscribeOptimizerPage } from "./optimizerNav";
-import { SectionCards, SectionPage, type SectionContext } from "./SectionPages";
+import { SectionCards, SectionPage, reconcileAssessments, type SectionContext } from "./SectionPages";
+import { buildChecklistRequest, loadChecklist, whenChecklistCacheReady } from "./checklistAssessment";
+import { buildSectionRequest, loadSectionAnalysis, whenSectionCacheReady } from "./sectionAnalysis";
+import { DETAIL_SECTIONS } from "./sectionGuidance";
+import { computeOptimizerScore } from "./score";
 import { HeadlineGenerator } from "./HeadlineGenerator";
 import { copyText } from "./copyText";
 import { sectionInfo } from "./sections";
@@ -92,10 +96,33 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
     [ready, profileKey, profile, shell, userContext],
   );
 
+  // Every section's AI checks run once the profile has been read, so opening a page never asks for anything.
+  const [, setChecked] = useState(0);
+  useEffect(() => {
+    if (!body) return;
+    let active = true;
+    void Promise.all([whenChecklistCacheReady(), whenSectionCacheReady()]).then(() => {
+      if (!active) return;
+      const jobs: Promise<unknown>[] = DETAIL_SECTIONS.flatMap((section) => {
+        const request = buildChecklistRequest(section, body);
+        return request ? [loadChecklist(request)] : [];
+      });
+      const banner = buildSectionRequest("banner", body);
+      if (banner.present) jobs.push(loadSectionAnalysis(banner));
+      for (const job of jobs) void job.then(() => active && setChecked((n) => n + 1));
+    });
+    return () => {
+      active = false;
+    };
+  }, [body]);
+
   if (profileKey === null || (shell !== null && !shell.isOwnProfile)) return <p className="lw-empty">{NOT_OWN_PROFILE_MESSAGE}</p>;
   if (!shell || !profile) return <p className="lw-empty">Loading profile…</p>;
 
-  const context: SectionContext = { shell, profile, body, overall: state.status === "ready" ? state.result.sections : [] };
+  const context: SectionContext = { profileKey, shell, profile, body, overall: state.status === "ready" ? state.result.sections : [] };
+  // The overview's states come from the same checklists as the detail pages.
+  const reconciled = reconcileAssessments(context);
+  const shownState: OptimizerViewState = state.status === "ready" ? { ...state, result: { ...state.result, sections: reconciled }, score: computeOptimizerScore(state.body.sections, reconciled) } : state;
   if (page.name === "section") {
     return (
       <div className="lw-optimizer" ref={rootRef}>
@@ -125,7 +152,7 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
           </button>
         </div>
       ) : (
-        <OptimizerResult state={state} onRetry={() => controllerRef.current!.retry()} userContext={userContext} />
+        <OptimizerResult state={shownState} onRetry={() => controllerRef.current!.retry()} userContext={userContext} />
       )}
     </div>
   );
@@ -209,7 +236,7 @@ export function OptimizerResult({ state, onRetry, userContext }: OptimizerResult
         {shown.map((assessment) => (
           <li key={assessment.section} className="lw-optimizer__row">
             <button type="button" className="lw-optimizer__row-head" aria-expanded={open === assessment.section} onClick={() => setOpen(open === assessment.section ? null : assessment.section)}>
-              <span className="lw-optimizer__row-label">{sectionInfo(assessment.section).label}</span>
+              <span className="lw-optimizer__row-label">{sectionInfo(assessment.section)!.label}</span>
               <span className={`lw-optimizer__badge is-${assessment.state}`}>{STATE_LABEL[assessment.state]}</span>
               {assessment.state !== "strong" && <span className={`lw-optimizer__impact is-${assessment.impact}`}>{IMPACT_LABEL[assessment.impact]}</span>}
             </button>
@@ -223,7 +250,7 @@ export function OptimizerResult({ state, onRetry, userContext }: OptimizerResult
 }
 
 function SectionDetails({ assessment, ready, userContext }: { assessment: SectionAssessmentDTO; ready: OptimizerReady; userContext: string }) {
-  const info = sectionInfo(assessment.section);
+  const info = sectionInfo(assessment.section)!;
   const evidence = ready.body.profile.evidence;
   const entries =
     assessment.section === "experience"

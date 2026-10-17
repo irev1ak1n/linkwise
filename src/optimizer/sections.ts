@@ -19,7 +19,11 @@ export type OptimizerSection =
   | "honors"
   | "organizations"
   | "languages"
-  | "location";
+  | "location"
+  // Settings rather than sections: checked from the page, never part of the AI review.
+  | "url"
+  | "openToWork"
+  | "network";
 
 export interface OptimizerSectionInfo {
   section: OptimizerSection;
@@ -49,9 +53,16 @@ export const OPTIMIZER_SECTIONS: OptimizerSectionInfo[] = [
   { section: "location", label: "Location", weight: 2, core: false, draftable: false },
 ];
 
-export function sectionInfo(section: OptimizerSection): OptimizerSectionInfo {
-  return OPTIMIZER_SECTIONS.find((info) => info.section === section)!;
+export function sectionInfo(section: OptimizerSection): OptimizerSectionInfo | undefined {
+  return OPTIMIZER_SECTIONS.find((info) => info.section === section);
 }
+
+// The overview's grouping, and the exact order Prev / Next follows.
+export const SECTION_GROUPS: { title: string; sections: OptimizerSection[] }[] = [
+  { title: "Profile", sections: ["photo", "banner", "headline", "about", "featured"] },
+  { title: "Experience & credentials", sections: ["experience", "education", "projects", "skills", "certifications", "volunteering", "honors", "organizations", "languages"] },
+  { title: "Discoverability", sections: ["location", "url", "openToWork", "network"] },
+];
 
 export interface SectionPresence {
   section: OptimizerSection;
