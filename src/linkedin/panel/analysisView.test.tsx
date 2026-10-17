@@ -85,17 +85,32 @@ afterEach(() => {
 });
 
 describe("Profile Analyzer dashboard", () => {
-  it("shows a compact result with only the top reasons and gaps", () => {
+  it("reads in decision order: match, summary, why they match, recommendation, then deeper links", () => {
     render();
     const text = container.textContent!;
     expect(container.querySelector(".lw-an-score__value")).not.toBeNull();
-    expect(text).toContain("AI-enhanced analysis · High confidence");
+    expect(text).toContain("High confidence");
+    expect(text).not.toContain("AI-enhanced analysis ·");
+    const order = ["lw-an-score", 'aria-label="Summary"', 'aria-label="Why they match"', 'aria-label="Recommendation"', 'aria-label="Analysis details"'].map((marker) => container.innerHTML.indexOf(marker));
+    expect(order.every((index, i) => index > -1 && (i === 0 || index > order[i - 1]!))).toBe(true);
     expect(container.querySelectorAll(".lw-an-points li.is-good")).toHaveLength(3);
-    expect(container.querySelectorAll(".lw-an-points li.is-gap")).toHaveLength(2);
+    expect(container.querySelector(".lw-an-points li.is-good span")!.textContent).toBe("Detail 0.");
+    expect(container.querySelectorAll(".lw-an-points li.is-gap")).toHaveLength(0);
     expect(text).toContain("View all 5");
-    expect(text).toContain("View all 3");
     expect(text).not.toContain("Self-taught");
     expect(container.querySelector(".lw-an-summary")!.textContent).toBe("Jordan builds websites with React. Jordan speaks English and Spanish. Jordan leads a club.");
+    expect(text).toContain("Recommendation, criteria, deeper reasoning");
+    expect(text).toContain("Profile evidence behind this score");
+  });
+
+  it("places Profile Highlights after the recommendation and before the deeper links", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => root!.render(<AnalysisView result={result} goal={goal} profile={profile} aiState={ready as Extract<AiAnalysisState, { status: "ready" }>} highlights={<section aria-label="Profile highlights">H</section>} />));
+    const html = container.innerHTML;
+    expect(html.indexOf('aria-label="Recommendation"')).toBeLessThan(html.indexOf('aria-label="Profile highlights"'));
+    expect(html.indexOf('aria-label="Profile highlights"')).toBeLessThan(html.indexOf('aria-label="Analysis details"'));
   });
 
   it("keeps Smart Highlights and invented actions off the page", () => {
@@ -111,11 +126,11 @@ describe("Profile Analyzer dashboard", () => {
     expect(container.textContent).toContain("Criteria breakdown");
     expect(container.textContent).toContain("Self-taught");
     expect(container.querySelector(".lw-an-score__value")).toBeNull();
-    click("← Profile Analyzer");
+    click("← Back to Profile Analyzer");
     expect(container.querySelector(".lw-an-score__value")).not.toBeNull();
     click("Evidence");
     expect(container.textContent).toContain("Built the club website in React");
-    click("← Profile Analyzer");
+    click("← Back to Profile Analyzer");
     expect(getAnalyzerPage()).toBe("home");
     expect(onRetry).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();

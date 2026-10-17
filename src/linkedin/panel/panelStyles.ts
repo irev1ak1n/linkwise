@@ -1827,5 +1827,47 @@ export function getPanelStyles(widthPx: number): string {
   .lw-opt-status.is-add { background: #b24020; }
   .lw-opt-status.is-partial,
   .lw-opt-status.is-unverifiable { background: #9aa5ad; }
+  .lw-dash {
+    gap: 14px;
+  }
+  .lw-dash .lw-an-score .lw-sp-bar {
+    margin-top: 8px;
+    border: none;
+    background: none;
+    padding: 0;
+    justify-content: center;
+  }
+  .lw-dash__block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid #e8ecef;
+  }
+  .lw-dash__label {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #8a949c;
+  }
+  .lw-dash .lw-an-summary {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #1a1a1a;
+  }
+  .lw-dash .lw-an-points--detailed {
+    gap: 8px;
+  }
+  .lw-dash .lw-an-points--detailed strong {
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  .lw-dash .lw-an-points--detailed span {
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
 `;
 }
