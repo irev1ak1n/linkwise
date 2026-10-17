@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getOptimizerPage, neighborSections, openOptimizerPage } from "./optimizerNav";
-import { SectionCards, SectionPage, reconcileAssessments, sectionStatus, summaryText, type SectionContext } from "./SectionPages";
+import { SectionCards, SectionPage, reconcileAssessments, sectionDisplay, summaryText, type SectionContext } from "./SectionPages";
 import { SECTION_GUIDANCE, DETAIL_SECTIONS, DOCUMENTED_NUMBERS } from "./sectionGuidance";
 import { SECTION_GROUPS } from "./sections";
 import { EMPTY_PROFILE } from "../models/profile";
@@ -80,7 +80,8 @@ describe("section assessment", () => {
     expect(html).toContain('aria-label="Profile photo added: Meets criterion"');
     expect(html).toContain('aria-label="Face is clear and easy to see: Can&#x27;t verify automatically"');
     expect(html).toContain("1 of 1 verifiable checks passed");
-    expect(html).toContain("Looking Good");
+    expect(html).toContain("Partly verified");
+    expect(html).not.toContain("Looking Good");
   });
 
   it("shows a missing section as one row, not a wall of failures", () => {
@@ -102,6 +103,41 @@ describe("section assessment", () => {
   });
 });
 
+describe("overview rows", () => {
+  const rowOf = (html: string, title: string) => html.slice(html.indexOf(`>${title}<`), html.indexOf("</button>", html.indexOf(`>${title}<`)));
+
+  it("shows status on every row and impact only where there is something to do", () => {
+    const ctx = context({ overall: [overall("featured", "add", "high")] });
+    const html = renderToStaticMarkup(<SectionCards context={ctx} />);
+    expect(html.match(/class="lw-opt-card__meta"/g)).toHaveLength(18);
+    expect(rowOf(html, "Featured")).toContain("Add</span><span class=\"lw-opt-card__impact\"> · High impact");
+    expect(rowOf(html, "Network")).toContain(">Strong<");
+    expect(rowOf(html, "Network")).not.toContain("impact");
+    expect(rowOf(html, "LinkedIn URL")).toContain(">Strong<");
+  });
+
+  it("never calls a section Strong when most of its checklist can't be verified", () => {
+    const html = renderToStaticMarkup(<SectionCards context={context()} />);
+    expect(rowOf(html, "Profile Photo")).toContain(">Partial<");
+    expect(sectionDisplay("photo", context())).toEqual({ status: "partial", impact: null });
+  });
+
+  it("shows Open to Work as Can't verify, never Strong or Improve", () => {
+    expect(sectionDisplay("openToWork", context())).toEqual({ status: "unverifiable", impact: null });
+    expect(sectionDisplay("openToWork", context({ shell: shell(true, false, { openToWork: null }) })).status).toBe("unverifiable");
+    const html = renderToStaticMarkup(<SectionCards context={context()} />);
+    expect(rowOf(html, "Open to Work")).toContain("is-unverifiable\">Can&#x27;t verify<");
+    expect(renderToStaticMarkup(<SectionPage section="openToWork" context={context()} />)).toContain('lw-opt-badge is-unverifiable');
+  });
+
+  it("keeps long titles on their own line, with the status beneath", () => {
+    const html = renderToStaticMarkup(<SectionCards context={context()} />);
+    for (const title of ["Licenses &amp; Certifications", "Volunteer Experience", "Honors &amp; Awards"]) {
+      expect(html).toContain(`<span class="lw-opt-card__text"><span class="lw-opt-card__title">${title}</span><span class="lw-opt-card__meta">`);
+    }
+  });
+});
+
 describe("partly read lists", () => {
   it("says the AI checks can't judge the full list instead of failing them", () => {
     const profile = { ...EMPTY_PROFILE, skills: ["Customer Service", "Tutoring"], extracted: true };
@@ -119,14 +155,17 @@ describe("partly read lists", () => {
 describe("overview and detail agree", () => {
   it("takes the overview's state from the detail checklist", () => {
     const ctx = context({ profile: { ...EMPTY_PROFILE, headline: "Passionate, motivated student", extracted: true }, overall: [overall("headline", "strong", "low")] });
-    expect(sectionStatus("headline", ctx)).toBe("improve");
+    expect(sectionDisplay("headline", ctx)).toEqual({ status: "improve", impact: "Medium impact" });
     expect(reconcileAssessments(ctx)[0]).toMatchObject({ section: "headline", state: "improve" });
-    expect(renderToStaticMarkup(<SectionPage section="headline" context={ctx} />)).toContain("Needs Improvement");
+    const detail = renderToStaticMarkup(<SectionPage section="headline" context={ctx} />);
+    expect(detail).toContain("Needs Improvement");
+    expect(detail).toContain("Medium impact");
+    expect(renderToStaticMarkup(<SectionCards context={ctx} />)).toMatch(/Headline<\/span><span class="lw-opt-card__meta"><span class="lw-opt-row-status is-improve">Improve<\/span><span class="lw-opt-card__impact"> · Medium impact/);
   });
 
   it("keeps the review's state while the detail checks are still pending", () => {
     const ctx = context({ profile: { ...EMPTY_PROFILE, headline: "Aspiring Software Engineer building web apps", extracted: true }, overall: [overall("headline", "strong", "low")] });
-    expect(sectionStatus("headline", ctx)).toBe("strong");
+    expect(sectionDisplay("headline", ctx).status).toBe("strong");
     expect(reconcileAssessments(ctx)[0]!.state).toBe("strong");
   });
 });

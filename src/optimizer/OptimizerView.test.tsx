@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NOT_OWN_PROFILE_MESSAGE, OptimizerResult, OptimizerView, sortAssessments } from "./OptimizerView";
+import { NOT_OWN_PROFILE_MESSAGE, OptimizerView, ProfileScore } from "./OptimizerView";
 import { setProfileShell } from "./profileShellStore";
 import { EMPTY_PROFILE } from "../models/profile";
 import type { OptimizerReady } from "./optimizerController";
@@ -35,25 +35,43 @@ describe("OptimizerView", () => {
   });
 });
 
-describe("OptimizerResult", () => {
-  it("shows the score, filter counts, and rows by priority", () => {
-    const html = renderToStaticMarkup(<OptimizerResult state={ready} onRetry={() => {}} userContext="" />);
-    expect(html).toContain(">72<");
-    expect(html).toContain("All (3)");
-    expect(html).toContain("Add (1)");
-    expect(html).toContain("Improve (1)");
-    expect(html).toContain("Strong (1)");
-    expect(html.indexOf("About")).toBeLessThan(html.indexOf("Projects"));
-    expect(html.indexOf("Projects")).toBeLessThan(html.indexOf("Headline"));
-    expect(html).toContain("High impact");
+describe("overview layout", () => {
+  const overview = () => {
+    setProfileShell({ profileKey: "me", complete: true, shell: { isOwnProfile: true, hasPhoto: true, hasBanner: true, sections: {} } });
+    const html = renderToStaticMarkup(<OptimizerView profileKey="me" profile={{ ...EMPTY_PROFILE, headline: "Student developer", extracted: true }} isFinal onAnalyzeNow={() => {}} />);
+    setProfileShell(null);
+    return html;
+  };
+
+  it("puts the score area first, then your context, then the grouped sections", () => {
+    const html = overview();
+    const score = html.indexOf("Reviewing your profile");
+    const context = html.indexOf("Anything not on your LinkedIn profile?");
+    const groups = html.indexOf('class="lw-opt-groups"');
+    expect(score).toBeGreaterThan(-1);
+    expect(score).toBeLessThan(context);
+    expect(context).toBeLessThan(groups);
   });
 
-  it("puts strong sections last", () => {
-    expect(sortAssessments(sections).map((s) => s.section)).toEqual(["about", "projects", "headline"]);
+  it("lists every section once, with no filters, collapsing, or second list", () => {
+    const html = overview();
+    expect(html.match(/class="lw-opt-card"/g)).toHaveLength(18);
+    expect(html).not.toContain("radiogroup");
+    expect(html).not.toMatch(/All \(|Show strong|Hide strong|Needs attention|Looking Good|Show more/i);
+    expect(html).not.toContain("lw-optimizer__rows");
+  });
+});
+
+describe("ProfileScore", () => {
+  it("shows the score and the summary", () => {
+    const html = renderToStaticMarkup(<ProfileScore state={ready} onRetry={() => {}} pageRead isFinal onAnalyzeNow={() => {}} />);
+    expect(html).toContain(">72<");
+    expect(html).toContain("/ 100 profile score");
+    expect(html.indexOf(">72<")).toBeLessThan(html.indexOf("A focused profile."));
   });
 
   it("offers a retry when unavailable", () => {
-    const html = renderToStaticMarkup(<OptimizerResult state={{ status: "unavailable", reason: "timeout" }} onRetry={() => {}} userContext="" />);
+    const html = renderToStaticMarkup(<ProfileScore state={{ status: "unavailable", reason: "timeout" }} onRetry={() => {}} pageRead isFinal onAnalyzeNow={() => {}} />);
     expect(html).toContain("Try again");
   });
 });

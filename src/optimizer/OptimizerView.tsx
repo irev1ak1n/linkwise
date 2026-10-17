@@ -4,8 +4,7 @@ import { useStoredPreference } from "../linkedin/panel/useStoredPreference";
 import { LoadingView } from "../linkedin/panel/LoadingView";
 import { getProfileShell, subscribeProfileShell } from "./profileShellStore";
 import { optimizerContextPreference } from "./optimizerPreferences";
-import { OptimizerController, buildOptimizerRequest, type OptimizerReady, type OptimizerViewState } from "./optimizerController";
-import { requestOptimizerDraft } from "./optimizerClient";
+import { OptimizerController, buildOptimizerRequest, type OptimizerViewState } from "./optimizerController";
 import { readWholeProfile } from "./profileReader";
 import { getOptimizerPage, subscribeOptimizerPage } from "./optimizerNav";
 import { SectionCards, SectionPage, reconcileAssessments, type SectionContext } from "./SectionPages";
@@ -14,33 +13,9 @@ import { buildSectionRequest, loadSectionAnalysis, whenSectionCacheReady } from 
 import { DETAIL_SECTIONS } from "./sectionGuidance";
 import { computeOptimizerScore } from "./score";
 import { HeadlineGenerator } from "./HeadlineGenerator";
-import { copyText } from "./copyText";
-import { sectionInfo } from "./sections";
-import type { DraftSection, OptimizerImpact, OptimizerSource, OptimizerState, SectionAssessmentDTO } from "./optimizerTypes";
 
 export const NOT_OWN_PROFILE_MESSAGE = "Profile Optimizer is available on your own LinkedIn profile.";
 export const CONTEXT_HELP = "Tell LinkWise about projects, certifications, awards, volunteering, or other experience that is not currently listed.";
-
-type Filter = "all" | OptimizerState;
-const FILTERS: { filter: Filter; label: string }[] = [
-  { filter: "all", label: "All" },
-  { filter: "add", label: "Add" },
-  { filter: "improve", label: "Improve" },
-  { filter: "strong", label: "Strong" },
-];
-const STATE_LABEL: Record<OptimizerState, string> = { add: "Add", improve: "Improve", strong: "Strong" };
-const IMPACT_LABEL: Record<OptimizerImpact, string> = { high: "High impact", medium: "Medium impact", low: "Low impact" };
-const SOURCE_LABEL: Record<OptimizerSource, string> = {
-  linkedin_profile: "Based on your LinkedIn profile",
-  user_context: "Based on what you told LinkWise, not on LinkedIn",
-  general_best_practice: "General best practice",
-};
-const IMPACT_RANK: Record<OptimizerImpact, number> = { high: 0, medium: 1, low: 2 };
-
-export function sortAssessments(sections: SectionAssessmentDTO[]): SectionAssessmentDTO[] {
-  const rank = (a: SectionAssessmentDTO) => (a.state === "strong" ? 3 : IMPACT_RANK[a.impact]);
-  return [...sections].sort((a, b) => rank(a) - rank(b));
-}
 
 interface OptimizerViewProps {
   profileKey: string | null;
@@ -140,20 +115,9 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
 
   return (
     <div className="lw-optimizer" ref={rootRef}>
+      <ProfileScore state={shownState} onRetry={() => controllerRef.current!.retry()} pageRead={pageRead} isFinal={isFinal} onAnalyzeNow={onAnalyzeNow} />
       <ContextInput committed={userContext} />
       {pageRead && <SectionCards context={context} />}
-      {!pageRead ? (
-        <LoadingView label="Reading every section of your profile…" />
-      ) : !isFinal ? (
-        <div className="lw-optimizer__reading">
-          <LoadingView label="Reading your profile…" />
-          <button type="button" className="lw-button lw-button--secondary" onClick={onAnalyzeNow}>
-            Analyze now
-          </button>
-        </div>
-      ) : (
-        <OptimizerResult state={shownState} onRetry={() => controllerRef.current!.retry()} userContext={userContext} />
-      )}
     </div>
   );
 }
@@ -167,7 +131,7 @@ function ContextInput({ committed }: { committed: string }) {
       <label className="lw-keywords__label" htmlFor="lw-optimizer-context">
         Anything not on your LinkedIn profile?
       </label>
-      <textarea id="lw-optimizer-context" className="lw-keywords__input" rows={3} maxLength={2000} value={text} onChange={(event) => setText(event.target.value)} />
+      <textarea id="lw-optimizer-context" className="lw-keywords__input" rows={2} maxLength={2000} value={text} onChange={(event) => setText(event.target.value)} />
       <p className="lw-scan-mode__hint">{CONTEXT_HELP}</p>
       {changed && (
         <button type="button" className="lw-button lw-button--secondary" onClick={() => optimizerContextPreference.set(text.trim())}>
@@ -178,16 +142,27 @@ function ContextInput({ committed }: { committed: string }) {
   );
 }
 
-interface OptimizerResultProps {
+interface ProfileScoreProps {
   state: OptimizerViewState;
   onRetry: () => void;
-  userContext: string;
+  pageRead: boolean;
+  isFinal: boolean;
+  onAnalyzeNow: () => void;
 }
 
-export function OptimizerResult({ state, onRetry, userContext }: OptimizerResultProps) {
-  const [filter, setFilter] = useState<Filter>("all");
-  const [open, setOpen] = useState<string | null>(null);
-
+// The score and the overall assessment, above the section list.
+export function ProfileScore({ state, onRetry, pageRead, isFinal, onAnalyzeNow }: ProfileScoreProps) {
+  if (!pageRead) return <LoadingView label="Reading every section of your profile…" />;
+  if (!isFinal) {
+    return (
+      <div className="lw-optimizer__reading">
+        <LoadingView label="Reading your profile…" />
+        <button type="button" className="lw-button lw-button--secondary" onClick={onAnalyzeNow}>
+          Analyze now
+        </button>
+      </div>
+    );
+  }
   if (state.status === "idle" || state.status === "loading") return <LoadingView label="Reviewing your profile…" />;
   if (state.status === "unavailable") {
     return (
@@ -199,11 +174,8 @@ export function OptimizerResult({ state, onRetry, userContext }: OptimizerResult
       </div>
     );
   }
-
-  const sections = sortAssessments(state.result.sections);
-  const shown = filter === "all" ? sections : sections.filter((s) => s.state === filter);
   return (
-    <div className="lw-optimizer__result">
+    <header className="lw-optimizer__result">
       <div className="lw-optimizer__score">
         <span className="lw-optimizer__score-value">{state.score}</span>
         <span className="lw-optimizer__score-label">/ 100 profile score</span>
@@ -211,132 +183,13 @@ export function OptimizerResult({ state, onRetry, userContext }: OptimizerResult
       {state.result.summary && <p className="lw-optimizer__summary">{state.result.summary}</p>}
       {state.updating && <p className="lw-scan-mode__hint">Updating…</p>}
       {state.updateError && (
-        <>
-          <p className="lw-scan-mode__hint">Could not refresh ({state.updateError}).</p>
-          <button type="button" className="lw-button lw-button--secondary" onClick={onRetry}>
+        <p className="lw-scan-mode__hint">
+          Could not refresh ({state.updateError}).{" "}
+          <button type="button" className="lw-scan__link" onClick={onRetry}>
             Try again
           </button>
-        </>
+        </p>
       )}
-      <div className="lw-scan-mode__control" role="radiogroup" aria-label="Filter recommendations">
-        {FILTERS.map((option) => (
-          <button
-            key={option.filter}
-            type="button"
-            role="radio"
-            aria-checked={filter === option.filter}
-            className={`lw-scan-mode__option${filter === option.filter ? " is-active" : ""}`}
-            onClick={() => setFilter(option.filter)}
-          >
-            {option.label} ({option.filter === "all" ? sections.length : sections.filter((s) => s.state === option.filter).length})
-          </button>
-        ))}
-      </div>
-      <ul className="lw-optimizer__rows">
-        {shown.map((assessment) => (
-          <li key={assessment.section} className="lw-optimizer__row">
-            <button type="button" className="lw-optimizer__row-head" aria-expanded={open === assessment.section} onClick={() => setOpen(open === assessment.section ? null : assessment.section)}>
-              <span className="lw-optimizer__row-label">{sectionInfo(assessment.section)!.label}</span>
-              <span className={`lw-optimizer__badge is-${assessment.state}`}>{STATE_LABEL[assessment.state]}</span>
-              {assessment.state !== "strong" && <span className={`lw-optimizer__impact is-${assessment.impact}`}>{IMPACT_LABEL[assessment.impact]}</span>}
-            </button>
-            {open === assessment.section && <SectionDetails assessment={assessment} ready={state} userContext={userContext} />}
-          </li>
-        ))}
-        {shown.length === 0 && <li className="lw-empty">Nothing here.</li>}
-      </ul>
-    </div>
-  );
-}
-
-function SectionDetails({ assessment, ready, userContext }: { assessment: SectionAssessmentDTO; ready: OptimizerReady; userContext: string }) {
-  const info = sectionInfo(assessment.section)!;
-  const evidence = ready.body.profile.evidence;
-  const entries =
-    assessment.section === "experience"
-      ? [...new Set([...assessment.evidenceIds, ...evidence.map((e) => e.id)])].filter((id) => id.startsWith("experience:")).slice(0, 3)
-      : [];
-  return (
-    <div className="lw-optimizer__details">
-      <p>{assessment.reason}</p>
-      {assessment.suggestions.length > 0 && (
-        <ul className="lw-optimizer__suggestions">
-          {assessment.suggestions.map((suggestion) => (
-            <li key={suggestion}>{suggestion}</li>
-          ))}
-        </ul>
-      )}
-      <p className={`lw-optimizer__source is-${assessment.sourceType}`}>{SOURCE_LABEL[assessment.sourceType]}</p>
-      {info.draftable && assessment.state !== "strong" && (
-        <>
-          {assessment.section === "experience" ? (
-            entries.map((id) => (
-              <DraftBox key={id} ready={ready} assessment={assessment} section="experience" evidenceId={id} userContext={userContext} label={`Draft for ${(evidence.find((e) => e.id === id)?.text ?? id).split(" — ")[0]}`} />
-            ))
-          ) : (
-            <DraftBox ready={ready} assessment={assessment} section={assessment.section as DraftSection} evidenceId={null} userContext={userContext} label="Generate improved draft" />
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-type DraftState = { status: "idle" } | { status: "loading" } | { status: "ready"; draft: string } | { status: "unavailable"; reason: string };
-const draftMemory = new Map<string, string>();
-
-interface DraftBoxProps {
-  ready: OptimizerReady;
-  assessment: SectionAssessmentDTO;
-  section: DraftSection;
-  evidenceId: string | null;
-  userContext: string;
-  label: string;
-}
-
-function DraftBox({ ready, assessment, section, evidenceId, userContext, label }: DraftBoxProps) {
-  const memoryKey = `${ready.key}:${section}:${evidenceId ?? ""}`;
-  const remembered = draftMemory.get(memoryKey);
-  const [draft, setDraft] = useState<DraftState>(remembered ? { status: "ready", draft: remembered } : { status: "idle" });
-  const cancelRef = useRef<(() => void) | null>(null);
-  useEffect(() => () => cancelRef.current?.(), []);
-
-  function generate(): void {
-    setDraft({ status: "loading" });
-    const pending = requestOptimizerDraft({
-      profile: ready.body.profile,
-      section,
-      evidenceId,
-      guidance: [assessment.reason, ...assessment.suggestions].join("\n"),
-      userContext,
-    });
-    cancelRef.current = pending.cancel;
-    void pending.promise.then((outcome) => {
-      cancelRef.current = null;
-      if (outcome.status === "ok") draftMemory.set(memoryKey, outcome.draft);
-      setDraft(outcome.status === "ok" ? { status: "ready", draft: outcome.draft } : { status: "unavailable", reason: outcome.reason });
-    });
-  }
-
-  return (
-    <div className="lw-optimizer__draft">
-      {draft.status !== "ready" && (
-        <button type="button" className="lw-button lw-button--secondary" disabled={draft.status === "loading"} onClick={generate}>
-          {draft.status === "loading" ? "Writing draft…" : label}
-        </button>
-      )}
-      {draft.status === "unavailable" && (
-        <p className="lw-scan-mode__hint">{draft.reason === "ungrounded_draft" ? "The draft mentioned things not on your profile, so it was discarded. Try again." : `Draft unavailable (${draft.reason}).`}</p>
-      )}
-      {draft.status === "ready" && (
-        <>
-          <textarea className="lw-keywords__input" readOnly rows={section === "headline" ? 2 : 8} value={draft.draft} />
-          <p className="lw-scan-mode__hint">A draft for you to review. LinkWise never changes your profile.</p>
-          <button type="button" className="lw-button lw-button--secondary" onClick={() => void copyText(draft.draft)}>
-            Copy draft
-          </button>
-        </>
-      )}
-    </div>
+    </header>
   );
 }

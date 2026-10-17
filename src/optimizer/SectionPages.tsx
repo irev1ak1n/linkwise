@@ -20,11 +20,14 @@ import {
   type SemanticState,
 } from "./checklist";
 import { sectionActions } from "./sectionActions";
+import { SectionDrafts } from "./SectionDrafts";
 import { SECTION_GROUPS, buildSectionMap, sectionInfo, type OptimizerSection, type SectionPresence } from "./sections";
 import type { SectionAssessmentDTO } from "./optimizerTypes";
 
-export const STATUS_LABEL: Record<ChecklistState, string> = { strong: "Looking Good", improve: "Needs Improvement", missing: "Missing" };
-const STATUS_MARK: Record<ChecklistState, string> = { strong: "✓", improve: "!", missing: "!" };
+// What the overview row and the detail page both show for a section.
+export type DisplayStatus = "strong" | "improve" | "add" | "partial" | "unverifiable";
+export const ROW_LABEL: Record<DisplayStatus, string> = { strong: "Strong", improve: "Improve", add: "Add", partial: "Partial", unverifiable: "Can't verify" };
+export const STATUS_LABEL: Record<DisplayStatus, string> = { strong: "Looking Good", improve: "Needs Improvement", add: "Missing", partial: "Partly verified", unverifiable: "Can't verify" };
 const IMPACT_LABEL = { high: "High impact", medium: "Medium impact", low: "Low impact" } as const;
 
 export interface SectionContext {
@@ -62,24 +65,33 @@ export function sectionChecklist(section: OptimizerSection, context: SectionCont
   return { presence, criteria, summary: summarizeChecklist(presence.present, criteria) };
 }
 
-// A section's status, from its own checklist. Before the AI half is known, the overall review fills in.
-export function sectionStatus(section: OptimizerSection, context: SectionContext): ChecklistState | null {
-  const { summary } = sectionChecklist(section, context);
-  if (summary.state) return summary.state;
-  const overall = context.overall.find((a) => a.section === section);
-  return overall ? (overall.state === "add" ? "missing" : overall.state) : null;
+function reconcile(assessment: SectionAssessmentDTO, state: ChecklistState | null): SectionAssessmentDTO {
+  if (!state) return assessment;
+  const next = state === "missing" ? "add" : state;
+  if (next === assessment.state) return assessment;
+  return { ...assessment, state: next, impact: next === "strong" ? "low" : assessment.state === "strong" ? "medium" : assessment.impact, suggestions: next === "strong" ? [] : assessment.suggestions };
 }
 
 // The overall review, with each section's state taken from its checklist so the overview and the
 // detail page never disagree. The review keeps its impact and its reasoning.
 export function reconcileAssessments(context: SectionContext): SectionAssessmentDTO[] {
-  return context.overall.map((assessment) => {
-    const state = sectionChecklist(assessment.section, context).summary.state;
-    if (!state) return assessment;
-    const next = state === "missing" ? "add" : state;
-    if (next === assessment.state) return assessment;
-    return { ...assessment, state: next, impact: next === "strong" ? "low" : assessment.state === "strong" ? "medium" : assessment.impact, suggestions: next === "strong" ? [] : assessment.suggestions };
-  });
+  return context.overall.map((assessment) => reconcile(assessment, sectionChecklist(assessment.section, context).summary.state));
+}
+
+// "Strong" only when most of the checklist could actually be verified; otherwise "Partial".
+export function sectionDisplay(section: OptimizerSection, context: SectionContext, checked = sectionChecklist(section, context)): { status: DisplayStatus | null; impact: string | null } {
+  const { summary, criteria } = checked;
+  const overall = context.overall.find((a) => a.section === section);
+  const state = summary.state ?? (summary.checking && overall ? (overall.state === "add" ? "missing" : overall.state) : null);
+  if (state === "missing") return { status: "add", impact: overall?.state === "add" ? IMPACT_LABEL[overall.impact] : sectionInfo(section)?.core ? IMPACT_LABEL.high : "Optional" };
+  if (state === "improve") {
+    const impact = overall ? reconcile(overall, "improve").impact : null;
+    return { status: "improve", impact: impact ? IMPACT_LABEL[impact] : null };
+  }
+  const unverifiable = criteria.filter((c) => c.status === "unverifiable").length;
+  if (state === "strong") return { status: unverifiable > summary.verifiable ? "partial" : "strong", impact: null };
+  if (criteria.length > 0 && !summary.checking && summary.verifiable === 0) return { status: "unverifiable", impact: null };
+  return { status: null, impact: null };
 }
 
 const ICONS: Partial<Record<OptimizerSection, ReactNode>> = {
@@ -154,11 +166,13 @@ function SectionIcon({ section, className = "lw-opt-card__icon" }: { section: Op
   );
 }
 
-function StatusMark({ status }: { status: ChecklistState | null }) {
-  if (!status) return null;
+function RowStatus({ section, context }: { section: OptimizerSection; context: SectionContext }) {
+  const { status, impact } = sectionDisplay(section, context);
+  if (!status) return <span className="lw-opt-card__meta">Checking…</span>;
   return (
-    <span className={`lw-opt-status is-${status}`} title={STATUS_LABEL[status]} aria-label={STATUS_LABEL[status]}>
-      {STATUS_MARK[status]}
+    <span className="lw-opt-card__meta">
+      <span className={`lw-opt-row-status is-${status}`}>{ROW_LABEL[status]}</span>
+      {impact && <span className="lw-opt-card__impact"> · {impact}</span>}
     </span>
   );
 }
@@ -173,8 +187,10 @@ export function SectionCards({ context }: { context: SectionContext }) {
             {group.sections.map((section) => (
               <button key={section} type="button" className="lw-opt-card" onClick={() => openOptimizerPage({ name: "section", section })}>
                 <SectionIcon section={section} />
-                <span className="lw-opt-card__title">{SECTION_GUIDANCE[section].title}</span>
-                <StatusMark status={sectionStatus(section, context)} />
+                <span className="lw-opt-card__text">
+                  <span className="lw-opt-card__title">{SECTION_GUIDANCE[section].title}</span>
+                  <RowStatus section={section} context={context} />
+                </span>
                 <span className="lw-opt-card__chevron" aria-hidden="true">
                   ›
                 </span>
@@ -226,9 +242,9 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
   const { presence } = useMemo(() => presenceOf(section, context), [section, context]);
   const request = presence.present && context.body ? buildChecklistRequest(section, context.body) : null;
   const { state: live, retry } = useChecklistAssessment(request);
-  const { criteria, summary } = sectionChecklist(section, context, request ? live : undefined);
-  const overall = context.overall.find((a) => a.section === section);
-  const missingImpact = overall?.state === "add" ? IMPACT_LABEL[overall.impact] : sectionInfo(section)?.core ? IMPACT_LABEL.high : "Optional";
+  const checked = sectionChecklist(section, context, request ? live : undefined);
+  const { criteria, summary } = checked;
+  const display = sectionDisplay(section, context, checked);
   const rows: EvaluatedCriterion[] = presence.present
     ? criteria
     : [{ id: `${section}-missing`, label: `${guidance.title} is not on your profile`, verification: "deterministic", status: "improve", explanation: guidance.missing, evidenceIds: [] }];
@@ -260,8 +276,8 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
       <header className="lw-od-head">
         <h3 className="lw-od-title">{guidance.title}</h3>
         <div className="lw-od-status">
-          {summary.state && <span className={`lw-opt-badge is-${summary.state}`}>{STATUS_LABEL[summary.state]}</span>}
-          <span className="lw-od-status__text">{presence.present ? summaryText(summary) : missingImpact}</span>
+          {display.status && <span className={`lw-opt-badge is-${display.status}`}>{STATUS_LABEL[display.status]}</span>}
+          <span className="lw-od-status__text">{[display.impact, presence.present ? summaryText(summary) : null].filter(Boolean).join(" · ")}</span>
         </div>
         <p className="lw-od-description">{guidance.description}</p>
         {section === "headline" && context.profile.headline && <blockquote className="lw-opt-quote">{context.profile.headline}</blockquote>}
@@ -288,6 +304,8 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
       </section>
 
       {section === "banner" && presence.present && <BannerIdeas context={context} />}
+
+      {(section === "about" || section === "experience") && display.status === "improve" && context.body && <SectionDrafts section={section} body={context.body} assessment={context.overall.find((a) => a.section === section)} />}
 
       {section === "headline" && (
         <section className="lw-od-section">

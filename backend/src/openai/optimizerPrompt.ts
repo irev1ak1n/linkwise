@@ -39,7 +39,10 @@ IMPACT
 
 SUGGESTIONS: 0 to 4 short, concrete, actionable steps per assessment. Each follows the same source rule as its assessment.
 
-SUMMARY: two sentences on the profile overall, grounded in the evidence.`;
+SUMMARY: two sentences, at most 35 words and 230 characters in total, on the profile overall and grounded in the evidence.
+- First, the strongest qualities, backed by one or two pieces of concrete evidence (a named role, project, or a number that appears in the evidence), not adjectives like "impressive" or "strong background".
+- Then the two or three biggest optimization opportunities, naming the sections to improve or add next.
+- No resume dump, no score, no generic praise.`;
 
 export function buildOptimizerUserPrompt(request: OptimizeProfileRequest): string {
   const evidence = request.profile.evidence.map((item) => ({ id: item.id, section: item.section, text: item.text }));
