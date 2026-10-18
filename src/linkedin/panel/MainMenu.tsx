@@ -165,8 +165,8 @@ export function SettingsHero() {
     <ArtworkHero
       name="settings"
       path="content/assets/settings-hero.webp"
-      width={1447}
-      height={1087}
+      width={1670}
+      height={942}
       alt="Settings. Customize scanning, highlights, and preferences."
       hotspots={[
         { label: "Go back", modifier: "back", onClick: leaveSettings },
