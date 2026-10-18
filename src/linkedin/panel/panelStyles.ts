@@ -1004,6 +1004,101 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 700;
     color: #1a1a1a;
   }
+  .lw-tool-head--hero {
+    position: relative;
+    isolation: isolate;
+    gap: 16px;
+    min-height: 178px;
+    margin: -16px -16px 0;
+    padding: 18px 18px 22px;
+    overflow: hidden;
+    border-bottom: 1px solid #edf2f8;
+    background:
+      radial-gradient(circle at 93% 38%, rgba(106, 79, 208, 0.11), transparent 31%),
+      radial-gradient(circle at 78% 30%, rgba(10, 102, 194, 0.09), transparent 37%),
+      linear-gradient(135deg, #ffffff 0%, #fbfdff 52%, #f5f9ff 100%);
+  }
+  .lw-tool-head--hero::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    width: 250px;
+    height: 150px;
+    right: -98px;
+    bottom: -88px;
+    border-radius: 52% 48% 0 0;
+    border: 24px solid rgba(85, 125, 222, 0.045);
+    transform: rotate(-18deg);
+  }
+  .lw-tool-head--hero .lw-opt-back {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 7px 12px;
+    border: 1px solid rgba(125, 161, 228, 0.18);
+    border-radius: 999px;
+    background: rgba(247, 250, 255, 0.86);
+    box-shadow: 0 5px 16px rgba(43, 87, 154, 0.07);
+    color: #356bd6;
+    backdrop-filter: blur(8px);
+  }
+  .lw-tool-head--hero .lw-opt-back:hover {
+    background: #f1f6ff;
+    border-color: rgba(76, 126, 216, 0.28);
+  }
+  .lw-tool-head__hero-row {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    min-height: 96px;
+    gap: 10px;
+  }
+  .lw-tool-head__copy {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-left: 2px;
+  }
+  .lw-tool-head--hero .lw-tool-head__title {
+    font-size: 27px;
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+    color: #101d38;
+  }
+  .lw-tool-head__subtitle {
+    max-width: 218px;
+    margin: 9px 0 0;
+    font-size: 14px;
+    line-height: 1.45;
+    color: #69788d;
+  }
+  .lw-tool-head__art {
+    position: relative;
+    align-self: stretch;
+    flex: 0 0 126px;
+    min-width: 0;
+  }
+  .lw-tool-head__art::before {
+    content: "";
+    position: absolute;
+    width: 130px;
+    height: 130px;
+    right: -28px;
+    top: -10px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, rgba(90, 133, 224, 0.10), rgba(106, 79, 208, 0.045));
+  }
+  .lw-tool-head__art-svg {
+    position: absolute;
+    width: 150px;
+    height: auto;
+    right: -28px;
+    top: -7px;
+    overflow: visible;
+    filter: drop-shadow(0 12px 24px rgba(42, 84, 151, 0.09));
+  }
 
   .lw-an-goal {
     display: flex;

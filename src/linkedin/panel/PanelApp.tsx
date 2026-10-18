@@ -197,7 +197,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
           renderProfileSection()
         ) : (
           <>
-            <ToolHead title="Profile Analyzer" />
+            <ToolHead title="Profile Analyzer" subtitle="Get insights and actionable tips for any LinkedIn profile." decorated />
             <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
             <FocusOnSection keywords={highlightKeywords} onSave={highlightKeywordsPreference.set} />
             {profileKey !== null && (
