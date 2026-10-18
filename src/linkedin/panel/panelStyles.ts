@@ -1107,10 +1107,22 @@ export function getPanelStyles(widthPx: number): string {
     width: 13.3%;
     border-radius: 50%;
   }
+  /* Settings artwork is taller than the Analyzer's; show the same 1672:941 window of it, dropping
+     empty glow above the buttons and the planet curve below the card. Hotspots are fractions of
+     that window: the source rows 85-899 of 1087. */
+  .lw-art-hero--settings {
+    aspect-ratio: 1672 / 941;
+    overflow: hidden;
+  }
+  .lw-art-hero--settings .lw-art-hero__art {
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 31.1%;
+  }
   .lw-art-hero--settings .lw-art-hero__hotspot {
-    top: 10.6%;
+    top: 3.7%;
     width: 13.8%;
-    height: 17.8%;
+    height: 23.7%;
     border-radius: 24%;
   }
   .lw-art-hero--settings .lw-art-hero__hotspot--back {
