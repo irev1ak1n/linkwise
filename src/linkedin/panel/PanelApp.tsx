@@ -18,6 +18,7 @@ import { useStoredPreference } from "./useStoredPreference";
 import { JobFiltersPage } from "./JobFiltersPage";
 import { SignalModeSection } from "./SignalModeSection";
 import { FocusOnSection } from "./FocusOnSection";
+import { SettingsPage } from "./SettingsPage";
 import { highlightKeywordsPreference } from "./keywordPreference";
 import { highlightColorPreference } from "./highlightColorPreference";
 import { keywordColorPreference } from "./keywordColorPreference";
@@ -109,9 +110,8 @@ export function PanelApp({ onClose }: PanelAppProps) {
     setForcedKeys((prev) => new Set(prev).add(profileKey));
   }
 
-  // Profile Highlights work on any profile, whether or not an analysis is on screen yet.
-  const highlights =
-    profileKey === null ? null : (
+  // How LinkWise scans and highlights profiles, set once in Settings.
+  const highlights = (
       <SignalModeSection
         enabled={signalMode.enabled}
         highlighted={signalMode.highlighted}
@@ -129,43 +129,30 @@ export function PanelApp({ onClose }: PanelAppProps) {
       return <p className="lw-empty">Open a LinkedIn profile to analyze it.</p>;
     }
     if (!profile || !collection) {
-      return (
-        <>
-          <p className="lw-empty">Loading profile…</p>
-          {highlights}
-        </>
-      );
+      return <p className="lw-empty">Loading profile…</p>;
     }
     if (!goal) {
-      return (
-        <>
-          <p className="lw-empty">No active goal set yet — describe who you're looking for above.</p>
-          {highlights}
-        </>
-      );
+      return <p className="lw-empty">No active goal set yet — describe who you're looking for above.</p>;
     }
-    if (!result || !scanState) return highlights;
+    if (!result || !scanState) return null;
     // The scan screen covers collection and the analysis request, then hands over to the results.
     if (!isFinal || aiState.status === "idle" || aiState.status === "loading" || handoff.showingComplete) {
       const final = aiState.status === "ready" ? matchDisplayState(aiState.outcome.result) : null;
       return (
-        <>
-          <ScannerView
-            key={profileKey}
-            profileName={isProfileSectionHeading(profile.name) ? undefined : profile.name}
-            goalName={goal.name}
-            scanMode={scanMode}
-            state={scanFailed ? { ...scanState, status: "error", message: "Could not finish scanning" } : scanState}
-            resultLabel={final ? `${"scorePercent" in final ? `${final.scorePercent}% · ` : ""}${matchDisplayLabel(final)}` : undefined}
-            onAnalyzeNow={handleAnalyzeNow}
-            onRetry={() => location.reload()}
-          />
-          {highlights}
-        </>
+        <ScannerView
+          key={profileKey}
+          profileName={isProfileSectionHeading(profile.name) ? undefined : profile.name}
+          goalName={goal.name}
+          scanMode={scanMode}
+          state={scanFailed ? { ...scanState, status: "error", message: "Could not finish scanning" } : scanState}
+          resultLabel={final ? `${"scorePercent" in final ? `${final.scorePercent}% · ` : ""}${matchDisplayLabel(final)}` : undefined}
+          onAnalyzeNow={handleAnalyzeNow}
+          onRetry={() => location.reload()}
+        />
       );
     }
 
-    return <AnalysisView profileKey={profileKey} result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} highlights={highlights} signalAnalysis={signalMode.analysis} />;
+    return <AnalysisView profileKey={profileKey} result={result} goal={goal} profile={profile} aiState={aiState} onRetry={retryAi} updatingSection={updatingSection} signalAnalysis={signalMode.analysis} />;
   }
 
   return (
@@ -179,6 +166,21 @@ export function PanelApp({ onClose }: PanelAppProps) {
       <div className="lw-panel__body">
         {tool === "menu" ? (
           <MainMenu onOpen={panelToolPreference.set} />
+        ) : tool === "settings" ? (
+          <SettingsPage
+            highlights={highlights}
+            scanning={
+              <>
+                <ScanModeToggle mode={scanMode} onChange={setScanMode} />
+                {scanMode === "scroll" && <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />}
+                {scanMode === "auto" && (
+                  <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />
+                )}
+                {scanMode === "auto" && <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />}
+                {scanMode === "auto" && <ManualSectionsCheckbox enabled={manualSectionsEnabled} onChange={setManualSectionsPreference} />}
+              </>
+            }
+          />
         ) : tool === "saved" ? (
           <>
             {savedPage.page === "list" && <BackLink label="Back to Menu" onClick={openMenu} />}
@@ -200,20 +202,6 @@ export function PanelApp({ onClose }: PanelAppProps) {
             <ToolHead title="Profile Analyzer" subtitle="Get insights and actionable tips for any LinkedIn profile." decorated />
             <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
             <FocusOnSection keywords={highlightKeywords} onSave={highlightKeywordsPreference.set} />
-            {profileKey !== null && (
-              <details className="lw-an-scan" open={!isFinal}>
-                <summary>
-                  Scan settings <span>· {scanMode === "auto" ? "Auto scan profile" : "Analyze as I scroll"}</span>
-                </summary>
-                <ScanModeToggle mode={scanMode} onChange={setScanMode} />
-                {scanMode === "scroll" && <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />}
-                {scanMode === "auto" && (
-                  <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />
-                )}
-                {scanMode === "auto" && <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />}
-                {scanMode === "auto" && <ManualSectionsCheckbox enabled={manualSectionsEnabled} onChange={setManualSectionsPreference} />}
-              </details>
-            )}
             {renderProfileSection()}
           </>
         )}

@@ -1030,23 +1030,57 @@ export function getPanelStyles(widthPx: number): string {
     border: 24px solid rgba(85, 125, 222, 0.045);
     transform: rotate(-18deg);
   }
-  .lw-tool-head--hero .lw-opt-back {
+  .lw-hero-nav {
     position: relative;
     z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .lw-hero-nav__button {
     display: inline-flex;
     align-items: center;
-    width: fit-content;
-    padding: 7px 12px;
-    border: 1px solid rgba(125, 161, 228, 0.18);
-    border-radius: 999px;
-    background: rgba(247, 250, 255, 0.86);
-    box-shadow: 0 5px 16px rgba(43, 87, 154, 0.07);
-    color: #356bd6;
-    backdrop-filter: blur(8px);
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid rgba(124, 132, 240, 0.16);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 6px 18px rgba(88, 96, 220, 0.1);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   }
-  .lw-tool-head--hero .lw-opt-back:hover {
-    background: #f1f6ff;
-    border-color: rgba(76, 126, 216, 0.28);
+  .lw-hero-nav__button--menu {
+    border-radius: 12px;
+    color: #6b74ee;
+  }
+  .lw-hero-nav__button--settings {
+    border-radius: 50%;
+    color: #5f6b86;
+    box-shadow: 0 4px 14px rgba(60, 72, 110, 0.08);
+  }
+  .lw-hero-nav__button:hover {
+    background: #fff;
+    border-color: rgba(124, 132, 240, 0.3);
+    box-shadow: 0 8px 20px rgba(88, 96, 220, 0.14);
+  }
+  .lw-hero-nav__button:focus-visible {
+    outline: 2px solid #6b74ee;
+    outline-offset: 2px;
+  }
+  .lw-tool-head--settings {
+    min-height: 0;
+    gap: 14px;
+  }
+  .lw-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .lw-settings__group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
   .lw-tool-head__hero-row {
     position: relative;
@@ -1128,27 +1162,6 @@ export function getPanelStyles(widthPx: number): string {
   .lw-focus__empty {
     color: #8a949c;
   }
-  .lw-an-scan {
-    border: 1px solid #e1e6ea;
-    border-radius: 10px;
-    padding: 8px 12px;
-    background: #fff;
-  }
-  .lw-an-scan[open] {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .lw-an-scan summary {
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 12.5px;
-  }
-  .lw-an-scan summary span {
-    font-weight: 400;
-    color: #56687a;
-  }
-
   .lw-an-score {
     display: flex;
     flex-direction: column;

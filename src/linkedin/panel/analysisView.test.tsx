@@ -125,26 +125,17 @@ describe("Profile Analyzer dashboard", () => {
     expect(section.textContent).not.toContain("Builds websites");
   });
 
-  it("places Key Evidence between Why they match and Profile Highlights, from the signal analysis", () => {
+  it("ends with Key Evidence, from the signal analysis, with no highlight settings on the dashboard", () => {
     const signals = { status: "ready" as const, profileKey: "jordan", highlights: [], facts: [{ text: "Built the club website in React", evidenceId: "experience:0" }] };
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    act(() => root!.render(<AnalysisView result={result} goal={goal} profile={profile} aiState={ready as Extract<AiAnalysisState, { status: "ready" }>} signalAnalysis={signals} highlights={<section aria-label="Profile highlights">H</section>} />));
+    act(() => root!.render(<AnalysisView result={result} goal={goal} profile={profile} aiState={ready as Extract<AiAnalysisState, { status: "ready" }>} signalAnalysis={signals} />));
     const order = [...container.querySelector(".lw-dash")!.children].map((el) => el.getAttribute("aria-label") ?? el.className);
-    expect(order.slice(1)).toEqual(["Summary", "Why they match", "Key evidence", "Profile highlights"]);
+    expect(order.slice(1)).toEqual(["Summary", "Why they match", "Key evidence"]);
     expect(container.querySelector('[aria-label="Key evidence"]')!.textContent).toContain("Built the club website in React");
+    expect(container.querySelector('[aria-label="Profile highlights"]')).toBeNull();
     expect(sendMessage).not.toHaveBeenCalled();
-  });
-
-  it("ends with Profile Highlights", () => {
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-    act(() => root!.render(<AnalysisView result={result} goal={goal} profile={profile} aiState={ready as Extract<AiAnalysisState, { status: "ready" }>} highlights={<section aria-label="Profile highlights">H</section>} />));
-    const dashboard = container.querySelector(".lw-dash")!;
-    expect(dashboard.lastElementChild!.getAttribute("aria-label")).toBe("Profile highlights");
-    expect(container.innerHTML.indexOf('aria-label="Why they match"')).toBeLessThan(container.innerHTML.indexOf('aria-label="Profile highlights"'));
   });
 
   it("keeps Smart Highlights and invented actions off the page", () => {

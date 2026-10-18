@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { panelToolPreference, type PanelTool } from "../../optimizer/optimizerPreferences";
 
-type MenuTool = Exclude<PanelTool, "menu">;
+type MenuTool = Exclude<PanelTool, "menu" | "settings">;
 
 const ICON: Record<MenuTool, ReactNode> = {
   analyzer: (
@@ -83,6 +83,29 @@ function AnalyzerHeroArt() {
   );
 }
 
+const ICON_PROPS = { viewBox: "0 0 24 24", width: 20, height: 20, fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
+
+// The hero's top row: the main menu on the left, Settings on the right.
+export function HeroNav({ showSettings = false }: { showSettings?: boolean }) {
+  return (
+    <div className="lw-hero-nav">
+      <button type="button" className="lw-hero-nav__button lw-hero-nav__button--menu" aria-label="Open LinkWise menu" title="Menu" onClick={() => panelToolPreference.set("menu")}>
+        <svg {...ICON_PROPS}>
+          <path d="M5 7h14M5 12h14M5 17h14" />
+        </svg>
+      </button>
+      {showSettings && (
+        <button type="button" className="lw-hero-nav__button lw-hero-nav__button--settings" aria-label="Open LinkWise settings" title="Settings" onClick={() => panelToolPreference.set("settings")}>
+          <svg {...ICON_PROPS}>
+            <path d="M10.3 3.6h3.4l.5 2.3 1.6.9 2.2-.8 1.7 2.9-1.7 1.6v1.9l1.7 1.6-1.7 2.9-2.2-.8-1.6.9-.5 2.3h-3.4l-.5-2.3-1.6-.9-2.2.8-1.7-2.9 1.7-1.6v-1.9L4.3 8.9 6 6l2.2.8 1.6-.9z" />
+            <circle cx="12" cy="12" r="2.6" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
 // A tool's top: the way back to the menu, then its name.
 export function ToolHead({ title, subtitle, decorated = false }: { title: string; subtitle?: string; decorated?: boolean }) {
   if (!decorated) {
@@ -96,7 +119,7 @@ export function ToolHead({ title, subtitle, decorated = false }: { title: string
 
   return (
     <section className="lw-tool-head lw-tool-head--hero">
-      <BackLink label="Back to Menu" onClick={() => panelToolPreference.set("menu")} />
+      <HeroNav showSettings />
       <div className="lw-tool-head__hero-row">
         <div className="lw-tool-head__copy">
           <h2 className="lw-tool-head__title">{title}</h2>

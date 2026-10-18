@@ -52,7 +52,6 @@ async function mountPanel() {
   await act(async () => {});
 }
 
-const button = (text: string) => [...container.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
 const radio = (group: string, text: string) =>
   [...container.querySelectorAll(`[role="radiogroup"][aria-label="${group}"] button`)].find((b) => b.textContent === text) as HTMLButtonElement;
 
@@ -73,7 +72,10 @@ afterEach(() => {
 
 const menuItems = () => [...container.querySelectorAll(".lw-menu .lw-menu__item .lw-opt-card__title")].map((el) => el.textContent);
 const openFromMenu = async (label: string) => act(async () => [...container.querySelectorAll<HTMLButtonElement>(".lw-menu__item")].find((b) => b.textContent?.includes(label))!.click());
-const back = async (label: string) => act(async () => button(`← ${label}`).click());
+// Tool pages with the hero go back through its menu button; the others through "Back to Menu".
+const toMenu = async () =>
+  act(async () => (container.querySelector<HTMLButtonElement>('[aria-label="Open LinkWise menu"]') ?? [...container.querySelectorAll("button")].find((b) => b.textContent?.trim() === "← Back to Menu")!).click());
+const openSettings = async () => act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Open LinkWise settings"]')!.click());
 
 describe("LinkWise menu", () => {
   it("lists exactly the four tools, one per row, with no Smart Highlights or tab bar", async () => {
@@ -89,7 +91,7 @@ describe("LinkWise menu", () => {
     for (const label of ["Profile Analyzer", "Profile Optimizer", "Job Filters", "Saved Profiles"]) {
       await openFromMenu(label);
       expect(container.querySelector(".lw-menu")).toBeNull();
-      await back("Back to Menu");
+      await toMenu();
       expect(menuItems()).toHaveLength(4);
     }
   });
@@ -98,7 +100,7 @@ describe("LinkWise menu", () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     const before = container.querySelector(".lw-panel__body")!.textContent;
-    await back("Back to Menu");
+    await toMenu();
     await openFromMenu("Profile Analyzer");
     expect(container.querySelector(".lw-panel__body")!.textContent).toBe(before);
   });
@@ -121,7 +123,7 @@ describe("Job Filters page", () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     expect(container.textContent).not.toContain("Applied jobs");
-    await back("Back to Menu");
+    await toMenu();
     await openFromMenu("Job Filters");
     expect(container.textContent).toContain("Customize how LinkedIn job listings are hidden or highlighted.");
     expect(container.textContent).toContain("Applied jobs");
@@ -153,18 +155,54 @@ describe("job cards and the settings store", () => {
   });
 });
 
-describe("Profile Highlights inside Profile Analyzer", () => {
-  it("is part of the Analyzer, holding only highlight appearance", async () => {
+describe("Settings", () => {
+  it("replaces Back to Menu on the Analyzer hero with a menu button and a settings button", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
-    const section = container.querySelector('[aria-label="Profile highlights"]')!;
-    expect(section).not.toBeNull();
-    expect(section.textContent).toContain("Signal Mode");
-    expect(section.textContent).toContain("Highlight useful evidence directly on the profile.");
-    expect(section.querySelector("textarea")).toBeNull();
-    expect(section.textContent).not.toContain("Highlight keywords");
+    const hero = container.querySelector(".lw-tool-head--hero")!;
+    expect(hero.textContent).not.toContain("Back to Menu");
+    expect(hero.querySelector('[aria-label="Open LinkWise menu"]')).not.toBeNull();
+    expect(hero.querySelector('[aria-label="Open LinkWise settings"]')).not.toBeNull();
+    await openSettings();
+    expect(stored["finder.panelTool.v1"]).toBe("settings");
+    expect(container.querySelector(".lw-tool-head__title")!.textContent).toBe("Settings");
+    await toMenu();
+    expect(menuItems()).toHaveLength(4);
   });
 
+  it("holds the scan and highlight settings, which the Analyzer no longer shows", async () => {
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    expect(container.querySelector('[aria-label="Scan mode"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Profile highlights"]')).toBeNull();
+    expect(container.textContent).not.toContain("Scan settings");
+    await openSettings();
+    expect(container.querySelectorAll('[aria-label="Scan mode"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[aria-label="Profile highlights"]')).toHaveLength(1);
+    expect(container.querySelector('[aria-label="Scanning"]')!.textContent).toContain("Scan mode");
+    expect(container.querySelector('[aria-label="Profile highlights"]')!.textContent).toContain("Signal Mode");
+    expect(container.querySelector('[aria-label="Highlight on profile"]')).toBeNull();
+  });
+
+  it("changes the same stored scan mode, without asking AI for anything", async () => {
+    const { getScanModeState } = await import("./scanModeStore");
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    const sendMessage = (globalThis as unknown as { chrome: { runtime: { sendMessage: ReturnType<typeof vi.fn> } } }).chrome.runtime.sendMessage;
+    sendMessage.mockClear();
+    await openSettings();
+    const other = [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Scan mode"] [role="radio"]')].find((b) => b.getAttribute("aria-checked") === "false")!;
+    await act(async () => other.click());
+    expect(getScanModeState().mode).toBe(other.textContent === "Auto scan profile" ? "auto" : "scroll");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("opens an old stored Settings choice", () => {
+    expect(decodePanelTool("settings")).toBe("settings");
+  });
+});
+
+describe("Highlight on profile", () => {
   it("puts Highlight on profile right under Looking for, as the only keyword editor", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
@@ -197,10 +235,11 @@ describe("Profile Highlights inside Profile Analyzer", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("still turns Signal Mode on from the Analyzer", async () => {
+  it("turns Signal Mode on from Settings", async () => {
     const { getSignalModeState } = await import("./signalModeStore");
     await mountPanel();
     await openFromMenu("Profile Analyzer");
+    await openSettings();
     const toggle = container.querySelector<HTMLInputElement>(".lw-signals__toggle input")!;
     const before = getSignalModeState().enabled;
     await act(async () => toggle.click());
