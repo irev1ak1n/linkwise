@@ -13,6 +13,8 @@ function installFakeChromeRuntime(response: AnalyzeSignalsApiResponse | undefine
 }
 
 const payload: AnalyzeSignalsRequestBody = {
+  version: 2,
+  goal: null,
   profile: { identity: "jordan-rivera", evidence: [{ id: "about:0", section: "about", text: "Led a team", evidenceType: "about" }] },
 };
 
@@ -21,11 +23,16 @@ beforeEach(() => {
 });
 
 describe("requestSignalAnalysis", () => {
-  it("resolves ok with signals and facts", async () => {
-    const sendMessage = installFakeChromeRuntime({ status: "signals", model: "m", highlights: [], facts: [{ text: "Led a team", evidenceId: "about:0" }] });
+  it("resolves ok with graded candidates and the items that were graded", async () => {
+    const sendMessage = installFakeChromeRuntime({ status: "signals", version: 2, model: "m", careerStage: "student", candidates: [], classified: ["about:0"] });
     const outcome = await requestSignalAnalysis(payload).promise;
-    expect(outcome).toEqual({ status: "ok", highlights: [], facts: [{ text: "Led a team", evidenceId: "about:0" }] });
+    expect(outcome).toEqual({ status: "ok", careerStage: "student", candidates: [], classified: ["about:0"] });
     expect(sendMessage.mock.calls[0]![0]).toMatchObject({ type: LINKWISE_ANALYZE_SIGNALS, payload });
+  });
+
+  it("treats a response from an older contract as unavailable", async () => {
+    installFakeChromeRuntime({ status: "signals", model: "m", highlights: [], facts: [] } as unknown as AnalyzeSignalsApiResponse);
+    expect(await requestSignalAnalysis(payload).promise).toEqual({ status: "unavailable", reason: "processing_error" });
   });
 
   it("reports unavailable when OpenAI is not configured", async () => {

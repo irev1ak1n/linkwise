@@ -63,8 +63,21 @@ describe("signal analysis across a full reload", () => {
   it("restores cached signals and facts without a new request", async () => {
     const signalOutcome = {
       status: "ok" as const,
-      highlights: [{ evidenceId: "about:0", section: "about" as const, quote: "Led a team", type: "leadership" as const, importance: 0.9, metrics: [] }],
-      facts: [{ text: "Led a team", evidenceId: "about:0" }],
+      careerStage: "student" as const,
+      classified: ["about:0"],
+      candidates: [
+        {
+          evidenceId: "about:0",
+          section: "about" as const,
+          quote: "Led a team",
+          fact: "Led a team",
+          type: "leadership_scope" as const,
+          grades: { impact: 1, ownership: 2, result: 0, scale: 0, selectivity: 0, leadership: 3, technicalDepth: 0, sustainedDepth: 0, specificity: 2, distinctiveness: 2, genericness: 0 },
+          goalRelevance: 0,
+          confidence: 0.9,
+          metrics: [],
+        },
+      ],
     };
     const signalProfile = { ...EMPTY_PROFILE, name: "Jordan", about: "Led a team", extracted: true };
     const first = await import("./signalAnalysisController");
@@ -147,12 +160,25 @@ describe("a stale profile reloaded 20 minutes later", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps signal facts visible while a stale profile's signals refresh", async () => {
+  it("keeps signal facts visible while an edited item is regraded", async () => {
     const facts = [{ text: "Led a team", evidenceId: "about:0" }];
     const signalOutcome = {
       status: "ok" as const,
-      highlights: [{ evidenceId: "about:0", section: "about" as const, quote: "Led a team", type: "leadership" as const, importance: 0.9, metrics: [] }],
-      facts,
+      careerStage: "student" as const,
+      classified: ["about:0"],
+      candidates: [
+        {
+          evidenceId: "about:0",
+          section: "about" as const,
+          quote: "Led a team",
+          fact: "Led a team",
+          type: "leadership_scope" as const,
+          grades: { impact: 1, ownership: 2, result: 0, scale: 0, selectivity: 0, leadership: 3, technicalDepth: 0, sustainedDepth: 0, specificity: 2, distinctiveness: 2, genericness: 0 },
+          goalRelevance: 0,
+          confidence: 0.9,
+          metrics: [],
+        },
+      ],
     };
     const signalProfile = { ...EMPTY_PROFILE, name: "Jordan", about: "Led a team", extracted: true };
     const first = await import("./signalAnalysisController");

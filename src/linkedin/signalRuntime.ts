@@ -17,6 +17,8 @@ export interface SignalTickInput {
   profileKey: string | null;
   profile: LinkedInProfile | null;
   ready: boolean;
+  /** The active goal as text; ranking leans on it a little, and works without one. */
+  goalText?: string | null;
 }
 
 export function isMainProfilePage(href: string): boolean {
@@ -28,7 +30,7 @@ export function isProfileSessionPage(href: string): boolean {
 }
 
 // Panel data can still describe the previous profile for a tick after SPA navigation.
-export function signalTickInput(enabled: boolean, href: string, data: PanelProfileData, highlight = enabled): SignalTickInput {
+export function signalTickInput(enabled: boolean, href: string, data: PanelProfileData, highlight = enabled, goalText: string | null = null): SignalTickInput {
   const profileKey = profileIdentityKey(href);
   const current = profileKey !== null && data.profileKey === profileKey;
   return {
@@ -38,6 +40,7 @@ export function signalTickInput(enabled: boolean, href: string, data: PanelProfi
     profileKey,
     profile: current ? data.profile : null,
     ready: current && data.collection?.status === "settled" && data.autoScanProgress?.status !== "scanning",
+    goalText,
   };
 }
 
@@ -79,7 +82,7 @@ export function createSignalRuntime(options: SignalRuntimeOptions) {
       activeProfileKey = input.profileKey;
       controller.reset();
     }
-    if (input.ready && input.profile) controller.update({ profileKey: input.profileKey, profile: input.profile });
+    if (input.ready && input.profile) controller.update({ profileKey: input.profileKey, profile: input.profile, goalText: input.goalText ?? null });
     paint();
   }
 

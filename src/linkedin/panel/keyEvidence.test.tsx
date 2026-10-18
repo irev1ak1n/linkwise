@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { EMPTY_RANKING } from "../../signals/signalRanking";
 import { afterEach, describe, expect, it } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -19,7 +20,7 @@ function render(analysis: SignalAnalysisState, exclude: string[] = []) {
 afterEach(() => act(() => root?.unmount()));
 
 const facts = ["Represented 40,000+ student-athletes", "Selected for a teen academy", "Managed nonprofit volunteers", "Supported energy projects", "Earned an Excel certification", "Co-led a youth council", "Ranked first on a leaderboard"].map((text, i) => ({ text, evidenceId: `experience:${i}` }));
-const ready = (list = facts): SignalAnalysisState => ({ status: "ready", profileKey: "jordan", highlights: [], facts: list });
+const ready = (list = facts): SignalAnalysisState => ({ status: "ready", profileKey: "jordan", highlights: [], facts: list, source: "ai", ranking: EMPTY_RANKING });
 
 describe("KeyEvidence", () => {
   it("lists the analysis's facts in their ranked order, a few at a time", () => {

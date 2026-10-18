@@ -9,6 +9,8 @@ interface Entry<T> {
 export interface PersistentCache<T> {
   get(key: string, now?: number): T | undefined;
   set(key: string, value: T, now?: number): void;
+  /** Several entries in one storage write. */
+  setMany(values: [key: string, value: T][], now?: number): void;
   hydrate(): Promise<void>;
   isReady(): boolean;
   whenReady(): Promise<void>;
@@ -63,6 +65,11 @@ export function createPersistentCache<T>(storageKey: string, ttlMs: number, maxE
     },
     set(key, value, now = Date.now()) {
       entries.set(key, { savedAt: now, value });
+      persist(now);
+    },
+    setMany(values, now = Date.now()) {
+      if (values.length === 0) return;
+      for (const [key, value] of values) entries.set(key, { savedAt: now, value });
       persist(now);
     },
     hydrate() {

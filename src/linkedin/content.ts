@@ -664,10 +664,18 @@ let signalHref = "";
 function analyzerOpen(): boolean {
   return isPanelVisible() && panelToolPreference.getState().value === "analyzer";
 }
+// What Signal Mode leans toward: the goal as the user described it, plus its criteria.
+function signalGoalText(): string | null {
+  const goal = selectActiveGoal(getGoalStoreState());
+  if (!goal) return null;
+  const criteria = goal.criteria.filter((c) => c.importance !== "EXCLUDED").map((c) => c.label);
+  return [goal.description ?? goal.name, criteria.length > 0 ? `Criteria: ${criteria.join("; ")}` : ""].filter(Boolean).join(" | ");
+}
+
 function tickSignals(): void {
   signalHref = location.href;
   const highlight = getSignalModeState().enabled;
-  signalRuntime.tick(signalTickInput(highlight || analyzerOpen(), location.href, getPanelProfileData(), highlight));
+  signalRuntime.tick(signalTickInput(highlight || analyzerOpen(), location.href, getPanelProfileData(), highlight, signalGoalText()));
 }
 
 // Photo, banner, and section headings only exist on the main profile page, so details pages keep

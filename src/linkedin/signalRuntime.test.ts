@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 import { SignalAnalysisController, clearSignalCache, type SignalAnalysisState } from "../ai/signalAnalysisController";
 import type { AnalyzeSignalsRequestBody } from "../ai/signalsClient";
-import type { SignalAnalysisOutcome } from "../ai/signalTypes";
+import type { GradedCandidateDTO, SignalClassificationOutcome } from "../ai/signalTypes";
 import { QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
 import { createSignalRuntime, isMainProfilePage, isProfileSessionPage, signalTargets, signalTickInput } from "./signalRuntime";
 
@@ -15,21 +15,31 @@ function profile(description: string): LinkedInProfile {
   return { ...EMPTY_PROFILE, name: "Jordan", headline: "Engineer", experience: [{ title: "Web Lead", description }], extracted: true };
 }
 
-function outcomeFor(body: AnalyzeSignalsRequestBody): SignalAnalysisOutcome {
+function leadership(evidenceId: string, quote: string, fact: string | null = quote): GradedCandidateDTO {
+  return {
+    evidenceId,
+    section: "experience",
+    quote,
+    fact,
+    type: "leadership_scope",
+    grades: { impact: 2, ownership: 3, result: 1, scale: 2, selectivity: 0, leadership: 3, technicalDepth: 1, sustainedDepth: 1, specificity: 2, distinctiveness: 2, genericness: 0 },
+    goalRelevance: 0,
+    confidence: 0.9,
+    metrics: [],
+  };
+}
+
+function outcomeFor(body: AnalyzeSignalsRequestBody): SignalClassificationOutcome {
   const item = body.profile.evidence.find((e) => e.section === "experience")!;
   const quote = item.text.split(" — ")[1]!;
-  return {
-    status: "ok",
-    highlights: [{ evidenceId: item.id, section: "experience", quote, type: "leadership", importance: 0.9, metrics: [] }],
-    facts: [{ text: quote, evidenceId: item.id }],
-  };
+  return { status: "ok", careerStage: "professional", candidates: [leadership(item.id, quote)], classified: body.profile.evidence.map((e) => e.id) };
 }
 
 function setPage(description: string): void {
   document.body.innerHTML = `<main role="main"><section><h1>Jordan</h1></section><section><h2>Experience</h2><p>Web Lead</p><p>${description}</p></section></main>`;
 }
 
-function harness(outcome: (body: AnalyzeSignalsRequestBody) => SignalAnalysisOutcome = outcomeFor) {
+function harness(outcome: (body: AnalyzeSignalsRequestBody) => SignalClassificationOutcome = outcomeFor) {
   const published: SignalAnalysisState[] = [];
   const request = vi.fn((body: AnalyzeSignalsRequestBody) => ({ requestId: "r", promise: Promise.resolve(outcome(body)), cancel: vi.fn() }));
   const runtime = createSignalRuntime({
@@ -72,7 +82,7 @@ describe("isProfileSessionPage", () => {
 
 describe("signalTargets", () => {
   it("keeps only highlights above the inline threshold", () => {
-    const base = { evidenceId: "about:0", section: "about" as const, type: "milestone", metrics: [] };
+    const base = { evidenceId: "about:0", section: "about" as const, type: "core" as const, metrics: [] };
     expect(signalTargets([{ ...base, quote: "a", importance: 0.4 }, { ...base, quote: "b", importance: 0.55 }]).map((t) => t.quote)).toEqual(["b"]);
   });
 });
@@ -88,7 +98,7 @@ describe("signalTickInput", () => {
 
   it("ignores the previous profile's data right after SPA navigation", () => {
     const input = signalTickInput(true, "https://www.linkedin.com/in/sam/", { profileKey: "jordan", profile: profile("x"), collection });
-    expect(input).toEqual({ enabled: true, highlight: true, href: "https://www.linkedin.com/in/sam/", profileKey: "sam", profile: null, ready: false });
+    expect(input).toEqual({ goalText: null, enabled: true, highlight: true, href: "https://www.linkedin.com/in/sam/", profileKey: "sam", profile: null, ready: false });
   });
 
   it("is not ready while an auto scan is still crawling", () => {
@@ -173,32 +183,30 @@ describe("createSignalRuntime", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it("publishes unavailable and highlights nothing when AI is unavailable", async () => {
+  it("falls back to local heuristic highlights when AI is unavailable", async () => {
     setPage("Led a 4-person web team");
     const { runtime, published } = harness(() => ({ status: "unavailable", reason: "not_configured" }));
     runtime.tick({ enabled: true, href: JORDAN, profileKey: "jordan", profile: profile("Led a 4-person web team"), ready: true });
     await vi.advanceTimersByTimeAsync(50);
-    expect(published.at(-1)).toEqual({ status: "unavailable", reason: "not_configured" });
-    expect(entries.size).toBe(0);
+    expect(published.at(-1)).toMatchObject({ status: "ready", source: "heuristic", updateError: "not_configured" });
+    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team"]);
   });
 
-  it("keeps a title's role fact in the facts list without highlighting the title", async () => {
+  it("never highlights an entry title even when it is graded", async () => {
     document.body.innerHTML = `<main role="main"><section><h1>Jordan</h1></section><section><h2>Experience</h2><p style="font-weight: 600">Web Lead</p><p>Led a 4-person web team</p></section></main>`;
     const { runtime, published } = harness((body) => {
       const item = body.profile.evidence.find((e) => e.section === "experience")!;
       return {
         status: "ok",
-        highlights: [
-          { evidenceId: item.id, section: "experience", quote: "Web Lead", type: "role", importance: 0.8, metrics: [] },
-          { evidenceId: item.id, section: "experience", quote: "Led a 4-person web team", type: "leadership", importance: 0.9, metrics: [] },
-        ],
-        facts: [{ text: "Web Lead role", evidenceId: item.id }],
+        careerStage: "professional",
+        candidates: [leadership(item.id, "Web Lead", "Web Lead role"), leadership(item.id, "Led a 4-person web team")],
+        classified: [item.id],
       };
     });
     runtime.tick({ enabled: true, href: JORDAN, profileKey: "jordan", profile: profile("Led a 4-person web team"), ready: true });
     await vi.advanceTimersByTimeAsync(50);
     expect(entries.get(QUOTE_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team"]);
-    expect(published.at(-1)).toMatchObject({ status: "ready", facts: [{ text: "Web Lead role" }] });
+    expect(published.at(-1)).toMatchObject({ status: "ready" });
   });
 
   it("clears highlights on dispose", async () => {

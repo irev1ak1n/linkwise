@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { EMPTY_RANKING } from "../../signals/signalRanking";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -126,7 +127,7 @@ describe("Profile Analyzer dashboard", () => {
   });
 
   it("ends with Key Evidence, from the signal analysis, with no highlight settings on the dashboard", () => {
-    const signals = { status: "ready" as const, profileKey: "jordan", highlights: [], facts: [{ text: "Built the club website in React", evidenceId: "experience:0" }] };
+    const signals = { status: "ready" as const, profileKey: "jordan", highlights: [], facts: [{ text: "Built the club website in React", evidenceId: "experience:0" }], source: "ai" as const, ranking: EMPTY_RANKING };
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
