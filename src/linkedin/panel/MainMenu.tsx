@@ -104,7 +104,7 @@ export function BrandMark() {
           <stop offset="1" stopColor="#7c5cfc" />
         </linearGradient>
       </defs>
-      <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="url(#lw-mark-tile)" stroke="#ffffff" strokeOpacity="0.14" />
+      <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="url(#lw-mark-tile)" stroke="#ffffff" strokeOpacity="0.1" />
       <g fill="url(#lw-mark-bars)">
         <rect x="9" y="16.5" width="4" height="8.5" rx="2" />
         <rect x="14.25" y="12" width="4" height="13" rx="2" />

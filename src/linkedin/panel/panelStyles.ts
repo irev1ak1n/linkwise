@@ -26,13 +26,13 @@ export function getPanelStyles(widthPx: number): string {
     justify-content: space-between;
     padding: 14px 12px 14px 18px;
     flex-shrink: 0;
-    border-bottom: 1px solid rgba(170, 196, 255, 0.35);
-    box-shadow: 0 4px 14px rgba(23, 54, 164, 0.12);
+    border-bottom: 1px solid rgba(180, 200, 255, 0.28);
+    box-shadow: 0 4px 16px rgba(30, 56, 160, 0.1);
     background:
-      radial-gradient(90px 60px at 34px 50%, rgba(120, 170, 255, 0.22), transparent 70%),
-      radial-gradient(160px 110px at 100% 0%, rgba(160, 120, 255, 0.45), transparent 70%),
-      radial-gradient(220px 90px at 55% 120%, rgba(56, 140, 248, 0.28), transparent 70%),
-      linear-gradient(100deg, #1736a4 0%, #2448d4 38%, #2f59e8 62%, #654df2 100%);
+      radial-gradient(75% 190% at 100% 10%, rgba(146, 120, 255, 0.34) 0%, rgba(146, 120, 255, 0.12) 40%, transparent 70%),
+      radial-gradient(45% 150% at 9% 50%, rgba(110, 160, 255, 0.13) 0%, transparent 70%),
+      radial-gradient(70% 110% at 50% 125%, rgba(60, 125, 250, 0.18) 0%, transparent 70%),
+      linear-gradient(100deg in oklab, #15329c 0%, #1d40c0 30%, #2850d8 56%, #3a56e4 78%, #5258ea 100%);
   }
   .lw-panel__header::before,
   .lw-panel__header::after {
@@ -40,44 +40,50 @@ export function getPanelStyles(widthPx: number): string {
     position: absolute;
     border-radius: 50%;
     pointer-events: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%);
   }
   .lw-panel__header::before {
-    width: 300px;
+    width: 520px;
     height: 150px;
-    right: -150px;
-    top: -86px;
-    border: 1px solid rgba(255, 255, 255, 0.13);
+    left: 40px;
+    top: 22px;
+    border-top: 1px solid rgba(215, 228, 255, 0.16);
+    transform: rotate(-5deg);
   }
   .lw-panel__header::after {
-    width: 460px;
-    height: 110px;
-    left: 40px;
-    top: 26px;
-    border-top: 1px solid rgba(200, 220, 255, 0.14);
-    transform: rotate(-4deg);
+    width: 300px;
+    height: 160px;
+    right: -130px;
+    top: -96px;
+    border-bottom: 1px solid rgba(225, 215, 255, 0.14);
+    transform: rotate(-10deg);
   }
   .lw-panel__brand {
     position: relative;
     z-index: 1;
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 11px;
   }
   .lw-panel__mark {
     flex: 0 0 auto;
     width: 30px;
     height: 30px;
-    filter: drop-shadow(0 3px 8px rgba(8, 18, 80, 0.35));
+    border-radius: 9px;
+    filter: drop-shadow(0 0 10px rgba(120, 160, 255, 0.3)) drop-shadow(0 2px 5px rgba(8, 18, 80, 0.28));
   }
   .lw-panel__wordmark {
-    font-weight: 650;
+    font-weight: 600;
     font-size: 20px;
     line-height: 1;
-    letter-spacing: -0.025em;
-    color: #f8faff;
+    letter-spacing: -0.02em;
+    color: #f6f8ff;
+    text-shadow: 0 1px 2px rgba(12, 24, 90, 0.18);
   }
   .lw-panel__wordmark span {
-    background: linear-gradient(180deg, #f2f6ff, #d4e2ff);
+    background: linear-gradient(180deg, #eef3ff, #d6e2ff);
+    text-shadow: none;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -94,12 +100,12 @@ export function getPanelStyles(widthPx: number): string {
     border: none;
     border-radius: 10px;
     background: transparent;
-    color: rgba(232, 240, 255, 0.82);
+    color: rgba(236, 242, 255, 0.78);
     cursor: pointer;
     transition: background 0.18s ease-out, color 0.18s ease-out;
   }
   .lw-panel__close:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.1);
     color: #fff;
   }
   .lw-panel__close:focus-visible {
