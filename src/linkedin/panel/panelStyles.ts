@@ -1108,16 +1108,16 @@ export function getPanelStyles(widthPx: number): string {
     border-radius: 50%;
   }
   .lw-art-hero--settings .lw-art-hero__hotspot {
-    top: 12.2%;
-    width: 11.7%;
-    height: 20%;
+    top: 15.6%;
+    width: 10.7%;
+    height: 17.5%;
     border-radius: 24%;
   }
   .lw-art-hero--settings .lw-art-hero__hotspot--back {
-    left: 4.9%;
+    left: 6%;
   }
   .lw-art-hero--settings .lw-art-hero__hotspot--menu {
-    left: 19.9%;
+    left: 19.6%;
   }
   .lw-an-goal {
     display: flex;
