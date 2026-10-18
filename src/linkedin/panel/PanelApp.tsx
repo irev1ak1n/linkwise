@@ -35,7 +35,7 @@ import { panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
-import { BackLink, BrandMark, HeaderSignalLines, MainMenu, ToolHead } from "./MainMenu";
+import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, MainMenu, ToolHead } from "./MainMenu";
 
 const openMenu = () => panelToolPreference.set("menu");
 
@@ -207,7 +207,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
           renderProfileSection()
         ) : (
           <>
-            <ToolHead title="Profile Analyzer" subtitle="Get insights and actionable tips for any LinkedIn profile." decorated />
+            <AnalyzerHero />
             <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
             <FocusOnSection keywords={highlightKeywords} onSave={highlightKeywordsPreference.set} />
             {renderProfileSection()}

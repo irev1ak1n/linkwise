@@ -159,8 +159,9 @@ describe("Settings", () => {
   it("replaces Back to Menu on the Analyzer hero with a menu button and a settings button", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
-    const hero = container.querySelector(".lw-tool-head--hero")!;
+    const hero = container.querySelector(".lw-analyzer-hero")!;
     expect(hero.textContent).not.toContain("Back to Menu");
+    expect(hero.querySelector("img")!.getAttribute("alt")).toContain("Profile Analyzer");
     expect(hero.querySelector('[aria-label="Open LinkWise menu"]')).not.toBeNull();
     expect(hero.querySelector('[aria-label="Open LinkWise settings"]')).not.toBeNull();
     await openSettings();

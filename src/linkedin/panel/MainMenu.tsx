@@ -57,32 +57,6 @@ export function BackLink({ label, onClick }: { label: string; onClick: () => voi
   );
 }
 
-function AnalyzerHeroArt() {
-  return (
-    <div className="lw-tool-head__art" aria-hidden="true">
-      <svg className="lw-tool-head__art-svg" viewBox="0 0 160 120">
-        <g transform="rotate(7 104 57)">
-          <rect x="55" y="14" width="94" height="82" rx="15" fill="#ffffff" fillOpacity="0.9" stroke="#cfdcf7" strokeWidth="1.5" />
-          <circle cx="81" cy="43" r="14" fill="#d9e8ff" />
-          <circle cx="81" cy="39" r="6.5" fill="#6f9ff2" />
-          <path d="M69 55c2.8-7 20.5-7 24 0v4H69z" fill="#6f9ff2" />
-          <rect x="105" y="34" width="31" height="6.5" rx="3.25" fill="#c8d8f4" />
-          <rect x="105" y="47" width="25" height="6.5" rx="3.25" fill="#d8e4f7" />
-          <rect x="70" y="70" width="62" height="6.5" rx="3.25" fill="#d8e4f7" />
-          <rect x="70" y="82" width="48" height="6.5" rx="3.25" fill="#e5edf9" />
-        </g>
-        <g transform="rotate(7 69 88)">
-          <rect x="45" y="67" width="48" height="44" rx="11" fill="#ffffff" fillOpacity="0.95" stroke="#cfdcf7" strokeWidth="1.5" />
-          <rect x="57" y="91" width="6" height="9" rx="2" fill="#4f7fe0" />
-          <rect x="67" y="84" width="6" height="16" rx="2" fill="#5c8bea" />
-          <rect x="77" y="77" width="6" height="23" rx="2" fill="#70a2f4" />
-        </g>
-        <path d="M144 13l4-9M153 20l7-5" stroke="#5c8bea" strokeWidth="4" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-}
-
 // The LinkWise mark: three rising bars wrapped by a signal orbit, with a small spark. Drawn on its
 // own dark tile so the gradient reads on any header color, and kept simple enough for 16px.
 export function BrandMark() {
@@ -169,26 +143,33 @@ export function HeroNav({ showSettings = false }: { showSettings?: boolean }) {
 }
 
 // A tool's top: the way back to the menu, then its name.
-export function ToolHead({ title, subtitle, decorated = false }: { title: string; subtitle?: string; decorated?: boolean }) {
-  if (!decorated) {
-    return (
-      <div className="lw-tool-head">
-        <BackLink label="Back to Menu" onClick={() => panelToolPreference.set("menu")} />
-        <h2 className="lw-tool-head__title">{title}</h2>
-      </div>
-    );
-  }
-
+export function ToolHead({ title }: { title: string }) {
   return (
-    <section className="lw-tool-head lw-tool-head--hero">
-      <HeroNav showSettings />
-      <div className="lw-tool-head__hero-row">
-        <div className="lw-tool-head__copy">
-          <h2 className="lw-tool-head__title">{title}</h2>
-          {subtitle && <p className="lw-tool-head__subtitle">{subtitle}</p>}
-        </div>
-        <AnalyzerHeroArt />
-      </div>
+    <div className="lw-tool-head">
+      <BackLink label="Back to Menu" onClick={() => panelToolPreference.set("menu")} />
+      <h2 className="lw-tool-head__title">{title}</h2>
+    </div>
+  );
+}
+
+// The Analyzer's hero is a single piece of artwork, title and buttons included. The two buttons
+// drawn in it get invisible hit areas, positioned in percentages so they track the image's scale.
+const ANALYZER_HERO_PATH = "content/assets/profile-analyzer-hero.webp";
+
+export function AnalyzerHero() {
+  const src = typeof chrome !== "undefined" ? chrome.runtime?.getURL?.(ANALYZER_HERO_PATH) : undefined;
+  return (
+    <section className="lw-analyzer-hero">
+      <img
+        className="lw-analyzer-hero__art"
+        src={src || undefined}
+        width={1672}
+        height={941}
+        alt="Profile Analyzer. Get insights and actionable tips for any LinkedIn profile."
+        draggable={false}
+      />
+      <button type="button" className="lw-analyzer-hero__hotspot lw-analyzer-hero__hotspot--menu" aria-label="Open LinkWise menu" onClick={() => panelToolPreference.set("menu")} />
+      <button type="button" className="lw-analyzer-hero__hotspot lw-analyzer-hero__hotspot--settings" aria-label="Open LinkWise settings" onClick={() => panelToolPreference.set("settings")} />
     </section>
   );
 }

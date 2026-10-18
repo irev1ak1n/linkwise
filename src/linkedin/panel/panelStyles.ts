@@ -1146,20 +1146,6 @@ export function getPanelStyles(widthPx: number): string {
     flex-direction: column;
     gap: 10px;
   }
-  /* The copy sets the row's height; the illustration floats over the right of it. */
-  .lw-tool-head__hero-row {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: flex-start;
-  }
-  .lw-tool-head__copy {
-    position: relative;
-    z-index: 1;
-    flex: 1 1 auto;
-    min-width: 0;
-    padding-left: 2px;
-  }
   .lw-tool-head--hero .lw-tool-head__title {
     font-size: 26px;
     font-weight: 740;
@@ -1168,35 +1154,52 @@ export function getPanelStyles(widthPx: number): string {
     white-space: nowrap;
     color: #111b3d;
   }
-  .lw-tool-head__subtitle {
-    max-width: 212px;
-    margin: 10px 0 0;
-    font-size: 14px;
-    line-height: 1.5;
-    color: #66758d;
+  .lw-analyzer-hero {
+    position: relative;
+    flex-shrink: 0;
+    margin: -16px -16px 0;
+    line-height: 0;
+    background: #060c26;
   }
-  .lw-tool-head__art {
-    position: absolute;
-    right: -4px;
-    bottom: -6px;
-    width: 116px;
-    height: 87px;
-  }
-  .lw-tool-head__art::before {
-    content: "";
-    position: absolute;
-    inset: -18px -22px -14px -16px;
-    border-radius: 50%;
-    border: 14px solid rgba(96, 130, 240, 0.05);
-    transform: rotate(-14deg);
-  }
-  .lw-tool-head__art-svg {
-    position: absolute;
-    inset: 0;
-    width: 116px;
+  .lw-analyzer-hero__art {
+    display: block;
+    width: 100%;
     height: auto;
-    overflow: visible;
-    filter: drop-shadow(0 14px 30px rgba(57, 73, 180, 0.1));
+    pointer-events: none;
+    user-select: none;
+  }
+  /* Bounds of the buttons drawn in the 1672x941 artwork, as fractions of its size. */
+  .lw-analyzer-hero__hotspot {
+    position: absolute;
+    top: 11.2%;
+    height: 23.6%;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    color: transparent;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lw-analyzer-hero__hotspot--menu {
+    left: 4.8%;
+    width: 13.8%;
+    border-radius: 24%;
+  }
+  .lw-analyzer-hero__hotspot--settings {
+    right: 5.5%;
+    width: 13.3%;
+    border-radius: 50%;
+  }
+  .lw-analyzer-hero__hotspot:focus {
+    outline: none;
+  }
+  .lw-analyzer-hero__hotspot:focus-visible {
+    outline: 2px solid rgba(150, 180, 255, 0.75);
+    outline-offset: -2px;
   }
   .lw-an-goal {
     display: flex;

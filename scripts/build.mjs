@@ -88,6 +88,15 @@ async function buildDocumentParsingChunk() {
   );
 }
 
+// Images the panel loads by URL. dist/content is already web-accessible to LinkedIn pages.
+function copyAssets() {
+  mkdirSync(path.join(root, "dist/content/assets"), { recursive: true });
+  copyFileSync(
+    path.join(root, "src/assets/profile-analyzer-hero.webp"),
+    path.join(root, "dist/content/assets/profile-analyzer-hero.webp"),
+  );
+}
+
 function copyManifest() {
   mkdirSync(path.join(root, "dist"), { recursive: true });
   copyFileSync(path.join(root, "manifest.json"), path.join(root, "dist/manifest.json"));
@@ -96,6 +105,7 @@ function copyManifest() {
 await buildBackground();
 await buildLinkedInContentScript();
 await buildDocumentParsingChunk();
+copyAssets();
 copyManifest();
 
 console.log(
