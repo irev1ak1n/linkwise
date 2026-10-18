@@ -83,23 +83,35 @@ function AnalyzerHeroArt() {
   );
 }
 
-// The LinkWise "L" mark for the panel's branded top bar.
+// The LinkWise mark: three rising bars wrapped by a signal orbit, with a small spark. Drawn on its
+// own dark tile so the gradient reads on any header color, and kept simple enough for 16px.
 export function BrandMark() {
   return (
     <svg className="lw-panel__mark" viewBox="0 0 32 32" aria-hidden="true">
       <defs>
-        <linearGradient id="lw-mark-stem" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#9fd0ff" />
-          <stop offset="1" stopColor="#3b6cf0" />
+        <linearGradient id="lw-mark-tile" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#1b2f8f" />
+          <stop offset="1" stopColor="#0e1a5c" />
         </linearGradient>
-        <linearGradient id="lw-mark-foot" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#2f5fe8" />
-          <stop offset="1" stopColor="#8fc4ff" />
+        <linearGradient id="lw-mark-bars" gradientUnits="userSpaceOnUse" x1="0" y1="25" x2="0" y2="7">
+          <stop offset="0" stopColor="#3478f6" />
+          <stop offset="0.55" stopColor="#7d8cff" />
+          <stop offset="1" stopColor="#d4ccff" />
+        </linearGradient>
+        <linearGradient id="lw-mark-orbit" gradientUnits="userSpaceOnUse" x1="4" y1="0" x2="28" y2="0">
+          <stop offset="0" stopColor="#38bdf8" />
+          <stop offset="0.5" stopColor="#3f86f8" />
+          <stop offset="1" stopColor="#7c5cfc" />
         </linearGradient>
       </defs>
-      <path d="M13.5 4.5c1.6-1.9 4.6-1.3 5.4 1L13 21.5H8.4c-2.3 0-3.6-2.6-2.2-4.4z" fill="url(#lw-mark-stem)" />
-      <rect x="5" y="19.5" width="23" height="8" rx="4" fill="url(#lw-mark-foot)" />
-      <path d="M14.2 6.3c.6-.6 1.5-.5 1.9.1" stroke="#fff" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+      <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="url(#lw-mark-tile)" stroke="#ffffff" strokeOpacity="0.14" />
+      <g fill="url(#lw-mark-bars)">
+        <rect x="9" y="16.5" width="4" height="8.5" rx="2" />
+        <rect x="14.25" y="12" width="4" height="13" rx="2" />
+        <rect x="19.5" y="7.5" width="4" height="17.5" rx="2" />
+      </g>
+      <path d="M5.2 21.6c-.9 3.4 4.9 5.2 11.3 4 5.2-1 9.4-3.6 11-7" fill="none" stroke="url(#lw-mark-orbit)" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M26.2 4.2l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="#e4dfff" />
     </svg>
   );
 }
@@ -111,7 +123,13 @@ export function HeroNav({ showSettings = false }: { showSettings?: boolean }) {
   return (
     <div className="lw-hero-nav">
       <button type="button" className="lw-hero-nav__button lw-hero-nav__button--menu" aria-label="Open LinkWise menu" title="Menu" onClick={() => panelToolPreference.set("menu")}>
-        <svg {...ICON_PROPS}>
+        <svg {...ICON_PROPS} stroke="url(#lw-menu-lines)">
+          <defs>
+            <linearGradient id="lw-menu-lines" gradientUnits="userSpaceOnUse" x1="5" y1="0" x2="19" y2="0">
+              <stop offset="0" stopColor="#4f7cf6" />
+              <stop offset="1" stopColor="#7458f5" />
+            </linearGradient>
+          </defs>
           <path d="M5 7h14M5 12h14M5 17h14" />
         </svg>
       </button>

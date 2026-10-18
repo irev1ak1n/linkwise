@@ -19,15 +19,20 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-panel__header {
     position: relative;
+    z-index: 1;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 14px 12px 14px 18px;
     flex-shrink: 0;
+    border-bottom: 1px solid rgba(170, 196, 255, 0.35);
+    box-shadow: 0 4px 14px rgba(23, 54, 164, 0.12);
     background:
-      radial-gradient(120% 140% at 100% 0%, rgba(150, 92, 255, 0.85), transparent 55%),
-      linear-gradient(100deg, #172a8f 0%, #1f3fc4 45%, #3a5df0 72%, #6a4ff2 100%);
+      radial-gradient(90px 60px at 34px 50%, rgba(120, 170, 255, 0.22), transparent 70%),
+      radial-gradient(160px 110px at 100% 0%, rgba(160, 120, 255, 0.45), transparent 70%),
+      radial-gradient(220px 90px at 55% 120%, rgba(56, 140, 248, 0.28), transparent 70%),
+      linear-gradient(100deg, #1736a4 0%, #2448d4 38%, #2f59e8 62%, #654df2 100%);
   }
   .lw-panel__header::before,
   .lw-panel__header::after {
@@ -37,40 +42,42 @@ export function getPanelStyles(widthPx: number): string {
     pointer-events: none;
   }
   .lw-panel__header::before {
-    width: 260px;
-    height: 160px;
-    right: -120px;
-    top: -70px;
-    border: 1.5px solid rgba(255, 255, 255, 0.22);
+    width: 300px;
+    height: 150px;
+    right: -150px;
+    top: -86px;
+    border: 1px solid rgba(255, 255, 255, 0.13);
   }
   .lw-panel__header::after {
-    width: 420px;
-    height: 120px;
-    left: 60px;
-    top: 18px;
-    border-top: 1px solid rgba(190, 215, 255, 0.28);
+    width: 460px;
+    height: 110px;
+    left: 40px;
+    top: 26px;
+    border-top: 1px solid rgba(200, 220, 255, 0.14);
+    transform: rotate(-4deg);
   }
   .lw-panel__brand {
     position: relative;
     z-index: 1;
     display: inline-flex;
     align-items: center;
-    gap: 9px;
+    gap: 10px;
   }
   .lw-panel__mark {
-    width: 32px;
-    height: 32px;
-    filter: drop-shadow(0 2px 6px rgba(10, 20, 90, 0.35));
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    filter: drop-shadow(0 3px 8px rgba(8, 18, 80, 0.35));
   }
   .lw-panel__wordmark {
-    font-weight: 700;
+    font-weight: 650;
     font-size: 20px;
     line-height: 1;
-    letter-spacing: -0.02em;
-    color: #fff;
+    letter-spacing: -0.025em;
+    color: #f8faff;
   }
   .lw-panel__wordmark span {
-    background: linear-gradient(180deg, #e8f2ff, #a9cdff);
+    background: linear-gradient(180deg, #f2f6ff, #d4e2ff);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -87,12 +94,12 @@ export function getPanelStyles(widthPx: number): string {
     border: none;
     border-radius: 10px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.92);
+    color: rgba(232, 240, 255, 0.82);
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 0.18s ease-out, color 0.18s ease-out;
   }
   .lw-panel__close:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.12);
     color: #fff;
   }
   .lw-panel__close:focus-visible {
@@ -1061,30 +1068,40 @@ export function getPanelStyles(widthPx: number): string {
   .lw-tool-head--hero {
     position: relative;
     isolation: isolate;
-    gap: 14px;
     flex-shrink: 0;
-    min-height: 168px;
+    gap: 10px;
     margin: -16px -16px 0;
-    padding: 20px 18px 28px;
+    padding: 18px 18px 20px;
     overflow: hidden;
-    border-bottom: 1px solid #edf2f8;
+    border-bottom: 1px solid #edf1fa;
     background:
-      radial-gradient(circle at 88% 72%, rgba(124, 108, 240, 0.13) 0 22%, transparent 22.5%),
-      radial-gradient(circle at 88% 72%, rgba(96, 132, 236, 0.08) 0 34%, transparent 34.5%),
-      radial-gradient(circle at 88% 72%, rgba(96, 132, 236, 0.05) 0 48%, transparent 48.5%),
-      linear-gradient(135deg, #ffffff 0%, #fbfcff 50%, #f4f6ff 100%);
+      radial-gradient(150px 120px at 84% 66%, rgba(122, 150, 245, 0.16), transparent 72%),
+      radial-gradient(260px 170px at 100% 30%, rgba(140, 120, 245, 0.07), transparent 70%),
+      linear-gradient(160deg, #ffffff 0%, #fbfcff 45%, #f3f6ff 100%);
   }
+  .lw-tool-head--hero::before,
   .lw-tool-head--hero::after {
     content: "";
     position: absolute;
     z-index: -1;
-    width: 250px;
-    height: 150px;
-    right: -98px;
-    bottom: -88px;
-    border-radius: 52% 48% 0 0;
-    border: 24px solid rgba(85, 125, 222, 0.045);
-    transform: rotate(-18deg);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .lw-tool-head--hero::before {
+    width: 330px;
+    height: 190px;
+    right: -170px;
+    top: 34px;
+    border: 18px solid rgba(70, 110, 230, 0.05);
+    transform: rotate(-16deg);
+  }
+  .lw-tool-head--hero::after {
+    width: 220px;
+    height: 120px;
+    right: -92px;
+    top: 66px;
+    border: 10px solid rgba(124, 92, 252, 0.06);
+    transform: rotate(-16deg);
   }
   .lw-hero-nav {
     position: relative;
@@ -1100,12 +1117,11 @@ export function getPanelStyles(widthPx: number): string {
     width: 44px;
     height: 44px;
     padding: 0;
-    border: 1px solid rgba(124, 132, 240, 0.2);
-    background: rgba(255, 255, 255, 0.86);
-    backdrop-filter: blur(6px);
-    box-shadow: 0 8px 22px rgba(96, 104, 230, 0.14), inset 0 1px 0 #fff;
+    border: 1px solid rgba(120, 150, 240, 0.22);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 247, 255, 0.9));
+    box-shadow: 0 8px 22px rgba(48, 78, 150, 0.1), inset 0 1px 0 #fff;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: background 0.18s ease-out, border-color 0.18s ease-out, box-shadow 0.18s ease-out, transform 0.18s ease-out;
   }
   .lw-hero-nav__button--menu {
     border-radius: 15px;
@@ -1113,15 +1129,18 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-hero-nav__button--settings {
     border-radius: 50%;
-    color: #3f4a68;
-    border-color: rgba(124, 132, 240, 0.12);
-    box-shadow: 0 0 0 6px rgba(140, 150, 245, 0.08), 0 8px 20px rgba(60, 72, 140, 0.12);
+    color: #44507a;
+    box-shadow: 0 0 0 6px rgba(140, 130, 245, 0.07), 0 8px 22px rgba(48, 78, 150, 0.1), inset 0 1px 0 #fff;
   }
   .lw-hero-nav__button:hover {
     background: #fff;
     border-color: rgba(124, 132, 240, 0.3);
-    border-color: rgba(124, 132, 240, 0.34);
-    box-shadow: 0 10px 24px rgba(96, 104, 230, 0.2), inset 0 1px 0 #fff;
+    border-color: rgba(96, 128, 240, 0.38);
+    box-shadow: 0 10px 26px rgba(48, 78, 150, 0.15), inset 0 1px 0 #fff;
+    transform: translateY(-1px);
+  }
+  .lw-hero-nav__button--settings:hover {
+    box-shadow: 0 0 0 6px rgba(140, 130, 245, 0.1), 0 10px 26px rgba(48, 78, 150, 0.15), inset 0 1px 0 #fff;
   }
   .lw-hero-nav__button:focus-visible {
     outline: 2px solid #6b74ee;
@@ -1146,7 +1165,7 @@ export function getPanelStyles(widthPx: number): string {
     z-index: 1;
     display: flex;
     align-items: center;
-    min-height: 112px;
+    min-height: 86px;
     gap: 6px;
   }
   .lw-tool-head__copy {
@@ -1155,41 +1174,42 @@ export function getPanelStyles(widthPx: number): string {
     padding-left: 2px;
   }
   .lw-tool-head--hero .lw-tool-head__title {
-    font-size: 22px;
+    font-size: 25px;
+    font-weight: 750;
     line-height: 1.15;
     letter-spacing: -0.025em;
     white-space: nowrap;
-    color: #101d38;
+    color: #101a38;
   }
   .lw-tool-head__subtitle {
-    max-width: 196px;
-    margin: 8px 0 0;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: #69788d;
+    max-width: 212px;
+    margin: 7px 0 0;
+    font-size: 13.5px;
+    line-height: 1.48;
+    color: #68778f;
   }
   .lw-tool-head__art {
     position: relative;
     align-self: stretch;
-    flex: 0 0 104px;
+    flex: 0 0 96px;
     min-width: 0;
   }
   .lw-tool-head__art::before {
     content: "";
     position: absolute;
-    width: 116px;
-    height: 116px;
-    right: -12px;
-    top: 4px;
+    width: 112px;
+    height: 112px;
+    right: -14px;
+    top: -12px;
     border-radius: 50%;
-    background: linear-gradient(145deg, rgba(90, 133, 224, 0.10), rgba(106, 79, 208, 0.045));
+    background: radial-gradient(circle, rgba(110, 140, 240, 0.13) 0%, rgba(124, 92, 252, 0.05) 60%, transparent 72%);
   }
   .lw-tool-head__art-svg {
     position: absolute;
-    width: 124px;
+    width: 116px;
     height: auto;
-    right: -4px;
-    top: 6px;
+    right: -6px;
+    top: -2px;
     overflow: visible;
     filter: drop-shadow(0 12px 24px rgba(42, 84, 151, 0.09));
   }
