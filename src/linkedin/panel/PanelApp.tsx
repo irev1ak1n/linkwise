@@ -35,7 +35,7 @@ import { panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
-import { BackLink, BrandMark, MainMenu, ToolHead } from "./MainMenu";
+import { BackLink, BrandMark, HeaderSignalLines, MainMenu, ToolHead } from "./MainMenu";
 
 const openMenu = () => panelToolPreference.set("menu");
 
@@ -158,6 +158,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   return (
     <div className="lw-panel">
       <header className="lw-panel__header">
+        <HeaderSignalLines />
         <span className="lw-panel__brand">
           <BrandMark />
           <span className="lw-panel__wordmark">

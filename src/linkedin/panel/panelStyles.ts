@@ -26,67 +26,44 @@ export function getPanelStyles(widthPx: number): string {
     justify-content: space-between;
     padding: 14px 12px 14px 18px;
     flex-shrink: 0;
-    border-bottom: 1px solid rgba(180, 200, 255, 0.28);
-    box-shadow: 0 4px 16px rgba(30, 56, 160, 0.1);
+    border-bottom: 1px solid rgba(90, 130, 255, 0.32);
+    box-shadow: 0 3px 10px rgba(10, 25, 75, 0.15);
     background:
-      radial-gradient(75% 190% at 100% 10%, rgba(146, 120, 255, 0.34) 0%, rgba(146, 120, 255, 0.12) 40%, transparent 70%),
-      radial-gradient(45% 150% at 9% 50%, rgba(110, 160, 255, 0.13) 0%, transparent 70%),
-      radial-gradient(70% 110% at 50% 125%, rgba(60, 125, 250, 0.18) 0%, transparent 70%),
-      linear-gradient(100deg in oklab, #15329c 0%, #1d40c0 30%, #2850d8 56%, #3a56e4 78%, #5258ea 100%);
+      radial-gradient(28% 130% at 100% 15%, rgba(118, 66, 245, 0.75) 0%, rgba(110, 60, 240, 0.28) 45%, transparent 78%),
+      radial-gradient(34% 110% at 63% 92%, rgba(40, 104, 255, 0.72) 0%, rgba(36, 98, 255, 0.24) 44%, transparent 74%),
+      radial-gradient(30% 140% at 0% 50%, rgba(2, 8, 34, 0.35) 0%, transparent 75%),
+      linear-gradient(100deg in oklab, #061646 0%, #081f5e 34%, #0c2a80 58%, #15329f 78%, #2f2fc4 100%);
   }
-  .lw-panel__header::before,
-  .lw-panel__header::after {
-    content: "";
+  .lw-panel__lines {
     position: absolute;
-    border-radius: 50%;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%);
-    mask-image: linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%);
-  }
-  .lw-panel__header::before {
-    width: 520px;
-    height: 150px;
-    left: 40px;
-    top: 22px;
-    border-top: 1px solid rgba(215, 228, 255, 0.16);
-    transform: rotate(-5deg);
-  }
-  .lw-panel__header::after {
-    width: 300px;
-    height: 160px;
-    right: -130px;
-    top: -96px;
-    border-bottom: 1px solid rgba(225, 215, 255, 0.14);
-    transform: rotate(-10deg);
   }
   .lw-panel__brand {
     position: relative;
     z-index: 1;
     display: inline-flex;
     align-items: center;
-    gap: 11px;
+    gap: 10px;
   }
   .lw-panel__mark {
     flex: 0 0 auto;
     width: 30px;
     height: 30px;
     border-radius: 9px;
-    filter: drop-shadow(0 0 10px rgba(120, 160, 255, 0.3)) drop-shadow(0 2px 5px rgba(8, 18, 80, 0.28));
+    filter: drop-shadow(0 0 8px rgba(70, 130, 255, 0.45)) drop-shadow(0 2px 4px rgba(4, 10, 40, 0.3));
   }
   .lw-panel__wordmark {
-    font-weight: 600;
+    font-weight: 650;
     font-size: 20px;
     line-height: 1;
-    letter-spacing: -0.02em;
-    color: #f6f8ff;
-    text-shadow: 0 1px 2px rgba(12, 24, 90, 0.18);
+    letter-spacing: -0.022em;
+    color: #f8faff;
   }
   .lw-panel__wordmark span {
-    background: linear-gradient(180deg, #eef3ff, #d6e2ff);
-    text-shadow: none;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #eaf0ff;
   }
   .lw-panel__close {
     position: relative;
@@ -100,7 +77,7 @@ export function getPanelStyles(widthPx: number): string {
     border: none;
     border-radius: 10px;
     background: transparent;
-    color: rgba(236, 242, 255, 0.78);
+    color: rgba(240, 244, 255, 0.82);
     cursor: pointer;
     transition: background 0.18s ease-out, color 0.18s ease-out;
   }

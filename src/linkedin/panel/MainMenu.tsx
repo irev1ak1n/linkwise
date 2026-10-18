@@ -104,7 +104,7 @@ export function BrandMark() {
           <stop offset="1" stopColor="#7c5cfc" />
         </linearGradient>
       </defs>
-      <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="url(#lw-mark-tile)" stroke="#ffffff" strokeOpacity="0.1" />
+      <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="url(#lw-mark-tile)" stroke="#9db8ff" strokeOpacity="0.32" />
       <g fill="url(#lw-mark-bars)">
         <rect x="9" y="16.5" width="4" height="8.5" rx="2" />
         <rect x="14.25" y="12" width="4" height="13" rx="2" />
@@ -112,6 +112,29 @@ export function BrandMark() {
       </g>
       <path d="M5.2 21.6c-.9 3.4 4.9 5.2 11.3 4 5.2-1 9.4-3.6 11-7" fill="none" stroke="url(#lw-mark-orbit)" strokeWidth="2.2" strokeLinecap="round" />
       <path d="M26.2 4.2l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="#e4dfff" />
+    </svg>
+  );
+}
+
+// The brand bar's two faint signal paths, stretched to whatever size the bar is.
+export function HeaderSignalLines() {
+  return (
+    <svg className="lw-panel__lines" viewBox="0 0 360 62" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="lw-line-main" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#4d8dff" stopOpacity="0" />
+          <stop offset="0.45" stopColor="#5f9dff" stopOpacity="0.8" />
+          <stop offset="1" stopColor="#a58bff" stopOpacity="0.9" />
+        </linearGradient>
+        <linearGradient id="lw-line-cross" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#6f8dff" stopOpacity="0" />
+          <stop offset="0.6" stopColor="#8a78ff" stopOpacity="0.4" />
+          <stop offset="1" stopColor="#9a6dff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d="M95 64C170 40 260 22 362 19" fill="none" stroke="url(#lw-line-main)" strokeWidth="4" strokeOpacity="0.22" />
+      <path d="M95 64C170 40 260 22 362 19" fill="none" stroke="url(#lw-line-main)" strokeWidth="0.9" />
+      <path d="M150 30C215 34 268 46 300 64" fill="none" stroke="url(#lw-line-cross)" strokeWidth="0.8" />
     </svg>
   );
 }
