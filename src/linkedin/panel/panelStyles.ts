@@ -1052,16 +1052,18 @@ export function getPanelStyles(widthPx: number): string {
     position: relative;
     isolation: isolate;
     flex-shrink: 0;
-    gap: 10px;
+    gap: 24px;
     margin: -16px -16px 0;
-    padding: 18px 18px 20px;
+    padding: 18px 18px 18px;
     overflow: hidden;
-    border-bottom: 1px solid #edf1fa;
+    border-bottom: 1px solid rgba(185, 200, 230, 0.28);
     background:
-      radial-gradient(150px 120px at 84% 66%, rgba(122, 150, 245, 0.16), transparent 72%),
-      radial-gradient(260px 170px at 100% 30%, rgba(140, 120, 245, 0.07), transparent 70%),
-      linear-gradient(160deg, #ffffff 0%, #fbfcff 45%, #f3f6ff 100%);
+      radial-gradient(130px 86px at 84% 74%, rgba(150, 140, 255, 0.1), transparent 70%),
+      radial-gradient(circle at 88% 58%, rgba(104, 116, 255, 0.13), rgba(104, 116, 255, 0.04) 35%, transparent 62%),
+      radial-gradient(circle at 76% 92%, rgba(92, 190, 255, 0.08), transparent 55%),
+      linear-gradient(135deg, #ffffff 0%, #fcfdff 45%, #f4f7ff 100%);
   }
+  /* Three partial orbits around the illustration, faded out before they reach the title. */
   .lw-tool-head--hero::before,
   .lw-tool-head--hero::after {
     content: "";
@@ -1069,22 +1071,24 @@ export function getPanelStyles(widthPx: number): string {
     z-index: -1;
     border-radius: 50%;
     pointer-events: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 38%, #000 72%);
+    mask-image: linear-gradient(90deg, transparent 0%, transparent 38%, #000 72%);
   }
   .lw-tool-head--hero::before {
-    width: 330px;
-    height: 190px;
-    right: -170px;
-    top: 34px;
-    border: 18px solid rgba(70, 110, 230, 0.05);
-    transform: rotate(-16deg);
+    width: 420px;
+    height: 230px;
+    right: -190px;
+    top: 30px;
+    border: 1px solid rgba(92, 126, 230, 0.14);
+    transform: rotate(-14deg);
   }
   .lw-tool-head--hero::after {
-    width: 220px;
-    height: 120px;
-    right: -92px;
+    width: 300px;
+    height: 160px;
+    right: -128px;
     top: 66px;
-    border: 10px solid rgba(124, 92, 252, 0.06);
-    transform: rotate(-16deg);
+    border: 1px solid rgba(124, 92, 252, 0.13);
+    transform: rotate(-14deg);
   }
   .lw-hero-nav {
     position: relative;
@@ -1097,36 +1101,35 @@ export function getPanelStyles(widthPx: number): string {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
     padding: 0;
-    border: 1px solid rgba(120, 150, 240, 0.22);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 247, 255, 0.9));
-    box-shadow: 0 8px 22px rgba(48, 78, 150, 0.1), inset 0 1px 0 #fff;
+    border: 1.25px solid rgba(92, 126, 210, 0.28);
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 255, 0.93));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 7px 18px rgba(47, 72, 145, 0.09), 0 2px 4px rgba(35, 60, 120, 0.04), 0 0 0 5px rgba(110, 150, 250, 0.04);
     cursor: pointer;
     transition: background 0.18s ease-out, border-color 0.18s ease-out, box-shadow 0.18s ease-out, transform 0.18s ease-out;
   }
   .lw-hero-nav__button--menu {
     border-radius: 15px;
-    color: #5b63ea;
   }
   .lw-hero-nav__button--settings {
     border-radius: 50%;
-    color: #44507a;
-    box-shadow: 0 0 0 6px rgba(140, 130, 245, 0.07), 0 8px 22px rgba(48, 78, 150, 0.1), inset 0 1px 0 #fff;
+    color: #3c4770;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 7px 18px rgba(47, 72, 145, 0.09), 0 2px 4px rgba(35, 60, 120, 0.04), 0 0 0 5px rgba(140, 130, 245, 0.05);
   }
   .lw-hero-nav__button:hover {
-    background: #fff;
-    border-color: rgba(124, 132, 240, 0.3);
-    border-color: rgba(96, 128, 240, 0.38);
-    box-shadow: 0 10px 26px rgba(48, 78, 150, 0.15), inset 0 1px 0 #fff;
+    background: rgba(252, 253, 255, 0.99);
+    border-color: rgba(80, 103, 225, 0.5);
+    box-shadow: inset 0 1px 0 #fff, 0 9px 20px rgba(47, 72, 145, 0.12), 0 2px 4px rgba(35, 60, 120, 0.05);
     transform: translateY(-1px);
   }
-  .lw-hero-nav__button--settings:hover {
-    box-shadow: 0 0 0 6px rgba(140, 130, 245, 0.1), 0 10px 26px rgba(48, 78, 150, 0.15), inset 0 1px 0 #fff;
+  .lw-hero-nav__button:active {
+    transform: translateY(0);
+    box-shadow: inset 0 1px 0 #fff, 0 4px 10px rgba(47, 72, 145, 0.08), 0 1px 2px rgba(35, 60, 120, 0.04);
   }
   .lw-hero-nav__button:focus-visible {
-    outline: 2px solid #6b74ee;
+    outline: 2px solid rgba(76, 111, 230, 0.32);
     outline-offset: 2px;
   }
   .lw-tool-head--settings {
@@ -1143,60 +1146,58 @@ export function getPanelStyles(widthPx: number): string {
     flex-direction: column;
     gap: 10px;
   }
+  /* The copy sets the row's height; the illustration floats over the right of it. */
   .lw-tool-head__hero-row {
     position: relative;
     z-index: 1;
     display: flex;
-    align-items: center;
-    min-height: 86px;
-    gap: 6px;
+    align-items: flex-start;
   }
   .lw-tool-head__copy {
+    position: relative;
+    z-index: 1;
     flex: 1 1 auto;
     min-width: 0;
     padding-left: 2px;
   }
   .lw-tool-head--hero .lw-tool-head__title {
-    font-size: 25px;
-    font-weight: 750;
-    line-height: 1.15;
-    letter-spacing: -0.025em;
+    font-size: 26px;
+    font-weight: 740;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
     white-space: nowrap;
-    color: #101a38;
+    color: #111b3d;
   }
   .lw-tool-head__subtitle {
     max-width: 212px;
-    margin: 7px 0 0;
-    font-size: 13.5px;
-    line-height: 1.48;
-    color: #68778f;
+    margin: 10px 0 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #66758d;
   }
   .lw-tool-head__art {
-    position: relative;
-    align-self: stretch;
-    flex: 0 0 96px;
-    min-width: 0;
+    position: absolute;
+    right: -4px;
+    bottom: -6px;
+    width: 116px;
+    height: 87px;
   }
   .lw-tool-head__art::before {
     content: "";
     position: absolute;
-    width: 112px;
-    height: 112px;
-    right: -14px;
-    top: -12px;
+    inset: -18px -22px -14px -16px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(110, 140, 240, 0.13) 0%, rgba(124, 92, 252, 0.05) 60%, transparent 72%);
+    border: 14px solid rgba(96, 130, 240, 0.05);
+    transform: rotate(-14deg);
   }
   .lw-tool-head__art-svg {
     position: absolute;
+    inset: 0;
     width: 116px;
     height: auto;
-    right: -6px;
-    top: -2px;
     overflow: visible;
-    filter: drop-shadow(0 12px 24px rgba(42, 84, 151, 0.09));
+    filter: drop-shadow(0 14px 30px rgba(57, 73, 180, 0.1));
   }
-
   .lw-an-goal {
     display: flex;
     align-items: flex-start;
