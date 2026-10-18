@@ -1007,10 +1007,10 @@ export function getPanelStyles(widthPx: number): string {
   .lw-tool-head--hero {
     position: relative;
     isolation: isolate;
-    gap: 16px;
-    min-height: 178px;
+    gap: 14px;
+    min-height: 168px;
     margin: -16px -16px 0;
-    padding: 18px 18px 22px;
+    padding: 20px 18px 24px;
     overflow: hidden;
     border-bottom: 1px solid #edf2f8;
     background:
@@ -1053,8 +1053,8 @@ export function getPanelStyles(widthPx: number): string {
     z-index: 1;
     display: flex;
     align-items: center;
-    min-height: 96px;
-    gap: 10px;
+    min-height: 88px;
+    gap: 6px;
   }
   .lw-tool-head__copy {
     flex: 1 1 auto;
@@ -1062,40 +1062,41 @@ export function getPanelStyles(widthPx: number): string {
     padding-left: 2px;
   }
   .lw-tool-head--hero .lw-tool-head__title {
-    font-size: 27px;
-    line-height: 1.08;
-    letter-spacing: -0.035em;
+    font-size: 22px;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+    white-space: nowrap;
     color: #101d38;
   }
   .lw-tool-head__subtitle {
-    max-width: 218px;
-    margin: 9px 0 0;
-    font-size: 14px;
-    line-height: 1.45;
+    max-width: 196px;
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    line-height: 1.5;
     color: #69788d;
   }
   .lw-tool-head__art {
     position: relative;
     align-self: stretch;
-    flex: 0 0 126px;
+    flex: 0 0 104px;
     min-width: 0;
   }
   .lw-tool-head__art::before {
     content: "";
     position: absolute;
-    width: 130px;
-    height: 130px;
-    right: -28px;
-    top: -10px;
+    width: 116px;
+    height: 116px;
+    right: -26px;
+    top: -6px;
     border-radius: 50%;
     background: linear-gradient(145deg, rgba(90, 133, 224, 0.10), rgba(106, 79, 208, 0.045));
   }
   .lw-tool-head__art-svg {
     position: absolute;
-    width: 150px;
+    width: 132px;
     height: auto;
-    right: -28px;
-    top: -7px;
+    right: -26px;
+    top: -2px;
     overflow: visible;
     filter: drop-shadow(0 12px 24px rgba(42, 84, 151, 0.09));
   }
