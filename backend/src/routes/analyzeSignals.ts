@@ -2,7 +2,8 @@ import type { Request, Response } from "express";
 import { analyzeSignalsRequestSchema, trimSignalsRequest } from "../validation/signalsRequestSchema";
 import { requestSignalAnalysis, type SignalAnalysisClient } from "../openai/signalsClient";
 import { SIGNALS_SYSTEM_PROMPT, buildSignalsUserPrompt } from "../openai/signalsPrompt";
-import { validateSignals } from "../guardrails/validateSignals";
+import { validateClassification } from "../guardrails/validateSignals";
+import { SIGNAL_CONTRACT_VERSION } from "../openai/signalsSchema";
 import type { BackendConfig } from "../config";
 
 export interface AnalyzeSignalsDeps {
@@ -29,6 +30,7 @@ export async function handleAnalyzeSignals(req: Request, res: Response, deps: An
     return;
   }
   if (aiResult.status === "timeout") {
+    console.warn(`[analyze-signals] OpenAI call timed out grading ${request.profile.evidence.length} items`);
     res.status(200).json({ status: "unavailable", reason: "timeout" });
     return;
   }
@@ -39,13 +41,10 @@ export async function handleAnalyzeSignals(req: Request, res: Response, deps: An
   }
 
   try {
-    const { highlights, facts } = validateSignals(aiResult.data, request.profile.evidence);
-    const droppedHighlights = aiResult.data.entries.reduce((sum, entry) => sum + entry.highlights.length, 0) - highlights.length;
-    const droppedFacts = aiResult.data.facts.length - facts.length;
-    if (droppedHighlights + droppedFacts > 0) {
-      console.info(`[analyze-signals] kept ${highlights.length} highlights and ${facts.length} facts, dropped ${droppedHighlights} and ${droppedFacts}`);
-    }
-    res.status(200).json({ status: "signals", model: deps.config.openAiModel, highlights, facts });
+    const { careerStage, candidates, classified } = validateClassification(aiResult.data, request.profile.evidence);
+    const dropped = aiResult.data.items.reduce((sum, item) => sum + item.facts.length, 0) - candidates.length;
+    if (dropped > 0) console.info(`[analyze-signals] kept ${candidates.length} graded facts, dropped ${dropped}`);
+    res.status(200).json({ status: "signals", version: SIGNAL_CONTRACT_VERSION, model: deps.config.openAiModel, careerStage, candidates, classified });
   } catch (error) {
     console.error("[analyze-signals] Failed to process a valid OpenAI response:", error);
     res.status(200).json({ status: "unavailable", reason: "processing_error" });

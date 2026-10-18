@@ -1,20 +1,14 @@
-import type { EntryHighlights, FactKind, HighSignalFact, HighlightRole, SignalAnalysisResponse } from "../openai/signalsSchema";
+import type { CareerStage, EvidenceFact, SignalClassification, SignalFactType } from "../openai/signalsSchema";
 
-export const MIN_FACT_IMPORTANCE = 0.4;
-// Only a safety net: coverage is decided per entry, and this is filled evenly across entries.
-export const MAX_HIGHLIGHTS = 80;
-export const MAX_FACTS = 12;
+// The model's grades are untrusted: every fact must name a submitted item, quote that item's exact
+// text, and keep its grades inside their ranges. What survives is ranked by the extension.
+export const MAX_FACTS_PER_ITEM = 8;
 const MIN_QUOTE_LENGTH = 3;
 const MAX_HIGHLIGHT_LENGTH = 200;
 const MAX_HIGHLIGHT_WORDS = 24;
 const LIST_MAX_WORDS = 14;
 const LIST_LEAD_WORDS = 10;
 const MAX_FACT_LENGTH = 90;
-// Highlights may cover at most this share of an evidence item, so a paragraph stays readable.
-const MAX_HIGHLIGHT_SHARE = 0.5;
-const MIN_HIGHLIGHT_ALLOWANCE = 80;
-const ROLE_IMPORTANCE: Record<HighlightRole, number> = { primary: 0.9, secondary: 0.6 };
-const QUANTIFIED_FACT_BONUS = 0.15;
 
 export interface EvidenceText {
   id: string;
@@ -22,25 +16,40 @@ export interface EvidenceText {
   text: string;
 }
 
-export interface ValidatedHighlight {
+export const GRADE_KEYS = [
+  "impact",
+  "ownership",
+  "result",
+  "scale",
+  "selectivity",
+  "leadership",
+  "technicalDepth",
+  "sustainedDepth",
+  "specificity",
+  "distinctiveness",
+  "genericness",
+] as const;
+export type GradeKey = (typeof GRADE_KEYS)[number];
+export type Grades = Record<GradeKey, number>;
+
+export interface ValidatedCandidate {
   evidenceId: string;
   section: string;
   quote: string;
-  type: HighlightRole;
-  importance: number;
+  /** The fact as a short grounded line, or null when it named something the item does not say. */
+  fact: string | null;
+  type: SignalFactType;
+  grades: Grades;
+  goalRelevance: number;
+  confidence: number;
   metrics: string[];
 }
 
-export interface ValidatedFact {
-  text: string;
-  kind: FactKind;
-  evidenceId: string;
-  evidenceIds: string[];
-}
-
-export interface ValidatedSignals {
-  highlights: ValidatedHighlight[];
-  facts: ValidatedFact[];
+export interface ValidatedClassification {
+  careerStage: CareerStage;
+  candidates: ValidatedCandidate[];
+  /** Every submitted item counts as graded, including those the model found nothing in. */
+  classified: string[];
 }
 
 function normalizeChar(ch: string): string {
@@ -174,67 +183,6 @@ function shortenList(quote: string): string | null {
   return best;
 }
 
-// How many highlights an item can hold: a couple for a short text, more for a dense paragraph.
-function entryLimit(text: string): number {
-  const words = wordCount(text);
-  if (words <= 30) return 2;
-  if (words <= 80) return 3;
-  if (words <= 150) return 5;
-  return 6;
-}
-
-interface Candidate extends ValidatedHighlight {
-  start: number;
-  end: number;
-}
-
-function toHighlight(quote: string, role: HighlightRole, source: EvidenceText): Candidate | null {
-  const found = groundedSpan(source.text, quote);
-  const text = found && shortenList(found.text);
-  if (!found || !text || text.length < MIN_QUOTE_LENGTH || text.length > MAX_HIGHLIGHT_LENGTH || text.includes(" — ")) return null;
-  if (isEntryHeading(text, source) || isBareNumber(text)) return null;
-  const importance = ROLE_IMPORTANCE[role];
-  return { evidenceId: source.id, section: source.section, quote: text, type: role, importance, metrics: extractMetrics(text), start: found.start, end: found.start + text.length };
-}
-
-// Each item is judged on its own: strongest first, no overlaps, and within its own count and share.
-function selectForEntry(entry: EntryHighlights, source: EvidenceText): ValidatedHighlight[] {
-  const ordered = [...entry.highlights].sort((a, b) => ROLE_IMPORTANCE[b.role] - ROLE_IMPORTANCE[a.role]);
-  const allowance = Math.max(MIN_HIGHLIGHT_ALLOWANCE, source.text.length * MAX_HIGHLIGHT_SHARE);
-  const limit = entryLimit(source.text);
-  const kept: Candidate[] = [];
-  let covered = 0;
-  for (const raw of ordered) {
-    if (kept.length >= limit) break;
-    const candidate = toHighlight(raw.quote, raw.role, source);
-    if (!candidate || kept.some((k) => candidate.start < k.end && k.start < candidate.end)) continue;
-    if (covered + candidate.quote.length > allowance) continue;
-    covered += candidate.quote.length;
-    kept.push(candidate);
-  }
-  return kept.sort((a, b) => a.start - b.start).map(({ start: _start, end: _end, ...highlight }) => highlight);
-}
-
-function selectHighlights(entries: EntryHighlights[], evidence: Map<string, EvidenceText>): ValidatedHighlight[] {
-  const merged = new Map<string, EntryHighlights>();
-  for (const entry of entries) {
-    const source = evidence.get(entry.evidenceId);
-    if (!source || source.section === "headline" || source.section === "location") continue;
-    const existing = merged.get(source.id);
-    merged.set(source.id, { evidenceId: source.id, highlights: [...(existing?.highlights ?? []), ...entry.highlights] });
-  }
-  const perEntry = [...merged.values()].map((entry) => selectForEntry(entry, evidence.get(entry.evidenceId)!));
-
-  // Round-robin, so if the safety cap is ever reached no single entry takes the whole budget.
-  const highlights: ValidatedHighlight[] = [];
-  for (let round = 0; highlights.length < MAX_HIGHLIGHTS; round++) {
-    const next = perEntry.map((list) => list[round]).filter((h): h is ValidatedHighlight => h !== undefined);
-    if (next.length === 0) break;
-    highlights.push(...next.slice(0, MAX_HIGHLIGHTS - highlights.length));
-  }
-  return highlights;
-}
-
 // A category name standing in for a fact, like "Team size" or "Conference result".
 const CATEGORY_LABEL =
   /\b(?:size|result|results|range|scale|count|amount|number|level|involvement|background|overview|details|information|experience|delivered|supported|reach|audience|history)$/i;
@@ -257,48 +205,74 @@ function namesAreGrounded(text: string, sourceText: string): boolean {
   });
 }
 
-interface FactCandidate extends ValidatedFact {
-  score: number;
+function clampGrade(value: number): number {
+  return Number.isFinite(value) ? Math.min(3, Math.max(0, Math.round(value))) : 0;
 }
 
-function toFact(raw: HighSignalFact, evidence: Map<string, EvidenceText>): FactCandidate | null {
-  const text = raw.text.trim().replace(/\.$/, "");
-  if (text.length === 0 || text.length > MAX_FACT_LENGTH || text.split(/\s+/).length < 2) return null;
-  if (!Number.isFinite(raw.importance) || raw.importance < MIN_FACT_IMPORTANCE || raw.importance > 1) return null;
-  if (raw.support.length === 0 || isVagueFact(text)) return null;
+// A phrase like "for a 4,000+ student school" only describes the setting of the real fact.
+const CONTEXT_FRAGMENT = /^(?:for|at|of|in|on|from|with|within|across)\s+(?:a|an|the|my|our|their|\d|~)/i;
 
-  const evidenceIds: string[] = [];
-  for (const support of raw.support) {
-    const source = evidence.get(support.evidenceId);
-    if (!source || !findGroundedText(source.text, support.quote)) return null;
-    if (!evidenceIds.includes(source.id)) evidenceIds.push(source.id);
-  }
-  const sourceText = normalizeText(evidenceIds.map((id) => evidence.get(id)!.text).join(" "));
+function groundedQuote(quote: string, source: EvidenceText): { text: string; start: number } | null {
+  const found = groundedSpan(source.text, quote);
+  const text = found && shortenList(found.text);
+  if (!found || !text || text.length < MIN_QUOTE_LENGTH || text.length > MAX_HIGHLIGHT_LENGTH || text.includes(" — ")) return null;
+  if (isEntryHeading(text, source) || isBareNumber(text) || CONTEXT_FRAGMENT.test(text)) return null;
+  return { text, start: found.start };
+}
+
+// The short fact line must only use numbers and names its own item states.
+function groundedFact(raw: string, source: EvidenceText): string | null {
+  const text = raw.trim().replace(/\.$/, "");
+  if (text.length === 0 || text.length > MAX_FACT_LENGTH || text.split(/\s+/).length < 2 || isVagueFact(text)) return null;
+  const sourceText = normalizeText(source.text);
   const available = new Set(numbersIn(sourceText));
-  const numbers = numbersIn(text);
-  if (!numbers.every((n) => available.has(n)) || !namesAreGrounded(text, sourceText)) return null;
-
-  const quantified = numbers.some((n) => !isBareYear(n));
-  return { text, kind: raw.kind, evidenceId: evidenceIds[0]!, evidenceIds, score: raw.importance + (quantified ? QUANTIFIED_FACT_BONUS : 0) };
+  return numbersIn(text).every((n) => available.has(n)) && namesAreGrounded(text, sourceText) ? text : null;
 }
 
-function selectFacts(raw: HighSignalFact[], evidence: Map<string, EvidenceText>): ValidatedFact[] {
-  const candidates = raw
-    .map((f) => toFact(f, evidence))
-    .filter((f): f is FactCandidate => f !== null)
-    .sort((a, b) => b.score - a.score);
+const STATED_SIZE = /\d|\b(?:dozens|hundreds|thousands|millions|school-?wide|statewide|nationwide|national|international|global)\b/i;
+const STATED_DURATION = /\d+\s*\+?\s*(?:years?|yrs?|months?|mos?|weeks?|hours?|hrs?|seasons?|semesters?)\b|\bsince\s+\d{4}\b/i;
+
+function toCandidate(raw: EvidenceFact, source: EvidenceText): (ValidatedCandidate & { start: number }) | null {
+  const quote = groundedQuote(raw.quote, source);
+  if (!quote) return null;
+  const grades = Object.fromEntries(GRADE_KEYS.map((key) => [key, clampGrade(raw[key])])) as Grades;
+  // Scale and sustained depth must be stated in the phrase itself, never assumed.
+  if (!STATED_SIZE.test(quote.text)) grades.scale = 0;
+  if (!STATED_DURATION.test(quote.text)) grades.sustainedDepth = 0;
+  const confidence = Number.isFinite(raw.confidence) ? Math.min(1, Math.max(0, raw.confidence)) : 0;
+  return {
+    evidenceId: source.id,
+    section: source.section,
+    quote: quote.text,
+    fact: groundedFact(raw.fact, source),
+    type: raw.type,
+    grades,
+    goalRelevance: clampGrade(raw.goalRelevance),
+    confidence,
+    metrics: extractMetrics(quote.text),
+    start: quote.start,
+  };
+}
+
+export function validateClassification(response: SignalClassification, submitted: EvidenceText[]): ValidatedClassification {
+  const evidence = new Map(submitted.map((item) => [item.id, item]));
+  const candidates: ValidatedCandidate[] = [];
   const seen = new Set<string>();
-  const facts: ValidatedFact[] = [];
-  for (const { score: _score, ...fact } of candidates) {
-    const key = normalizeText(fact.text);
-    if (seen.has(key) || facts.length >= MAX_FACTS) continue;
-    seen.add(key);
-    facts.push(fact);
+  for (const item of response.items) {
+    const source = evidence.get(item.evidenceId);
+    if (!source || source.section === "headline" || source.section === "location") continue;
+    const kept = item.facts
+      .map((raw) => toCandidate(raw, source))
+      .filter((c): c is ValidatedCandidate & { start: number } => c !== null)
+      .filter((c) => {
+        const key = `${source.id}|${normalizeText(c.quote)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, MAX_FACTS_PER_ITEM)
+      .sort((a, b) => a.start - b.start);
+    candidates.push(...kept.map(({ start: _start, ...candidate }) => candidate));
   }
-  return facts;
-}
-
-export function validateSignals(response: SignalAnalysisResponse, evidenceItems: EvidenceText[]): ValidatedSignals {
-  const evidence = new Map(evidenceItems.map((item) => [item.id, item]));
-  return { highlights: selectHighlights(response.entries, evidence), facts: selectFacts(response.facts, evidence) };
+  return { careerStage: response.careerStage, candidates, classified: submitted.map((item) => item.id) };
 }

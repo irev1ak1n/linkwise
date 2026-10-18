@@ -1,52 +1,64 @@
 import { z } from "zod";
 
-// "primary" is strong, impressive evidence; "secondary" is useful context for skimming.
-export const highlightRoleSchema = z.enum(["primary", "secondary"]);
+// Signal analysis v2: the model classifies evidence, it does not choose what gets highlighted.
+// Each fact gets coarse 0-3 grades the extension combines into a deterministic ranking.
+export const SIGNAL_CONTRACT_VERSION = 2;
 
-export const factKindSchema = z.enum([
-  "rare_achievement",
+export const signalFactTypeSchema = z.enum([
+  "competition_result",
+  "award",
   "measurable_impact",
-  "competitive_result",
-  "leadership",
+  "leadership_scope",
+  "project_ownership",
+  "technical_execution",
   "selective_admission",
   "credential",
-  "scope",
-  "duration",
-  "technical_accomplishment",
+  "sustained_training",
+  "teaching_scope",
+  "volunteering_impact",
+  "responsibility",
+  "education",
+  "coursework",
+  "skill",
+  "language",
+  "membership",
+  "self_description",
   "other",
 ]);
 
-export const factSupportSchema = z.object({
-  evidenceId: z.string(),
+export const careerStageSchema = z.enum(["student", "early_career", "professional", "senior", "unknown"]);
+
+// Ordinal grades: 0 none, 1 weak, 2 moderate, 3 strong. Validated and clamped on the way out.
+export const evidenceFactSchema = z.object({
   quote: z.string(),
+  fact: z.string(),
+  type: signalFactTypeSchema,
+  impact: z.number(),
+  ownership: z.number(),
+  result: z.number(),
+  scale: z.number(),
+  selectivity: z.number(),
+  leadership: z.number(),
+  technicalDepth: z.number(),
+  sustainedDepth: z.number(),
+  specificity: z.number(),
+  distinctiveness: z.number(),
+  goalRelevance: z.number(),
+  genericness: z.number(),
+  confidence: z.number(),
 });
 
-export const highSignalFactSchema = z.object({
-  text: z.string(),
-  kind: factKindSchema,
-  importance: z.number(),
-  support: z.array(factSupportSchema),
-});
-
-export const inlineHighlightSchema = z.object({
-  quote: z.string(),
-  role: highlightRoleSchema,
-});
-
-// Highlights are chosen per evidence item, so every meaningful entry is considered on its own.
-export const entryHighlightsSchema = z.object({
+export const itemFactsSchema = z.object({
   evidenceId: z.string(),
-  highlights: z.array(inlineHighlightSchema),
+  facts: z.array(evidenceFactSchema),
 });
 
-export const signalAnalysisResponseSchema = z.object({
-  facts: z.array(highSignalFactSchema),
-  entries: z.array(entryHighlightsSchema),
+export const signalClassificationSchema = z.object({
+  careerStage: careerStageSchema,
+  items: z.array(itemFactsSchema),
 });
 
-export type HighlightRole = z.infer<typeof highlightRoleSchema>;
-export type FactKind = z.infer<typeof factKindSchema>;
-export type HighSignalFact = z.infer<typeof highSignalFactSchema>;
-export type InlineHighlight = z.infer<typeof inlineHighlightSchema>;
-export type EntryHighlights = z.infer<typeof entryHighlightsSchema>;
-export type SignalAnalysisResponse = z.infer<typeof signalAnalysisResponseSchema>;
+export type SignalFactType = z.infer<typeof signalFactTypeSchema>;
+export type CareerStage = z.infer<typeof careerStageSchema>;
+export type EvidenceFact = z.infer<typeof evidenceFactSchema>;
+export type SignalClassification = z.infer<typeof signalClassificationSchema>;

@@ -4,6 +4,8 @@ import { MAX_TEXT_LENGTH } from "./requestSchema";
 
 function validBody() {
   return {
+    version: 2 as const,
+    goal: null as { text: string } | null,
     profile: {
       identity: "jordan-rivera",
       evidence: [{ id: "experience:0", section: "experience", text: "Led a 5-student team", evidenceType: "experience" }],
@@ -32,6 +34,16 @@ describe("analyzeSignalsRequestSchema", () => {
     const body = validBody() as { profile: { identity?: string } };
     delete body.profile.identity;
     expect(analyzeSignalsRequestSchema.safeParse(body).success).toBe(false);
+  });
+
+  it("requires contract version 2", () => {
+    expect(analyzeSignalsRequestSchema.safeParse({ ...validBody(), version: 1 }).success).toBe(false);
+  });
+
+  it("accepts a goal and short context for the other profile items", () => {
+    const body = { ...validBody(), goal: { text: "Student developers" } };
+    const withContext = { ...body, profile: { ...body.profile, context: [{ section: "education", text: "AP Computer Science" }] } };
+    expect(analyzeSignalsRequestSchema.safeParse(withContext).success).toBe(true);
   });
 
   it("trims oversized evidence text", () => {

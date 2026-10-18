@@ -1,13 +1,13 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
-import { signalAnalysisResponseSchema, type SignalAnalysisResponse } from "./signalsSchema";
+import { signalClassificationSchema, type SignalClassification } from "./signalsSchema";
 import type { BackendConfig } from "../config";
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_TIMEOUT_RETRIES = 1;
 
 export interface SignalAnalysisClient {
-  analyze(systemPrompt: string, userPrompt: string, signal: AbortSignal): Promise<SignalAnalysisResponse>;
+  analyze(systemPrompt: string, userPrompt: string, signal: AbortSignal): Promise<SignalClassification>;
 }
 
 export function createOpenAiSignalClient(config: BackendConfig): SignalAnalysisClient {
@@ -19,13 +19,13 @@ export function createOpenAiSignalClient(config: BackendConfig): SignalAnalysisC
       const response = await client.responses.parse(
         {
           model: config.openAiModel,
-          // Picking exact phrases needs little deliberation; low effort halves the wait while reading.
+          // Grading needs some comparison across the profile, but low effort keeps the wait short.
           reasoning: { effort: "low" },
           input: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          text: { format: zodTextFormat(signalAnalysisResponseSchema, "linkwise_signals") },
+          text: { format: zodTextFormat(signalClassificationSchema, "linkwise_signals") },
         },
         { signal },
       );
@@ -36,7 +36,7 @@ export function createOpenAiSignalClient(config: BackendConfig): SignalAnalysisC
 }
 
 export type SignalAnalysisResult =
-  | { status: "ok"; data: SignalAnalysisResponse }
+  | { status: "ok"; data: SignalClassification }
   | { status: "not_configured" }
   | { status: "timeout" }
   | { status: "error"; message: string };
