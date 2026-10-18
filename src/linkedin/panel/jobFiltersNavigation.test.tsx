@@ -169,18 +169,20 @@ describe("Settings", () => {
     expect(hero.querySelector('[aria-label="Open LinkWise settings"]')).not.toBeNull();
     await openSettings();
     expect(stored["finder.panelTool.v1"]).toBe("settings");
-    expect(container.querySelector(".lw-art-hero--settings img")!.getAttribute("alt")).toContain("Settings");
+    expect(container.querySelector(".lw-art-hero--settings h2")!.textContent).toBe("Settings");
     await toMenu();
     expect(menuItems()).toHaveLength(4);
   });
 
-  it("shows only the artwork hero, with Back then Menu as its two controls", async () => {
+  it("shows the artwork hero with live title text, and Back then Menu as its two controls", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     await openSettings();
     const hero = container.querySelector(".lw-art-hero--settings")!;
     expect([...hero.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))).toEqual(["Go back", "Open LinkWise menu"]);
-    expect(hero.textContent).toBe("");
+    expect(hero.querySelector("h2")!.textContent).toBe("Settings");
+    expect(hero.querySelector("p")!.textContent).toBe("Customize scanning, highlights, and preferences.");
+    expect(container.querySelectorAll("h2")).toHaveLength(1);
     expect(container.querySelector(".lw-tool-head__title")).toBeNull();
   });
 

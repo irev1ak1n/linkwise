@@ -132,11 +132,12 @@ interface ArtworkHotspot {
   onClick: () => void;
 }
 
-function ArtworkHero({ name, path, width, height, alt, hotspots }: { name: string; path: string; width: number; height: number; alt: string; hotspots: ArtworkHotspot[] }) {
+function ArtworkHero({ name, path, width, height, alt, hotspots, children }: { name: string; path: string; width: number; height: number; alt: string; hotspots: ArtworkHotspot[]; children?: ReactNode }) {
   const src = typeof chrome !== "undefined" ? chrome.runtime?.getURL?.(path) : undefined;
   return (
     <section className={`lw-art-hero lw-art-hero--${name}`}>
       <img className="lw-art-hero__art" src={src || undefined} width={width} height={height} alt={alt} draggable={false} />
+      {children}
       {hotspots.map((hotspot) => (
         <button key={hotspot.modifier} type="button" className={`lw-art-hero__hotspot lw-art-hero__hotspot--${hotspot.modifier}`} aria-label={hotspot.label} onClick={hotspot.onClick} />
       ))}
@@ -165,13 +166,18 @@ export function SettingsHero() {
     <ArtworkHero
       name="settings"
       path="content/assets/settings-hero.webp"
-      width={1670}
-      height={942}
-      alt="Settings. Customize scanning, highlights, and preferences."
+      width={1672}
+      height={941}
+      alt=""
       hotspots={[
         { label: "Go back", modifier: "back", onClick: leaveSettings },
         { label: "Open LinkWise menu", modifier: "menu", onClick: () => panelToolPreference.set("menu") },
       ]}
-    />
+    >
+      <div className="lw-art-hero__copy">
+        <h2 className="lw-art-hero__title">Settings</h2>
+        <p className="lw-art-hero__subtitle">Customize scanning, highlights, and preferences.</p>
+      </div>
+    </ArtworkHero>
   );
 }

@@ -1060,6 +1060,7 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-art-hero {
     position: relative;
+    container-type: inline-size;
     flex-shrink: 0;
     margin: -16px -16px 0;
     line-height: 0;
@@ -1108,16 +1109,42 @@ export function getPanelStyles(widthPx: number): string {
     border-radius: 50%;
   }
   .lw-art-hero--settings .lw-art-hero__hotspot {
-    top: 15.6%;
-    width: 10.7%;
-    height: 17.5%;
+    top: 12.2%;
+    width: 11.7%;
+    height: 20%;
     border-radius: 24%;
   }
   .lw-art-hero--settings .lw-art-hero__hotspot--back {
-    left: 6%;
+    left: 4.9%;
   }
   .lw-art-hero--settings .lw-art-hero__hotspot--menu {
-    left: 19.6%;
+    left: 19.9%;
+  }
+  /* Live text laid over artwork, sized in container widths so it scales with the image the way
+     the Analyzer artwork's drawn title does, and placed where that title sits. */
+  .lw-art-hero__copy {
+    position: absolute;
+    left: 5.9%;
+    top: 42.5%;
+    max-width: 52%;
+    line-height: normal;
+    pointer-events: none;
+  }
+  .lw-art-hero__title {
+    margin: 0;
+    font-size: 7.7cqw;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+    text-shadow: 0 0 2.4cqw rgba(140, 165, 255, 0.35);
+  }
+  .lw-art-hero__subtitle {
+    margin: 1.9cqw 0 0;
+    font-size: 3.95cqw;
+    font-weight: 400;
+    line-height: 1.33;
+    color: #dfe3fb;
   }
   .lw-an-goal {
     display: flex;
