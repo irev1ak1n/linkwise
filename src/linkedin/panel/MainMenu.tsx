@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { panelToolPreference, type PanelTool } from "../../optimizer/optimizerPreferences";
+import { leaveSettings, openSettings } from "./settingsNav";
 
 type MenuTool = Exclude<PanelTool, "menu" | "settings">;
 
@@ -113,35 +114,6 @@ export function HeaderSignalLines() {
   );
 }
 
-const ICON_PROPS = { viewBox: "0 0 24 24", width: 22, height: 22, fill: "none", stroke: "currentColor", strokeWidth: 2.1, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
-
-// The hero's top row: the main menu on the left, Settings on the right.
-export function HeroNav({ showSettings = false }: { showSettings?: boolean }) {
-  return (
-    <div className="lw-hero-nav">
-      <button type="button" className="lw-hero-nav__button lw-hero-nav__button--menu" aria-label="Open LinkWise menu" title="Menu" onClick={() => panelToolPreference.set("menu")}>
-        <svg {...ICON_PROPS} width={24} height={24} strokeWidth={2} stroke="url(#lw-menu-lines)">
-          <defs>
-            <linearGradient id="lw-menu-lines" gradientUnits="userSpaceOnUse" x1="3" y1="0" x2="21" y2="0">
-              <stop offset="0" stopColor="#4e8bf7" />
-              <stop offset="1" stopColor="#6c55ea" />
-            </linearGradient>
-          </defs>
-          <path d="M3 6.5h18M3 12h18M3 17.5h18" />
-        </svg>
-      </button>
-      {showSettings && (
-        <button type="button" className="lw-hero-nav__button lw-hero-nav__button--settings" aria-label="Open LinkWise settings" title="Settings" onClick={() => panelToolPreference.set("settings")}>
-          <svg {...ICON_PROPS}>
-            <path d="M10.3 3.6h3.4l.5 2.3 1.6.9 2.2-.8 1.7 2.9-1.7 1.6v1.9l1.7 1.6-1.7 2.9-2.2-.8-1.6.9-.5 2.3h-3.4l-.5-2.3-1.6-.9-2.2.8-1.7-2.9 1.7-1.6v-1.9L4.3 8.9 6 6l2.2.8 1.6-.9z" />
-            <circle cx="12" cy="12" r="2.6" />
-          </svg>
-        </button>
-      )}
-    </div>
-  );
-}
-
 // A tool's top: the way back to the menu, then its name.
 export function ToolHead({ title }: { title: string }) {
   return (
@@ -152,24 +124,54 @@ export function ToolHead({ title }: { title: string }) {
   );
 }
 
-// The Analyzer's hero is a single piece of artwork, title and buttons included. The two buttons
-// drawn in it get invisible hit areas, positioned in percentages so they track the image's scale.
-const ANALYZER_HERO_PATH = "content/assets/profile-analyzer-hero.webp";
+// Image-based heroes: the artwork carries the title and the buttons, and each drawn button gets an
+// invisible hit area positioned in percentages (see panelStyles) so it tracks the image's scale.
+interface ArtworkHotspot {
+  label: string;
+  modifier: string;
+  onClick: () => void;
+}
+
+function ArtworkHero({ name, path, width, height, alt, hotspots }: { name: string; path: string; width: number; height: number; alt: string; hotspots: ArtworkHotspot[] }) {
+  const src = typeof chrome !== "undefined" ? chrome.runtime?.getURL?.(path) : undefined;
+  return (
+    <section className={`lw-art-hero lw-art-hero--${name}`}>
+      <img className="lw-art-hero__art" src={src || undefined} width={width} height={height} alt={alt} draggable={false} />
+      {hotspots.map((hotspot) => (
+        <button key={hotspot.modifier} type="button" className={`lw-art-hero__hotspot lw-art-hero__hotspot--${hotspot.modifier}`} aria-label={hotspot.label} onClick={hotspot.onClick} />
+      ))}
+    </section>
+  );
+}
 
 export function AnalyzerHero() {
-  const src = typeof chrome !== "undefined" ? chrome.runtime?.getURL?.(ANALYZER_HERO_PATH) : undefined;
   return (
-    <section className="lw-analyzer-hero">
-      <img
-        className="lw-analyzer-hero__art"
-        src={src || undefined}
-        width={1672}
-        height={941}
-        alt="Profile Analyzer. Get insights and actionable tips for any LinkedIn profile."
-        draggable={false}
-      />
-      <button type="button" className="lw-analyzer-hero__hotspot lw-analyzer-hero__hotspot--menu" aria-label="Open LinkWise menu" onClick={() => panelToolPreference.set("menu")} />
-      <button type="button" className="lw-analyzer-hero__hotspot lw-analyzer-hero__hotspot--settings" aria-label="Open LinkWise settings" onClick={() => panelToolPreference.set("settings")} />
-    </section>
+    <ArtworkHero
+      name="analyzer"
+      path="content/assets/profile-analyzer-hero.webp"
+      width={1672}
+      height={941}
+      alt="Profile Analyzer. Get insights and actionable tips for any LinkedIn profile."
+      hotspots={[
+        { label: "Open LinkWise menu", modifier: "menu", onClick: () => panelToolPreference.set("menu") },
+        { label: "Open LinkWise settings", modifier: "settings", onClick: openSettings },
+      ]}
+    />
+  );
+}
+
+export function SettingsHero() {
+  return (
+    <ArtworkHero
+      name="settings"
+      path="content/assets/settings-hero.webp"
+      width={1447}
+      height={1087}
+      alt="Settings. Customize scanning, highlights, and preferences."
+      hotspots={[
+        { label: "Go back", modifier: "back", onClick: leaveSettings },
+        { label: "Open LinkWise menu", modifier: "menu", onClick: () => panelToolPreference.set("menu") },
+      ]}
+    />
   );
 }

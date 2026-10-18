@@ -4,7 +4,7 @@ import { build } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { mkdirSync, copyFileSync } from "node:fs";
+import { mkdirSync, copyFileSync, readdirSync } from "node:fs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const watch = process.argv.includes("--watch");
@@ -91,10 +91,9 @@ async function buildDocumentParsingChunk() {
 // Images the panel loads by URL. dist/content is already web-accessible to LinkedIn pages.
 function copyAssets() {
   mkdirSync(path.join(root, "dist/content/assets"), { recursive: true });
-  copyFileSync(
-    path.join(root, "src/assets/profile-analyzer-hero.webp"),
-    path.join(root, "dist/content/assets/profile-analyzer-hero.webp"),
-  );
+  for (const name of readdirSync(path.join(root, "src/assets"))) {
+    copyFileSync(path.join(root, "src/assets", name), path.join(root, "dist/content/assets", name));
+  }
 }
 
 function copyManifest() {

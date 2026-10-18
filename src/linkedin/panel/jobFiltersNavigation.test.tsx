@@ -9,6 +9,8 @@ import { setPanelProfileData } from "./panelStore";
 import { getJobsSettingsState, setJobsSettings, subscribeJobsSettingsStore } from "./jobsSettingsStore";
 import { decodePanelTool, panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { resetJobsRuntime, runJobsTick } from "../jobs/jobsRuntime";
+import { resetSettingsOriginForTests } from "./settingsNav";
+import { getOptimizerPage, openOptimizerPage } from "../../optimizer/optimizerNav";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -59,6 +61,7 @@ installChrome();
 
 beforeEach(() => {
   panelToolPreference.set("menu");
+  resetSettingsOriginForTests();
   setJobsSettings(DEFAULT_JOBS_SETTINGS);
   for (const key of Object.keys(stored)) delete stored[key];
   set.mockClear();
@@ -159,15 +162,73 @@ describe("Settings", () => {
   it("replaces Back to Menu on the Analyzer hero with a menu button and a settings button", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
-    const hero = container.querySelector(".lw-analyzer-hero")!;
+    const hero = container.querySelector(".lw-art-hero--analyzer")!;
     expect(hero.textContent).not.toContain("Back to Menu");
     expect(hero.querySelector("img")!.getAttribute("alt")).toContain("Profile Analyzer");
     expect(hero.querySelector('[aria-label="Open LinkWise menu"]')).not.toBeNull();
     expect(hero.querySelector('[aria-label="Open LinkWise settings"]')).not.toBeNull();
     await openSettings();
     expect(stored["finder.panelTool.v1"]).toBe("settings");
-    expect(container.querySelector(".lw-tool-head__title")!.textContent).toBe("Settings");
+    expect(container.querySelector(".lw-art-hero--settings img")!.getAttribute("alt")).toContain("Settings");
     await toMenu();
+    expect(menuItems()).toHaveLength(4);
+  });
+
+  it("shows only the artwork hero, with Back then Menu as its two controls", async () => {
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    await openSettings();
+    const hero = container.querySelector(".lw-art-hero--settings")!;
+    expect([...hero.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))).toEqual(["Go back", "Open LinkWise menu"]);
+    expect(hero.textContent).toBe("");
+    expect(container.querySelector(".lw-tool-head__title")).toBeNull();
+  });
+
+  const goBack = async () => act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Go back"]')!.click());
+
+  it("goes back to the Analyzer it was opened from, and to the menu from the menu", async () => {
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    await openSettings();
+    await goBack();
+    expect(stored["finder.panelTool.v1"]).toBe("analyzer");
+    expect(container.querySelector(".lw-art-hero--analyzer")).not.toBeNull();
+    await openSettings();
+    await toMenu();
+    expect(menuItems()).toHaveLength(4);
+    const { openSettings: openFromAnywhere } = await import("./settingsNav");
+    await act(async () => openFromAnywhere());
+    await goBack();
+    expect(menuItems()).toHaveLength(4);
+  });
+
+  it("returns to the exact Optimizer page it was opened from", async () => {
+    const { openSettings: openFromAnywhere } = await import("./settingsNav");
+    await mountPanel();
+    await openFromMenu("Profile Optimizer");
+    await act(async () => openOptimizerPage({ name: "section", section: "headline" }));
+    await act(async () => openFromAnywhere());
+    expect(stored["finder.panelTool.v1"]).toBe("settings");
+    await goBack();
+    expect(stored["finder.panelTool.v1"]).toBe("optimizer");
+    expect(getOptimizerPage()).toEqual({ name: "section", section: "headline" });
+    await act(async () => openOptimizerPage({ name: "home" }));
+  });
+
+  it("keeps the first origin when Settings is opened again from Settings", async () => {
+    const { openSettings: openFromAnywhere } = await import("./settingsNav");
+    await mountPanel();
+    await openFromMenu("Job Filters");
+    await act(async () => openFromAnywhere());
+    await act(async () => openFromAnywhere());
+    await goBack();
+    expect(stored["finder.panelTool.v1"]).toBe("jobs");
+  });
+
+  it("falls back to the menu when nothing opened it, such as after a reload", async () => {
+    panelToolPreference.set("settings");
+    await mountPanel();
+    await goBack();
     expect(menuItems()).toHaveLength(4);
   });
 
