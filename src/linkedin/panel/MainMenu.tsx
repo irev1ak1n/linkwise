@@ -160,18 +160,16 @@ export function AnalyzerHero() {
   const src = typeof chrome !== "undefined" ? chrome.runtime?.getURL?.(ANALYZER_HERO_PATH) : undefined;
   return (
     <section className="lw-analyzer-hero">
-      <div className="lw-analyzer-hero__frame">
-        <img
-          className="lw-analyzer-hero__art"
-          src={src || undefined}
-          width={1672}
-          height={941}
-          alt="Profile Analyzer. Get insights and actionable tips for any LinkedIn profile."
-          draggable={false}
-        />
-        <button type="button" className="lw-analyzer-hero__hotspot lw-analyzer-hero__hotspot--menu" aria-label="Open LinkWise menu" onClick={() => panelToolPreference.set("menu")} />
-        <button type="button" className="lw-analyzer-hero__hotspot lw-analyzer-hero__hotspot--settings" aria-label="Open LinkWise settings" onClick={() => panelToolPreference.set("settings")} />
-      </div>
+      <img
+        className="lw-analyzer-hero__art"
+        src={src || undefined}
+        width={1672}
+        height={941}
+        alt="Profile Analyzer. Get insights and actionable tips for any LinkedIn profile."
+        draggable={false}
+      />
+      <button type="button" className="lw-analyzer-hero__hotspot lw-analyzer-hero__hotspot--menu" aria-label="Open LinkWise menu" onClick={() => panelToolPreference.set("menu")} />
+      <button type="button" className="lw-analyzer-hero__hotspot lw-analyzer-hero__hotspot--settings" aria-label="Open LinkWise settings" onClick={() => panelToolPreference.set("settings")} />
     </section>
   );
 }

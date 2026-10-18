@@ -24,9 +24,10 @@ export function getPanelStyles(widthPx: number): string {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 22px 12px 22px 18px;
+    padding: 14px 12px 14px 18px;
     flex-shrink: 0;
-    border-bottom: 1px solid rgba(105, 125, 255, 0.45);
+    border-bottom: 1px solid rgba(90, 130, 255, 0.32);
+    box-shadow: 0 3px 10px rgba(10, 25, 75, 0.15);
     background:
       radial-gradient(28% 130% at 100% 15%, rgba(118, 66, 245, 0.75) 0%, rgba(110, 60, 240, 0.28) 45%, transparent 78%),
       radial-gradient(34% 110% at 63% 92%, rgba(40, 104, 255, 0.72) 0%, rgba(36, 98, 255, 0.24) 44%, transparent 74%),
@@ -1154,17 +1155,11 @@ export function getPanelStyles(widthPx: number): string {
     color: #111b3d;
   }
   .lw-analyzer-hero {
+    position: relative;
     flex-shrink: 0;
     margin: -16px -16px 0;
-    overflow: hidden;
     line-height: 0;
     background: #060c26;
-  }
-  /* The artwork's own glowing top edge is trimmed off so the header's 1px divider is the only seam.
-     A percentage margin scales with the image, and the hotspots stay relative to the full artwork. */
-  .lw-analyzer-hero__frame {
-    position: relative;
-    margin-top: -3.8%;
   }
   .lw-analyzer-hero__art {
     display: block;
