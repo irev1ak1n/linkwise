@@ -35,7 +35,7 @@ import { panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
-import { BackLink, MainMenu, ToolHead } from "./MainMenu";
+import { BackLink, BrandMark, MainMenu, ToolHead } from "./MainMenu";
 
 const openMenu = () => panelToolPreference.set("menu");
 
@@ -158,9 +158,16 @@ export function PanelApp({ onClose }: PanelAppProps) {
   return (
     <div className="lw-panel">
       <header className="lw-panel__header">
-        <span className="lw-panel__brand">LinkWise</span>
+        <span className="lw-panel__brand">
+          <BrandMark />
+          <span className="lw-panel__wordmark">
+            Link<span>Wise</span>
+          </span>
+        </span>
         <button type="button" className="lw-panel__close" aria-label="Close LinkWise panel" onClick={onClose}>
-          ✕
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
       </header>
       <div className="lw-panel__body">

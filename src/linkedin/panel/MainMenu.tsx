@@ -83,7 +83,28 @@ function AnalyzerHeroArt() {
   );
 }
 
-const ICON_PROPS = { viewBox: "0 0 24 24", width: 20, height: 20, fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
+// The LinkWise "L" mark for the panel's branded top bar.
+export function BrandMark() {
+  return (
+    <svg className="lw-panel__mark" viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="lw-mark-stem" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#9fd0ff" />
+          <stop offset="1" stopColor="#3b6cf0" />
+        </linearGradient>
+        <linearGradient id="lw-mark-foot" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#2f5fe8" />
+          <stop offset="1" stopColor="#8fc4ff" />
+        </linearGradient>
+      </defs>
+      <path d="M13.5 4.5c1.6-1.9 4.6-1.3 5.4 1L13 21.5H8.4c-2.3 0-3.6-2.6-2.2-4.4z" fill="url(#lw-mark-stem)" />
+      <rect x="5" y="19.5" width="23" height="8" rx="4" fill="url(#lw-mark-foot)" />
+      <path d="M14.2 6.3c.6-.6 1.5-.5 1.9.1" stroke="#fff" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+const ICON_PROPS = { viewBox: "0 0 24 24", width: 22, height: 22, fill: "none", stroke: "currentColor", strokeWidth: 2.1, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
 
 // The hero's top row: the main menu on the left, Settings on the right.
 export function HeroNav({ showSettings = false }: { showSettings?: boolean }) {
