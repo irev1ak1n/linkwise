@@ -250,7 +250,7 @@ function RuleDetail({
         recent={recent.length > 0 ? recent : QUICK_COLORS}
         onSettle={rememberRecentColor}
       />
-      <HighlightPreviewCards id={id} rule={rule} keywords={parseKeywords(keywords)} />
+      <HighlightPreviewCards id={id} rule={rule} />
     </section>
   );
 }

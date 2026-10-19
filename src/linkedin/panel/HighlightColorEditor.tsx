@@ -56,16 +56,11 @@ export function HighlightColorEditor({ name, value, onChange, recent, onSettle }
   const [rgbDraft, setRgbDraft] = useState<Record<(typeof CHANNELS)[number], string>>(() => toDrafts(hexToRgb(value.hex)));
   const editing = useRef<"hex" | "rgb" | null>(null);
 
-  // Any outside change (a recent color, another tab) moves every control to it. The field being
-  // typed in keeps the user's text until they leave it.
-  useEffect(() => {
-    setHsv((prev) => (rgbToHex(hsvToRgb(prev)) === value.hex ? prev : hsvFor(value.hex, prev)));
-    if (editing.current !== "hex") setHexDraft(value.hex);
-    if (editing.current !== "rgb") setRgbDraft(toDrafts(hexToRgb(value.hex)));
-  }, [value.hex]);
-
   const latest = useRef(value);
   latest.current = value;
+  // Only colors the user picks here count for Recent Colors; `sent` tells their changes apart from
+  // ones that arrive from elsewhere (another tab, a reset).
+  const sent = useRef(value.hex);
   const settled = useRef(value.hex);
   const settle = () => {
     if (latest.current.hex === settled.current) return;
@@ -77,17 +72,26 @@ export function HighlightColorEditor({ name, value, onChange, recent, onSettle }
   settleRef.current = settle;
   useEffect(() => () => settleRef.current(), []);
 
+  // Any outside change (a recent color, another tab) moves every control to it. The field being
+  // typed in keeps the user's text until they leave it.
+  useEffect(() => {
+    if (value.hex !== sent.current) settled.current = sent.current = value.hex;
+    setHsv((prev) => (rgbToHex(hsvToRgb(prev)) === value.hex ? prev : hsvFor(value.hex, prev)));
+    if (editing.current !== "hex") setHexDraft(value.hex);
+    if (editing.current !== "rgb") setRgbDraft(toDrafts(hexToRgb(value.hex)));
+  }, [value.hex]);
+
+  const send = (next: CustomHighlightColor, live: boolean) => {
+    sent.current = next.hex;
+    latest.current = next;
+    onChange(next, live);
+  };
   const applyHsv = (next: Hsv, live: boolean) => {
     setHsv(next);
-    const hex = rgbToHex(hsvToRgb(next));
-    latest.current = { ...latest.current, hex };
-    onChange({ hex, opacity: value.opacity }, live);
+    send({ hex: rgbToHex(hsvToRgb(next)), opacity: latest.current.opacity }, live);
     if (!live) settle();
   };
-  const applyHex = (hex: string) => {
-    latest.current = { ...latest.current, hex };
-    onChange({ hex, opacity: value.opacity }, false);
-  };
+  const applyHex = (hex: string) => send({ hex, opacity: latest.current.opacity }, false);
 
   const square = usePointerDrag((x, y, live) => applyHsv({ h: hsv.h, s: x, v: 1 - y }, live));
   const hue = usePointerDrag((_x, y, live) => applyHsv({ ...hsv, h: Math.min(359.9, y * 360) }, live));
@@ -138,7 +142,7 @@ export function HighlightColorEditor({ name, value, onChange, recent, onSettle }
   };
 
   const opacityPercent = Math.round(value.opacity * 100);
-  const setOpacity = (percent: number, live: boolean) => onChange({ hex: latest.current.hex, opacity: clamp01(percent / 100) }, live);
+  const setOpacity = (percent: number, live: boolean) => send({ hex: latest.current.hex, opacity: clamp01(percent / 100) }, live);
   const pure = rgbToHex(hsvToRgb({ h: hsv.h, s: 1, v: 1 }));
 
   return (

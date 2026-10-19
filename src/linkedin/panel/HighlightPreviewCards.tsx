@@ -1,14 +1,12 @@
 import type { CSSProperties, ReactNode } from "react";
 import { highlightDeclarations } from "../highlightPalette";
 import type { HighlightStyle } from "../../signals/highlightCategories";
-import { PREVIEW_EDUCATION, PREVIEW_EXPERIENCE, PREVIEW_POST, PREVIEW_SKILLS, previewSegments, skillMarked, type PreviewText } from "./highlightExamples";
+import { PREVIEW_EDUCATION, PREVIEW_EXPERIENCE, PREVIEW_POST, PREVIEW_SKILLS, type PreviewSegment } from "./highlightExamples";
 import type { HighlightRuleId } from "./settingsNav";
 
 interface PreviewProps {
   id: HighlightRuleId;
   rule: HighlightStyle;
-  /** The user's keywords, for the Keywords page. */
-  keywords: string[];
 }
 
 function Icon({ children, className = "lw-pv__icon" }: { children: ReactNode; className?: string }) {
@@ -19,11 +17,11 @@ function Icon({ children, className = "lw-pv__icon" }: { children: ReactNode; cl
   );
 }
 
-function Marked({ item, id, keywords, mark }: { item: PreviewText; id: HighlightRuleId; keywords: string[]; mark: CSSProperties }) {
+function Segments({ segments, mark }: { segments: PreviewSegment[]; mark: CSSProperties }) {
   return (
     <>
-      {previewSegments(item, id, keywords).map((part, i) =>
-        part.marked ? (
+      {segments.map((part, i) =>
+        part.highlighted ? (
           <span key={i} className="lw-pv__mark" style={mark}>
             {part.text}
           </span>
@@ -35,11 +33,12 @@ function Marked({ item, id, keywords, mark }: { item: PreviewText; id: Highlight
   );
 }
 
-// Miniature LinkedIn pieces with the open category's phrases drawn in its current style: the same
-// declarations as the ::highlight() rules on the profile, so the preview never drifts from it.
-export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
+// Miniature LinkedIn pieces with a fixed set of highlighted phrases, all drawn in the style being
+// edited: the same declarations as the ::highlight() rules on the profile, so the preview shows
+// exactly how that style will look. The phrases never change between category pages.
+export function HighlightPreviewCards({ id, rule }: PreviewProps) {
   const mark = highlightDeclarations(rule, id === "keywords") as CSSProperties;
-  const text = (item: PreviewText) => <Marked item={item} id={id} keywords={keywords} mark={mark} />;
+  const text = (segments: PreviewSegment[]) => <Segments segments={segments} mark={mark} />;
   return (
     <section className="lw-live" aria-label="Live preview">
       <h4 className="lw-live__heading">Live Preview</h4>
@@ -55,7 +54,7 @@ export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
             <span className="lw-pv__name">
               {PREVIEW_POST.author} <span className="lw-pv__degree">· {PREVIEW_POST.degree}</span>
             </span>
-            <span className="lw-pv__headline">{text(PREVIEW_POST.headline)}</span>
+            <span className="lw-pv__headline">{PREVIEW_POST.headline}</span>
             <span className="lw-pv__meta">
               {PREVIEW_POST.time} ·{" "}
               <Icon className="lw-pv__globe">
@@ -82,7 +81,7 @@ export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
                 <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" />
               </Icon>
             </span>
-            <span>{text(PREVIEW_POST.reactions)}</span>
+            {PREVIEW_POST.reactions}
           </span>
           <span>{PREVIEW_POST.comments}</span>
         </footer>
@@ -102,13 +101,11 @@ export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
             </Icon>
           </span>
           <div className="lw-pv__entry-text">
-            <span className="lw-pv__title">{text(PREVIEW_EXPERIENCE.title)}</span>
-            <span className="lw-pv__meta">
-              <span>{text(PREVIEW_EXPERIENCE.meta)}</span>
-            </span>
+            <span className="lw-pv__title">{PREVIEW_EXPERIENCE.title}</span>
+            <span className="lw-pv__meta">{PREVIEW_EXPERIENCE.meta}</span>
             <ul className="lw-pv__bullets">
-              {PREVIEW_EXPERIENCE.bullets.map((bullet) => (
-                <li key={bullet.text}>{text(bullet)}</li>
+              {PREVIEW_EXPERIENCE.bullets.map((bullet, i) => (
+                <li key={i}>{text(bullet)}</li>
               ))}
             </ul>
           </div>
@@ -124,14 +121,11 @@ export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
           Skills Example
         </h5>
         <ul className="lw-pv__pills">
-          {PREVIEW_SKILLS.map((skill) => {
-            const on = skillMarked(skill, id, keywords);
-            return (
-              <li key={skill.name} className={on ? "lw-pv__pill lw-pv__pill--marked" : "lw-pv__pill"} style={on ? mark : undefined}>
-                {skill.name}
-              </li>
-            );
-          })}
+          {PREVIEW_SKILLS.map((skill) => (
+            <li key={skill.text} className={skill.highlighted ? "lw-pv__pill lw-pv__pill--marked" : "lw-pv__pill"} style={skill.highlighted ? mark : undefined}>
+              {skill.text}
+            </li>
+          ))}
         </ul>
       </article>
 
@@ -149,12 +143,9 @@ export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
             </Icon>
           </span>
           <div className="lw-pv__entry-text">
-            <span className="lw-pv__title">{text(PREVIEW_EDUCATION.degree)}</span>
-            <span className="lw-pv__meta">
-              <span>{text(PREVIEW_EDUCATION.meta)}</span>
-            </span>
+            <span className="lw-pv__title">{PREVIEW_EDUCATION.degree}</span>
+            <span className="lw-pv__meta">{PREVIEW_EDUCATION.meta}</span>
             <p className="lw-pv__line">{text(PREVIEW_EDUCATION.coursework)}</p>
-            {id === "languages" && <p className="lw-pv__line">{text(PREVIEW_EDUCATION.languages)}</p>}
           </div>
         </div>
       </article>

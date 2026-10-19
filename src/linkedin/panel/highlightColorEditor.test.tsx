@@ -217,6 +217,16 @@ describe("highlight category page", () => {
     expect(recentHighlightColors.getState().value).toEqual(["#FAC814"]);
   });
 
+  it("does not count a color that arrives from elsewhere as a recent pick", async () => {
+    await mountPanel();
+    await openCategory("Roles");
+    // Another tab, or a reset, changes the color while the page is open.
+    await act(async () => highlightPreferences.setCategory("roles", { custom: { hex: "#123456", opacity: 0.3 } }));
+    expect(hex().value).toBe("#123456");
+    await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
+    expect(recentHighlightColors.getState().value).toEqual([]);
+  });
+
   it("keeps opacity per category and shows it in the preview and Live Preview at once", async () => {
     await mountPanel();
     await openCategory("Roles");
@@ -251,77 +261,51 @@ describe("highlight category page", () => {
     return { post: marksIn("Post example"), experience: marksIn("Experience example"), skills: marksIn("Skills example"), education: marksIn("Education example") };
   }
 
-  it("shows the same four cards on every page, highlighting only the open category's fixed spans", async () => {
+  const EXPECTED = {
+    post: ["led the development", "10,000+", "40%", "team of 5", "React, Python, and AWS", "1st place"],
+    experience: ["500+", "30%", "TypeScript, React, and Azure", "team of 4", "2 product teams"],
+    skills: ["Node.js"],
+    education: ["AI", "Machine Learning"],
+  };
+
+  it("highlights the same fixed phrases on every category page, each in that page's own style", async () => {
     await mountPanel();
-    const ALL_SKILLS = ["Python", "C++", "React", "Node.js", "AWS", "Docker", "SQL", "Blender"];
-    expect(await marksFor("Roles")).toEqual({ post: ["Software Engineer"], experience: ["Software Developer Intern"], skills: [], education: [] });
-    expect(await marksFor("Meaningful Numbers")).toEqual({
-      post: ["10,000+", "40%", "team of 5", "1st place", "124"],
-      experience: ["Jun 2024 – Aug 2024", "500+", "30%", "team of 4", "2 product teams"],
-      skills: [],
-      education: ["2024 – 2028"],
-    });
-    expect(await marksFor("Impact")).toEqual({
-      post: ["used by 10,000+ students", "improving engagement by 40%"],
-      experience: ["used by 500+ employees", "improving workflow efficiency by 30%"],
-      skills: [],
-      education: [],
-    });
-    expect(await marksFor("Leadership")).toEqual({
-      post: ["led the development", "team of 5 developers"],
-      experience: ["Collaborated with a team of 4 engineers"],
-      skills: [],
-      education: [],
-    });
-    expect(await marksFor("Skills & Tools")).toEqual({
-      post: ["React", "Python", "AWS"],
-      experience: ["TypeScript", "React", "Azure"],
-      skills: ALL_SKILLS,
-      education: ["AI", "Machine Learning", "Database Systems", "Computer Vision"],
-    });
-    expect(await marksFor("Achievements")).toEqual({ post: ["1st place", "regional hackathon"], experience: [], skills: [], education: [] });
-    expect(await marksFor("Projects")).toEqual({ post: ["full-stack web application", "platform"], experience: ["internal tools", "features"], skills: [], education: [] });
-    // Pills that do not apply stay neutral.
-    expect(container.querySelectorAll(".lw-pv__pill:not(.lw-pv__pill--marked)")).toHaveLength(8);
-    // Marks keep the text around them intact.
-    expect(container.querySelector('[aria-label="Post example"] .lw-pv__body')!.textContent).toContain("the development of a full-stack web application used by");
+    const seen = new Map<string, string[]>();
+    for (const label of ["Roles", "Skills & Tools", "Impact", "Achievements", "Meaningful Numbers", "Keywords"]) {
+      expect(await marksFor(label)).toEqual(EXPECTED);
+      // Every phrase takes the edited category's color, whatever kind of phrase it is.
+      seen.set(label, [...new Set(previewMarks().map((m) => m.style.backgroundColor))]);
+      expect(seen.get(label)).toHaveLength(1);
+    }
+    expect(seen.get("Roles")).toEqual(["rgba(10, 102, 194, 0.14)"]);
+    expect(seen.get("Skills & Tools")).toEqual(["rgba(3, 169, 244, 0.18)"]);
+    expect(seen.get("Impact")).toEqual(["rgba(76, 175, 80, 0.26)"]);
+    // Neutral pills stay gray; the text around marks is intact.
+    expect(container.querySelectorAll(".lw-pv__pill:not(.lw-pv__pill--marked)")).toHaveLength(7);
+    expect(container.querySelector('[aria-label="Post example"] .lw-pv__body')!.textContent).toBe(
+      "Excited to share that I led the development of a full-stack web application used by 10,000+ students, improving engagement by 40%. I worked with a team of 5 developers using React, Python, and AWS to design and launch the platform. This project also earned 1st place at our regional hackathon.",
+    );
   });
 
-  it("adds a languages line only on the Languages page", async () => {
-    await mountPanel();
-    expect((await marksFor("Roles")).education).toEqual([]);
-    expect(container.textContent).not.toContain("Languages: English");
-    expect((await marksFor("Languages")).education).toEqual(["English", "Spanish", "Arabic"]);
-  });
-
-  it("draws Numbers with their underline, like on the profile, and Keywords from the user's own list", async () => {
+  it("draws Numbers with their underline, like on the profile", async () => {
     await mountPanel();
     await marksFor("Meaningful Numbers");
-    expect(previewMarks()[0]!.style.textDecoration).toContain("underline");
-    const { highlightKeywordsPreference } = await import("./keywordPreference");
-    highlightKeywordsPreference.set("react, AI");
-    const marks = await marksFor("Keywords");
-    expect(marks.post).toEqual(["React"]);
-    expect(marks.skills).toEqual(["React"]);
-    // Whole words only: "AI" is not found inside "maintained".
-    expect(marks.experience).toEqual(["React"]);
-    expect(marks.education).toEqual(["AI"]);
-    highlightKeywordsPreference.set("");
+    expect(previewMarks().every((m) => m.style.textDecoration.includes("underline"))).toBe(true);
   });
 
-  it("updates every card at once when the color or opacity changes", async () => {
+  it("updates every card at once when the color or opacity changes, fading only the background", async () => {
     await mountPanel();
-    await marksFor("Skills & Tools");
-    await typeInto(hex(), "#8BC7FF");
+    await marksFor("Roles");
+    await typeInto(hex(), "#F3A8C7");
     const slider = q<HTMLInputElement>("#lw-ce-opacity");
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(slider, "45");
       slider.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    const colors = new Set(previewMarks().map((m) => m.style.backgroundColor));
-    expect([...colors]).toEqual(["rgba(139, 199, 255, 0.45)"]);
-    // 3 in the post, 3 in Experience, 8 pills, 4 courses.
-    expect(previewMarks()).toHaveLength(18);
+    expect(previewMarks()).toHaveLength(14);
+    expect([...new Set(previewMarks().map((m) => m.style.backgroundColor))]).toEqual(["rgba(243, 168, 199, 0.45)"]);
+    // Opacity belongs to the background: the text is never faded.
+    expect(previewMarks().every((m) => m.style.opacity === "")).toBe(true);
   });
 
   it("never asks for AI while colors change", async () => {

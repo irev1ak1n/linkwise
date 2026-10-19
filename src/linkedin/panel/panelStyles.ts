@@ -2573,5 +2573,13 @@ export function getPanelStyles(widthPx: number): string {
   .lw-pv__pill--marked {
     color: #1d2226;
   }
+  /* Only the shape here; the color and opacity come from the style being edited, as a translucent
+     background, so the text itself stays fully opaque. */
+  .lw-pv__mark {
+    padding: 1px 2px;
+    border-radius: 4px;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
 `;
 }
