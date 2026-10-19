@@ -53,7 +53,7 @@ describe("computeFinalScore - AI's own matchPercent is authoritative", () => {
           { criterionId: "c2", strength: "strong", evidenceIds: ["skills:0"] },
         ],
       },
-      profile: { identity: "x", evidence: [{ id: "skills:0", section: "skills", text: "Python", evidenceType: "skills" }] },
+      profile: { identity: "x", evidence: [{ id: "skills:0", section: "skills", text: "Python", evidenceType: "skills" }], coverage: "full" },
     });
     const ai = aiResponse({ matchPercent: 85 });
     const merge = mergeCriterionAssessments(req, ai);
@@ -103,7 +103,7 @@ describe("computeFinalScore - Excluded criterion guardrail", () => {
         profileExtracted: true,
         criterionResults: [{ criterionId: "c1", strength: "strong", evidenceIds: ["headline:0"] }],
       },
-      profile: { identity: "x", evidence: [{ id: "headline:0", section: "headline", text: "Technical Recruiter", evidenceType: "headline" }] },
+      profile: { identity: "x", evidence: [{ id: "headline:0", section: "headline", text: "Technical Recruiter", evidenceType: "headline" }], coverage: "full" },
     });
     const ai = aiResponse({ matchPercent: 90 });
     const merge = mergeCriterionAssessments(req, ai);
@@ -137,5 +137,42 @@ describe("confidenceLevelToFloat", () => {
   it("orders low < medium < high", () => {
     expect(confidenceLevelToFloat("low")).toBeLessThan(confidenceLevelToFloat("medium"));
     expect(confidenceLevelToFloat("medium")).toBeLessThan(confidenceLevelToFloat("high"));
+  });
+});
+
+describe("computeFinalScore - the same person after more evidence", () => {
+  const criteria = [{ id: "c1", label: "FRC mentor", importance: "PREFERRED" as const }];
+  const evidence = [{ id: "experience:0", section: "experience" as const, text: "Mentored an FRC team for 3 years.", evidenceType: "experience" }];
+  const req = (newIds: string[]) =>
+    request({
+      goal: { id: "g1", description: "FRC mentors", criteria },
+      profile: { identity: "Jordan Rivera", evidence: [...evidence, { id: "honors:0", section: "honors", text: "Yale Book Award", evidenceType: "honors" }], coverage: "full" },
+      localAnalysis: { score: null, confidence: 0, profileExtracted: true, criterionResults: [{ criterionId: "c1", strength: "missing", evidenceIds: [] }] },
+      previous: { matchPercent: 56, assessments: [{ criterionId: "c1", strength: "strong", evidenceSection: "experience", evidenceText: "Mentored an FRC team for 3 years." }], newEvidenceIds: newIds },
+    });
+
+  it("keeps the earlier Match when an added section changes no criterion", () => {
+    const r = req(["honors:0"]);
+    const ai = aiResponse({ matchPercent: 46, criterionAssessments: [{ criterionId: "c1", assessment: "strong", confidence: 0.9, evidenceIds: ["experience:0"], rationale: "Mentored an FRC team." }] });
+    expect(computeFinalScore(r, mergeCriterionAssessments(r, ai), ai).scorePercent).toBe(56);
+  });
+
+  it("takes the new Match when new evidence changes a criterion", () => {
+    const r = req(["honors:0"]);
+    const ai = aiResponse({ matchPercent: 40, criterionAssessments: [{ criterionId: "c1", assessment: "moderate", confidence: 0.9, evidenceIds: ["honors:0"], rationale: "The award shows the mentoring ended." }] });
+    expect(computeFinalScore(r, mergeCriterionAssessments(r, ai), ai).scorePercent).toBe(40);
+  });
+});
+
+describe("computeFinalScore - only details pages read", () => {
+  it("never shows a holistic percentage judged from one section", () => {
+    const r = request({
+      goal: { id: "g1", description: "FRC mentors", criteria: [{ id: "c1", label: "FRC mentor", importance: "PREFERRED" }] },
+      profile: { identity: "unknown", evidence: [{ id: "honors:0", section: "honors", text: "Yale Book Award", evidenceType: "honors" }], coverage: "section" },
+    });
+    const ai = aiResponse({ matchPercent: 5, criterionAssessments: [{ criterionId: "c1", assessment: "missing", confidence: 0.9, evidenceIds: [], rationale: "Not on the Honors page." }] });
+    const result = computeFinalScore(r, mergeCriterionAssessments(r, ai), ai);
+    expect(result.scorePercent).toBeNull();
+    expect(result.confidence).toBe(0);
   });
 });

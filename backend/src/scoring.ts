@@ -35,15 +35,28 @@ function clampScorePercent(value: number): number {
   return Math.round(Math.min(100, Math.max(0, value)));
 }
 
+// The same person reassessed after their evidence grew keeps their earlier Match when no
+// criterion changed: the score moves only through a criterion the new evidence actually changed,
+// never because the model re-read the same facts differently or a new section was unrelated.
+function unchangedSincePrevious(request: AnalyzeProfileRequest, merge: MergeResult): boolean {
+  const previous = request.previous;
+  if (!previous) return false;
+  const before = new Map(previous.assessments.map((a) => [a.criterionId, a.strength]));
+  return request.goal.criteria.filter((c) => c.importance !== "EXCLUDED").every((c) => before.get(c.id) === merge.assessments.get(c.id)?.strength);
+}
+
 export function computeFinalScore(request: AnalyzeProfileRequest, merge: MergeResult, aiResponse: AnalysisResponse): MatchResult {
   const deterministic = computeMatchResult(goalFromRequest(request), merge.assessments, request.localAnalysis.profileExtracted);
 
   // A confirmed Excluded disqualification always wins, no matter what AI scored.
   if (deterministic.disqualified) return deterministic;
+  // With only details pages read, a holistic percentage would judge the person on one section.
+  // The score covers only the criteria that section could assess, and its confidence says how few.
+  if (request.profile.coverage === "section") return deterministic;
 
   return {
     ...deterministic,
-    scorePercent: clampScorePercent(aiResponse.matchPercent),
+    scorePercent: unchangedSincePrevious(request, merge) ? request.previous!.matchPercent : clampScorePercent(aiResponse.matchPercent),
     confidence: confidenceLevelToFloat(aiResponse.confidenceLevel),
   };
 }

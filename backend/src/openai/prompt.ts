@@ -79,6 +79,20 @@ CONTACT AND SAVE GUIDANCE:
 - "saveRecommendation" is one of: save, consider_saving, skip. Write "saveRecommendationReason" as a short explanation.`;
 
 // Builds the user message: goal, criteria, and evidence. Nothing else.
+// The same person was analyzed before with less evidence. All evidence above is still theirs; the
+// new items are only additions (often one more section, e.g. their Honors page).
+function previousLines(request: AnalyzeProfileRequest): string[] {
+  const previous = request.previous;
+  if (!previous) return [];
+  const assessments = previous.assessments.map((a) => `- ${a.criterionId}: ${a.strength}`).join("\n");
+  return [
+    "",
+    `PREVIOUS ANALYSIS of this same person, made before these evidence items were added: ${previous.newEvidenceIds.join(", ") || "(none)"}. Its matchPercent was ${previous.matchPercent}, with these criterion assessments:`,
+    assessments || "(none)",
+    "Keep each criterion's assessment unless the newly added items say something new about it; an added section that does not mention a criterion is not evidence against it, so never weaken a criterion only because new items do not mention it. When you change a criterion, cite the new evidence that changed it. Keep matchPercent equal to the previous one unless a criterion assessment changes, and then move it only as far as those changes justify.",
+  ];
+}
+
 export function buildUserPrompt(request: AnalyzeProfileRequest): string {
   const criteriaLines = request.goal.criteria
     .map((c) => `- [${c.id}] "${c.label}" — importance: ${c.importance}${c.category ? `, category: ${c.category}` : ""}`)
@@ -106,6 +120,13 @@ export function buildUserPrompt(request: AnalyzeProfileRequest): string {
     "",
     "For reference, a separate local rule-based system already produced this preliminary read (you may agree, refine, or diverge from it, but it reflects real analysis already done — do not ignore it without reason):",
     localLines || "(no local results)",
+    ...previousLines(request),
+    ...(request.profile.coverage === "section"
+      ? [
+          "",
+          "COVERAGE: only some of this person's profile sections have been read (their main profile page has not been). A criterion that the evidence above does not address is \"unknown\", never \"missing\": absence from a partial reading is not evidence of absence.",
+        ]
+      : []),
   ]
     .filter((line): line is string => line !== undefined)
     .join("\n");

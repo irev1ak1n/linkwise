@@ -145,3 +145,74 @@ describe("mergeCriterionAssessments - aiInformedCriterionIds tracking", () => {
     expect(aiInformedCriterionIds.has("c1")).toBe(false);
   });
 });
+
+describe("mergeCriterionAssessments - the same person after a details page adds evidence", () => {
+  // Main page: languages and a TSA mention. A Honors page then adds two unrelated awards.
+  const evidence = [
+    { id: "languages:0", section: "languages", text: "Spanish — Full professional proficiency", evidenceType: "languages" },
+    { id: "education:0", section: "education", text: "Northfield High — Activities: Technology Student Association", evidenceType: "education" },
+    { id: "honors:0", section: "honors", text: "Brain Bee Champion — Northfield Neuroscience Society", evidenceType: "honors" },
+    { id: "honors:1", section: "honors", text: "Yale Book Award", evidenceType: "honors" },
+  ];
+  const criteria = [
+    { id: "lang", label: "Speaks multiple languages", importance: "PREFERRED" },
+    { id: "tsa", label: "TSA member", importance: "PREFERRED" },
+  ];
+  const sameSession = (ai: CriterionAssessmentResponse[], previousTsa: "weak" | "moderate" = "weak") => {
+    const req = request({
+      goal: { id: "g", description: "Multilingual TSA members", criteria },
+      profile: { identity: "Jordan Rivera", evidence, coverage: "full" },
+      localAnalysis: { score: null, confidence: 0, profileExtracted: true, criterionResults: criteria.map((c) => ({ criterionId: c.id, strength: "missing", evidenceIds: [] })) },
+      previous: {
+        matchPercent: 56,
+        assessments: [
+          { criterionId: "lang", strength: "strong", evidenceSection: "languages", evidenceText: "Spanish — Full professional proficiency" },
+          { criterionId: "tsa", strength: previousTsa, evidenceSection: "education", evidenceText: "Technology Student Association" },
+        ],
+        newEvidenceIds: ["honors:0", "honors:1"],
+      },
+    } as Partial<AnalyzeProfileRequest>);
+    return mergeCriterionAssessments(req, aiResponse(ai)).assessments;
+  };
+
+  it("never weakens a criterion that the added section does not mention", () => {
+    const assessments = sameSession([
+      aiAssessment({ criterionId: "lang", assessment: "strong", evidenceIds: ["languages:0"] }),
+      aiAssessment({ criterionId: "tsa", assessment: "missing", evidenceIds: [], rationale: "No TSA in the awards." }),
+    ]);
+    expect(assessments.get("tsa")!.strength).toBe("weak");
+    expect(assessments.get("lang")!.strength).toBe("strong");
+  });
+
+  it("never re-reads old evidence into a different strength", () => {
+    const assessments = sameSession([aiAssessment({ criterionId: "lang", assessment: "moderate", evidenceIds: ["languages:0"] }), aiAssessment({ criterionId: "tsa", assessment: "weak", evidenceIds: ["education:0"] })]);
+    expect(assessments.get("lang")!.strength).toBe("strong");
+    expect(assessments.get("lang")!.evidence!.snippet).toContain("Spanish");
+  });
+
+  it("lets new evidence change a criterion, up or down, when it is cited", () => {
+    const up = sameSession([aiAssessment({ criterionId: "tsa", assessment: "strong", evidenceIds: ["honors:0"], rationale: "The new award is a TSA award." })]);
+    expect(up.get("tsa")!.strength).toBe("strong");
+    const down = sameSession([aiAssessment({ criterionId: "tsa", assessment: "weak", evidenceIds: ["honors:1"], rationale: "The award shows TSA membership ended." })], "moderate");
+    expect(down.get("tsa")!.strength).toBe("weak");
+  });
+
+  it("drops an earlier strong assessment whose evidence is no longer on the profile", () => {
+    const req = request({
+      goal: { id: "g", description: "Multilingual", criteria: [criteria[0]!] },
+      profile: { identity: "Jordan Rivera", evidence: [evidence[2]!], coverage: "full" },
+      localAnalysis: { score: null, confidence: 0, profileExtracted: true, criterionResults: [{ criterionId: "lang", strength: "missing", evidenceIds: [] }] },
+      previous: { matchPercent: 60, assessments: [{ criterionId: "lang", strength: "strong", evidenceSection: "languages", evidenceText: "Spanish — Full professional proficiency" }], newEvidenceIds: [] },
+    } as Partial<AnalyzeProfileRequest>);
+    expect(mergeCriterionAssessments(req, aiResponse([])).assessments.get("lang")!.strength).toBe("missing");
+  });
+
+  it("reads absence as unknown when only details pages were read", () => {
+    const req = request({
+      goal: { id: "g", description: "Multilingual", criteria: [criteria[0]!] },
+      profile: { identity: "unknown", evidence: [evidence[2]!], coverage: "section" },
+      localAnalysis: { score: null, confidence: 0, profileExtracted: true, criterionResults: [{ criterionId: "lang", strength: "missing", evidenceIds: [] }] },
+    } as Partial<AnalyzeProfileRequest>);
+    expect(mergeCriterionAssessments(req, aiResponse([aiAssessment({ criterionId: "lang", assessment: "missing", evidenceIds: [] })])).assessments.get("lang")!.strength).toBe("unknown");
+  });
+});

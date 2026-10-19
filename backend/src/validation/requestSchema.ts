@@ -86,6 +86,24 @@ const profileSchema = z.object({
   headline: z.string().max(500).optional(),
   location: z.string().max(300).optional(),
   evidence: z.array(evidenceItemSchema).max(MAX_EVIDENCE_ITEMS),
+  /** "section" when only details pages were read: what they do not mention is unknown, not missing. */
+  coverage: z.enum(["full", "section"]).default("full"),
+});
+
+// The earlier result for the same person and goal, before their evidence grew.
+const previousAnalysisSchema = z.object({
+  matchPercent: z.number().min(0).max(100),
+  assessments: z
+    .array(
+      z.object({
+        criterionId: z.string().min(1).max(200),
+        strength: evidenceStrengthSchema,
+        evidenceSection: z.string().max(50).optional(),
+        evidenceText: z.string().max(MAX_TEXT_LENGTH).optional(),
+      }),
+    )
+    .max(MAX_CRITERIA),
+  newEvidenceIds: z.array(z.string().max(100)).max(MAX_EVIDENCE_ITEMS),
 });
 
 const localCriterionResultSchema = z.object({
@@ -105,6 +123,7 @@ export const analyzeProfileRequestSchema = z.object({
   goal: goalSchema,
   profile: profileSchema,
   localAnalysis: localAnalysisSchema,
+  previous: previousAnalysisSchema.optional(),
 });
 
 export type AnalyzeProfileRequest = z.infer<typeof analyzeProfileRequestSchema>;

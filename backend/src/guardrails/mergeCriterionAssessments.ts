@@ -6,6 +6,12 @@
 //   4. An AI claim with no valid evidence ID is unsupported, fall back to local.
 //   5. AI can't downgrade a resolved local answer to "unknown".
 //   6. Otherwise use AI's assessment. This is where AI actually improves on local matching.
+// Then, for the same person seen before with less evidence (request.previous):
+//   7. A criterion keeps its earlier assessment unless its new one cites evidence that is new
+//      since then. A details page that never mentions a criterion is no evidence about it, so
+//      opening one can only change what it actually speaks to.
+// And when only details pages were read (coverage "section"):
+//   8. "missing" becomes "unknown": absence from one section says nothing about the person.
 //
 // Any "strong"/"moderate" result must carry real evidence by the time it's used for scoring.
 import type { CriterionAssessment } from "../../../src/matching/scoreProfile";
@@ -65,9 +71,12 @@ export function mergeCriterionAssessments(request: AnalyzeProfileRequest, aiResp
 
   const assessments = new Map<string, CriterionAssessment>();
   const aiInformedCriterionIds = new Set<string>();
+  // The evidence each final assessment rests on, for rule 7.
+  const cited = new Map<string, string[]>();
 
   for (const criterion of request.goal.criteria) {
     const localAssessment = buildLocalAssessment(request, evidenceById, criterion.id);
+    cited.set(criterion.id, request.localAnalysis.criterionResults.find((r) => r.criterionId === criterion.id)?.evidenceIds ?? []);
 
     // Rule 1: local unknown wins, only it tracks collection completeness.
     if (localAssessment.strength === "unknown") {
@@ -111,7 +120,42 @@ export function mergeCriterionAssessments(request: AnalyzeProfileRequest, aiResp
       explanation: ai.rationale,
     });
     aiInformedCriterionIds.add(criterion.id);
+    cited.set(criterion.id, grounded);
   }
 
+  if (request.previous) keepUnchangedByNewEvidence(request.previous, request.profile.evidence, assessments, aiInformedCriterionIds, cited);
+  if (request.profile.coverage === "section") {
+    for (const [id, assessment] of assessments) {
+      if (assessment.strength === "missing") assessments.set(id, { strength: "unknown", note: "Not covered by the profile sections read so far.", explanation: "Only part of this profile has been read." });
+    }
+  }
   return { assessments, aiInformedCriterionIds };
+}
+
+type PreviousAnalysis = NonNullable<AnalyzeProfileRequest["previous"]>;
+
+// Rule 7. Unknown on either side is about coverage, not about the person, so it is left alone.
+function keepUnchangedByNewEvidence(
+  previous: PreviousAnalysis,
+  evidence: AnalyzeProfileRequest["profile"]["evidence"],
+  assessments: Map<string, CriterionAssessment>,
+  aiInformed: Set<string>,
+  cited: ReadonlyMap<string, string[]>,
+): void {
+  const fresh = new Set(previous.newEvidenceIds);
+  for (const before of previous.assessments) {
+    const now = assessments.get(before.criterionId);
+    if (!now || now.strength === before.strength || now.strength === "unknown" || before.strength === "unknown") continue;
+    if ((cited.get(before.criterionId) ?? []).some((id) => fresh.has(id))) continue;
+    const positive = before.strength === "strong" || before.strength === "moderate";
+    // Evidence the person removed from their profile no longer supports anything.
+    if (positive && !(before.evidenceText && evidence.some((e) => e.text.includes(before.evidenceText!)))) continue;
+    assessments.set(before.criterionId, {
+      strength: before.strength,
+      evidence: before.evidenceText ? toSemanticEvidence(before.evidenceSection ?? "about", before.evidenceText) : undefined,
+      note: positive ? undefined : now.note,
+      explanation: "Kept from the earlier assessment: the evidence added since then says nothing new about this criterion.",
+    });
+    aiInformed.delete(before.criterionId);
+  }
 }
