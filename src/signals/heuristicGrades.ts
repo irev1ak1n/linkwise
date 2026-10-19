@@ -93,7 +93,11 @@ function grade(text: string, section: SignalSection): { type: SignalFactType; gr
 }
 
 
-// The description parts of an entry: never its title or organization (the first two parts).
+// LinkedIn's own record lines ("Northfield Academy · Issued May 2025 · Credential ID ..."), never evidence.
+const METADATA = /\bCredential ID\b|\bIssued (?:\p{L}{3,9} )?\d{4}\b|^\s*Issued by\b|\bSkills:|^\s*Present\s*$/u;
+
+// The description parts of an entry: never its title or organization (the first two parts), nor
+// LinkedIn's record metadata.
 function descriptiveParts(text: string, section: SignalSection): { text: string; start: number }[] {
   const parts: { text: string; start: number }[] = [];
   let start = 0;
@@ -101,7 +105,22 @@ function descriptiveParts(text: string, section: SignalSection): { text: string;
     // The title always leads; the next part is the organization unless it reads like a sentence.
     const words = part.trim().split(/\s+/).length;
     const skip = section !== "about" && text.includes(" — ") && (index === 0 || (index === 1 && words < 5));
-    if (!skip && !DATE_ONLY.test(part.trim())) parts.push({ text: part, start });
+    if (!skip && !DATE_ONLY.test(part.trim())) {
+      // A record line ("Issuer · Issued May 2025 · Awarded to 2 students ...") keeps only what
+      // follows its metadata: the issuer before it and the metadata itself are never evidence.
+      // Everything from "Skills:" on is LinkedIn's skill list ("· Diploma · Transcript").
+      const segments = part.split(" · ");
+      const skillsAt = segments.findIndex((s) => /\bSkills:/.test(s));
+      const lastMeta = segments.reduce((last, s, i) => (METADATA.test(s) ? i : last), -1);
+      if (lastMeta === -1) parts.push({ text: part, start });
+      else {
+        let at = start;
+        segments.forEach((s, i) => {
+          if (i > lastMeta && (skillsAt === -1 || i < skillsAt) && !DATE_ONLY.test(s.trim()) && !METADATA.test(s)) parts.push({ text: s, start: at });
+          at += s.length + 3;
+        });
+      }
+    }
     start += part.length + 3;
   });
   return parts;
@@ -112,11 +131,14 @@ const ACTION_START = /^(?:\p{Lu}\p{Ll}+ed|Built|Won|Led|Taught|Ran|Made|Wrote|Gr
 // Key Evidence wording without AI: only a clause that already reads as a complete action ("I built
 // a dashboard for 40 teachers" becomes "Built a dashboard for 40 teachers"). Anything else gets no
 // line rather than a broken one.
+// "Awarded to 2 students of approximately 400" never says what was awarded: no line at all.
+const PASSIVE_FRAGMENT = /^(?:Awarded|Given|Granted|Presented|Selected|Chosen|Offered) (?:to|from|among|by)\b/;
+
 export function fallbackEvidence(clause: string): string | null {
   const text = clause.replace(/^I(?:'ve| have| had| was)?\s+/, "").replace(/[.;,]+$/, "").trim();
   const line = text.charAt(0).toUpperCase() + text.slice(1);
   const words = line.split(/\s+/).length;
-  if (words < 6 || words > 28 || !ACTION_START.test(line) || /\b(?:I|my|me|I'm)\b/.test(line)) return null;
+  if (words < 6 || words > 28 || !ACTION_START.test(line) || PASSIVE_FRAGMENT.test(line) || /\b(?:I|my|me|I'm)\b/.test(line)) return null;
   return line;
 }
 

@@ -47,26 +47,21 @@ export function signalTickInput(enabled: boolean, href: string, data: PanelProfi
 }
 
 // The style plan: the SignalPlan's chosen claims, drawn by kind. It never decides what matters.
-// - General claims (important, of no settings kind) always show while Signal Mode is on.
-// - A switched-off kind hides only its own claims; their grades stay, so turning it back on needs
-//   no request. A supporting clause is hidden with its main claim, never shown on its own.
-// - Numbers and skills mark words inside a claim; at most three colors share one sentence.
+// - Every chosen claim shows while Signal Mode is on. Its kind only picks its color: a claim of no
+//   settings kind, or of a kind switched off, is drawn in the general Signal style, so switching
+//   every category off still leaves Signal Mode's highlights. Nothing here ever needs a request.
+// - Numbers and skills mark words inside a claim, only while their category is on; at most three
+//   colors share one sentence.
 export function signalTargets(highlights: InlineHighlightDTO[], prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES, skills: string[] = []): SignalTarget[] {
   const { categories } = prefs;
   const terms = categories.skills.enabled ? skillTerms(skills) : [];
-  const shown = (category: PhraseCategory) => category === "general" || categories[category].enabled;
+  const layerOf = (category: PhraseCategory): PhraseCategory => (category === "general" || categories[category].enabled ? category : "general");
   const visible = highlights.filter((s) => s.importance >= INLINE_MIN_IMPORTANCE);
-  const hiddenGroups = new Set(visible.filter((s) => s.claim !== "support" && !shown(s.category ?? "general")).map((s) => s.group));
   const targets: SignalTarget[] = [];
   visible.forEach((s, i) => {
-    const category = s.category ?? "general";
+    const category = layerOf(s.category ?? "general");
     const key = `${s.evidenceId}#${i}`;
     const metrics = categories.numbers.enabled ? s.metrics.filter((m) => isMeaningfulMetric(s.quote, m)) : [];
-    if (!shown(category) || (s.claim === "support" && s.group !== undefined && hiddenGroups.has(s.group))) {
-      // Only a number that reads as a phrase by itself ("1 of 30 pianists worldwide") may remain.
-      for (const m of metrics) if (m.trim().split(/\s+/).length >= 3) targets.push({ key: `${key}:${m}`, section: s.section, quote: m, metrics: [], layer: "numbers", sentence: s.sentence, counted: false });
-      return;
-    }
     const marked = skillsIn(s.quote, terms).filter((skill) => !metrics.some((m) => m.includes(skill) || skill.includes(m)));
     targets.push({ key, section: s.section, quote: s.quote, metrics, skills: marked, layer: category, sentence: s.sentence, counted: s.claim !== "support" });
   });

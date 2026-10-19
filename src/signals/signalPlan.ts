@@ -37,8 +37,10 @@ function toHighlight({ candidate: c, type }: PlanEntry, itemText: string | undef
   };
 }
 
-export function planHighlights(ranking: Pick<RankingResult, "core" | "discovery">, itemTexts: ReadonlyMap<string, string>): InlineHighlightDTO[] {
-  const entries: PlanEntry[] = [...ranking.core.map((candidate) => ({ candidate, type: "core" as const })), ...ranking.discovery.map((candidate) => ({ candidate, type: "discovery" as const }))];
+// Core is drawn as core; discovery and the reading layer are both secondary highlights.
+export function planHighlights(ranking: Pick<RankingResult, "core" | "discovery"> & Partial<Pick<RankingResult, "reading">>, itemTexts: ReadonlyMap<string, string>): InlineHighlightDTO[] {
+  const secondary = [...ranking.discovery, ...(ranking.reading ?? [])];
+  const entries: PlanEntry[] = [...ranking.core.map((candidate) => ({ candidate, type: "core" as const })), ...secondary.map((candidate) => ({ candidate, type: "discovery" as const }))];
   const byItem = new Map<string, PlanEntry[]>();
   for (const entry of entries) byItem.set(entry.candidate.evidenceId, [...(byItem.get(entry.candidate.evidenceId) ?? []), entry]);
 

@@ -103,6 +103,38 @@ describe("SignalAnalysisController", () => {
     expect(quotes(ready(states))).toEqual(["Led a team"]);
   });
 
+  it("asks again for an item the model skipped instead of caching it as empty, then grades it locally", async () => {
+    // The model answers only for the About; the Experience is skipped every time.
+    const skipping = (body: AnalyzeSignalsRequestBody): SignalClassificationOutcome => {
+      const full = respond(body) as Extract<SignalClassificationOutcome, { status: "ok" }>;
+      const answered = body.profile.evidence.filter((e) => e.section !== "experience").map((e) => e.id);
+      return { ...full, candidates: full.candidates.filter((c) => answered.includes(c.evidenceId)), classified: answered };
+    };
+    const { controller, request, states } = harness(skipping);
+    controller.update({ profileKey: "jordan", profile: profile("Led a team", experience("Built a robot used by 300 students")) });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1]![0].profile.evidence.map((e) => e.section)).toEqual(["experience"]);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(request).toHaveBeenCalledTimes(2);
+    // Skipped twice: graded by the local fallback for this visit, never hidden.
+    expect(ready(states)).toMatchObject({ source: "mixed" });
+    expect(quotes(ready(states))).toContain("Built a robot used by 300 students");
+  });
+
+  it("grades a long profile in a few parallel batches, never more than three at once", async () => {
+    const experience = Array.from({ length: 16 }, (_, i) => ({ title: `Role ${i}`, company: `Club ${i}`, description: `Built a robot used by 300 students, version ${i}` }));
+    const { controller, request, states } = harness();
+    controller.update({ profileKey: "jordan", profile: profile("Led a team", { experience } as Partial<LinkedInProfile>) });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(request).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(request).toHaveBeenCalledTimes(4);
+    expect(request.mock.calls.flatMap(([body]) => body.profile.evidence.map((e) => e.id))).toHaveLength(17);
+    expect(ready(states)).toMatchObject({ updating: false });
+  });
+
   it("grades only newly loaded items, sending the rest as short context", async () => {
     const { controller, request, states } = harness();
     controller.update({ profileKey: "jordan", profile: profile("Led a team") });

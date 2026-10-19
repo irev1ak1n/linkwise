@@ -168,10 +168,10 @@ describe("style plan", () => {
     expect(Object.keys(l)).toEqual(expect.arrayContaining(["I began studying at Northfield Coding School at age 7", "Over 9 years, I learned Python, Java, C#, SQL"]));
   });
 
-  it("hides a supporting clause together with its switched-off main claim", () => {
+  it("keeps a switched-off claim and its supporting clause, drawn in the general style", () => {
     const l = layers(prefsWith({ achievements: false }));
-    expect(l["At age 12, I was admitted into the Advanced Engineering track"]).toBeUndefined();
-    expect(l["a track intended for students aged 17 and older"]).toBeUndefined();
+    expect(l["At age 12, I was admitted into the Advanced Engineering track"]).toBe("general");
+    expect(l["a track intended for students aged 17 and older"]).toBeDefined();
   });
 
   it("counts a supporting clause as part of its claim, not as a signal of its own", () => {

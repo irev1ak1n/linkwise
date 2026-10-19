@@ -1,10 +1,15 @@
-// Ranks graded claims across the whole profile into the SignalPlan: what Signal Mode highlights
-// and what Key Evidence lists. Deterministic: the same claims, goal, and incumbents always give
-// the same core. How a chosen claim looks (its colors) is decided later and never feeds back here.
-// Grades come from the model (or the heuristic fallback); every decision is made here.
+// Ranks graded claims into two different answers from one set of claims:
+// - Key Evidence: the strongest facts on the whole profile. Global, selective, by importance.
+// - Inline highlighting: what to emphasize so each description can be skimmed. Core is the
+//   profile's strongest evidence; the reading layer then adds, entry by entry, the concrete
+//   phrases a skimmer needs (what was done, built, reached), judged mostly by reading value.
+// Deterministic: the same claims, goal, and incumbents always give the same result. How a chosen
+// claim looks (its colors) is decided later and never feeds back here. Grades come from the model
+// (or the heuristic fallback); every decision is made here.
 import type { GradeKey, Grades, SemanticLabel, SignalFactType, SignalSection } from "../ai/signalTypes";
+import { fallbackEvidence } from "./heuristicGrades";
 
-export const SIGNAL_RANKING_VERSION = 7;
+export const SIGNAL_RANKING_VERSION = 8;
 
 export interface RankCandidate {
   /** Stable across visits: the content hash of its item plus its normalized quote. */
@@ -21,6 +26,8 @@ export interface RankCandidate {
   type: SignalFactType;
   grades: Grades;
   goalRelevance: number;
+  /** 0-3: how much highlighting the phrase helps someone skim its item; derived when absent. */
+  readingValue?: number;
   confidence: number;
   metrics: string[];
   /** A sentence's central claim, or a clause that supports one; main when absent. */
@@ -41,10 +48,16 @@ export type RejectionReason =
   | "SECTION_CAP"
   | "DENSITY_CAP"
   | "REDUNDANT"
-  | "LOST_TO_STRONGER_EVIDENCE";
+  | "LOST_TO_STRONGER_EVIDENCE"
+  | "LOW_READING_VALUE";
+/** Why a main claim with a Key Evidence line is not listed. */
+export type KeyEvidenceReason = "LOW_KEY_EVIDENCE_VALUE" | "GLOBAL_KEY_EVIDENCE_CUTOFF" | "ENTRY_ALREADY_LISTED" | "REDUNDANT" | "NO_LINE" | "SUPPORT";
 
 export interface ScoredCandidate extends RankCandidate {
+  /** Importance: what Key Evidence and core are chosen by. */
   score: number;
+  /** Reading value: what the reading layer of inline highlighting is chosen by. */
+  reading: number;
   intrinsic: number;
   goalPart: number;
   band: Band;
@@ -59,6 +72,7 @@ export interface RankingDebugRecord {
   type: SignalFactType;
   band: Band;
   score: number;
+  reading: number;
   intrinsic: number;
   goalPart: number;
   grades: Grades;
@@ -68,19 +82,25 @@ export interface RankingDebugRecord {
   group: string;
   labels: SemanticLabel[];
   sentence: number;
-  status: "core" | "discovery" | "pool" | "rejected";
+  status: "core" | "discovery" | "reading" | "pool" | "rejected";
   reason?: RejectionReason;
+  /** Highlighted inline (core, discovery, or reading). */
+  inline: boolean;
+  keyEvidence: boolean;
+  keyReason?: KeyEvidenceReason;
 }
 
 export interface RankingResult {
   core: ScoredCandidate[];
   discovery: ScoredCandidate[];
-  /** Ranked facts for Key Evidence, from the same scoring as the highlights. */
+  /** Concrete phrases added so each description can be skimmed; stable like core. */
+  reading: ScoredCandidate[];
+  /** Ranked facts for Key Evidence: the strongest main claims across the whole profile. */
   facts: { text: string; evidenceId: string }[];
   debug: RankingDebugRecord[];
 }
 
-export const EMPTY_RANKING: RankingResult = { core: [], discovery: [], facts: [], debug: [] };
+export const EMPTY_RANKING: RankingResult = { core: [], discovery: [], reading: [], facts: [], debug: [] };
 
 export interface RankingOptions {
   goalActive: boolean;
@@ -160,9 +180,24 @@ const SUPPORT_SLACK = 1.2;
 const DUPLICATE_SIMILARITY = 0.6;
 const MAX_HIGHLIGHTS = 22;
 const CORE_SHARE = 0.8;
-const MAX_FACTS = 12;
-// An entry is one experience, so it gets one line; About is free prose that can hold several.
-const factsPerItem = (section: SignalSection) => (section === "about" ? 2 : 1);
+// Key Evidence takes strong and exceptional facts; merely useful ones only top up a profile that has
+// fewer strong facts than this, so the list is never padded with mediocre evidence.
+const MAX_FACTS = 10;
+const MIN_KEY_EVIDENCE = 4;
+const KEY_DUPLICATE_SIMILARITY = 0.4;
+// An entry is usually one experience, so it gets one line; About is free prose that can hold
+// several. A long entry may give a second line, but only for an exceptional claim the model marked
+// as a separate event (its own group); claims without groups never split an entry.
+const LONG_ENTRY = 400;
+// An award, certificate, or language is one achievement however long its description is.
+const MULTI_EVENT_SECTIONS = new Set<SignalSection>(["experience", "education", "volunteering", "projects"]);
+function entryHasRoom(c: ScoredCandidate, listed: ScoredCandidate[]): boolean {
+  const same = listed.filter((k) => k.itemKey === c.itemKey);
+  if (c.section === "about") return same.length < 2;
+  if (same.length === 0) return true;
+  const first = same[0]!;
+  return same.length === 1 && MULTI_EVENT_SECTIONS.has(c.section) && c.itemLength >= LONG_ENTRY && c.band === "exceptional" && c.group !== undefined && first.group !== undefined && first.group !== c.group;
+}
 const DENSITY_SHARE = 0.25;
 const MIN_DENSITY_ALLOWANCE = 400;
 const ITEM_SHARE = 0.55;
@@ -210,6 +245,28 @@ export function scoreCandidate(candidate: Pick<RankCandidate, "grades" | "type" 
 }
 
 const round = (n: number) => Math.round(n * 10) / 10;
+
+// The model grades reading value directly. Grades without it (the heuristic fallback) derive it:
+// a concrete phrase about what the person did reads well, a generic one does not.
+export function readingGrade(candidate: Pick<RankCandidate, "readingValue" | "grades">): number {
+  if (candidate.readingValue !== undefined) return candidate.readingValue;
+  const g = candidate.grades;
+  const concrete = Math.max(g.ownership, g.technicalDepth, g.result, g.scale, g.leadership, g.selectivity, g.sustainedDepth);
+  return Math.max(0, Math.min(3, Math.round((g.specificity + concrete) / 2) - (g.genericness >= 2 ? 1 : 0)));
+}
+
+// Self-descriptions and bare skill names say little to a skimmer however they are graded.
+const READING_TYPE_FACTOR: Partial<Record<SignalFactType, number>> = { self_description: 0.4, skill: 0.6, membership: 0.75, coursework: 0.85 };
+const READING_GENERIC_PENALTY = 10;
+
+// Reading value leads, importance adds to it: a concrete duty ("Maintain the website throughout the
+// school year") reads well though it is no trophy, and filler never reads well however it scores.
+export function readingScore(candidate: Pick<RankCandidate, "readingValue" | "grades" | "type">, importance: number): number {
+  const reading = readingGrade(candidate) / 3;
+  const weight = Math.min(1, importance / BAND_FLOORS[1]![1]);
+  const raw = 100 * (0.65 * reading + 0.35 * weight) * (READING_TYPE_FACTOR[candidate.type] ?? 1) - READING_GENERIC_PENALTY * Math.max(0, candidate.grades.genericness - 1);
+  return round(Math.max(0, raw));
+}
 
 const STOPWORDS = new Set("a an and the of for to in on at by with from as is was were be my our their his her its this that i we".split(" "));
 
@@ -286,6 +343,21 @@ const SUPPORTING_TYPES = new Set<SignalFactType>(["coursework", "skill", "member
 
 const SECTION_CAPS: Partial<Record<SignalSection, number>> = { languages: 2, skills: 1, certifications: 3, honors: 4 };
 
+// The reading layer. Local, not global: a phrase earns its highlight inside its own entry, whatever
+// the rest of the profile holds. Density adapts to the text: a long, dense description gets enough
+// highlights to be read from them alone, a thin one gets few or none, and no entry is ever more
+// than about two-fifths highlighted.
+export const READING_FLOOR = 45;
+const READING_SECTIONS = new Set<SignalSection>(["about", "experience", "education", "projects", "volunteering", "honors", "certifications", "organizations"]);
+const READING_CHARS_PER_CLAIM = 110;
+const MAX_READING_PER_ITEM = 8;
+const READING_ITEM_SHARE = 0.42;
+export function readingCap(candidate: Pick<RankCandidate, "section" | "itemLength">): number {
+  if (!READING_SECTIONS.has(candidate.section)) return 0;
+  if (!PROSE_SECTIONS.has(candidate.section)) return 1;
+  return Math.min(MAX_READING_PER_ITEM, Math.max(1, Math.ceil(candidate.itemLength / READING_CHARS_PER_CLAIM)));
+}
+
 function budgetFor(kept: ScoredCandidate[]): number {
   const count = (band: Band) => kept.filter((c) => c.band === band && !isSupport(c)).length;
   let budget = count("exceptional") + count("strong") + Math.ceil(count("useful") * 0.6);
@@ -298,7 +370,7 @@ export function rankSignals(candidates: RankCandidate[], options: RankingOptions
   const incumbents = options.incumbents ?? new Set<string>();
   const scored: ScoredCandidate[] = candidates.map((c) => {
     const parts = scoreCandidate(c, options.goalActive);
-    return { ...c, ...parts, band: bandFor(parts.score) };
+    return { ...c, ...parts, reading: readingScore(c, parts.score), band: bandFor(parts.score) };
   });
   const status = new Map<string, Pick<RankingDebugRecord, "status" | "reason">>();
   const reject = (c: ScoredCandidate, reason: RejectionReason) => status.set(c.id, { status: "rejected", reason });
@@ -313,8 +385,9 @@ export function rankSignals(candidates: RankCandidate[], options: RankingOptions
       reject(candidate, "LOW_CONFIDENCE");
       continue;
     }
-    if (candidate.band === "weak") {
-      reject(candidate, "LOW_IMPORTANCE");
+    // Weak importance ends a claim's chances unless it reads well: then it may still help skimming.
+    if (candidate.band === "weak" && candidate.reading < READING_FLOOR) {
+      reject(candidate, candidate.reading > 0 ? "LOW_READING_VALUE" : "LOW_IMPORTANCE");
       continue;
     }
     const sig = signature(candidate);
@@ -346,15 +419,21 @@ export function rankSignals(candidates: RankCandidate[], options: RankingOptions
     const itemChars = shown.filter((s) => s.itemKey === candidate.itemKey).reduce((sum, s) => sum + s.quote.length, 0);
     return chars + candidate.quote.length <= densityAllowance * slack && itemChars + candidate.quote.length <= Math.max(MIN_ITEM_ALLOWANCE, candidate.itemLength * ITEM_SHARE) * slack;
   }
+  // The reading layer's limit: a share of the entry itself, whatever the rest of the profile holds.
+  function fitsReading(candidate: ScoredCandidate, shown: ScoredCandidate[]): boolean {
+    const itemChars = shown.filter((s) => s.itemKey === candidate.itemKey).reduce((sum, s) => sum + s.quote.length, 0);
+    return itemChars + candidate.quote.length <= Math.max(MIN_ITEM_ALLOWANCE, candidate.itemLength * READING_ITEM_SHARE);
+  }
   // Supports are attached last, once every main claim is settled, strongest first across the whole
   // profile, so a long supporting clause never takes the room of a stronger main claim.
   function attachSupports(mainsShown: ScoredCandidate[]): ScoredCandidate[] {
     const groups = new Set(mainsShown.map(groupOf));
     const perGroup = new Map<string, number>();
-    const eligible = kept.filter((c) => isSupport(c) && groups.has(groupOf(c)) && atLeast(c.band, "useful")).sort((a, b) => compare(a, b, bonus));
+    const eligible = kept.filter((c) => isSupport(c) && groups.has(groupOf(c)) && (atLeast(c.band, "useful") || c.reading >= READING_FLOOR)).sort((a, b) => compare(a, b, bonus));
     for (const support of eligible) {
       const used = perGroup.get(groupOf(support)) ?? 0;
-      if (used >= MAX_SUPPORTS || !fitsDensity(support, [...mainsShown, ...attached], SUPPORT_SLACK)) continue;
+      const shown = [...mainsShown, ...attached];
+      if (used >= MAX_SUPPORTS || !(fitsDensity(support, shown, SUPPORT_SLACK) || fitsReading(support, shown))) continue;
       perGroup.set(groupOf(support), used + 1);
       attached.push(support);
     }
@@ -422,13 +501,28 @@ export function rankSignals(candidates: RankCandidate[], options: RankingOptions
   }
 
   const sparse = coreMains.length < MIN_CORE;
-  const rest = mains.filter((c) => !coreMains.includes(c) && !coverage.includes(c) && (sparse || !SUPPORTING_TYPES.has(c.type)));
+  const rest = mains.filter((c) => !coreMains.includes(c) && !coverage.includes(c) && c.band !== "weak" && (sparse || !SUPPORTING_TYPES.has(c.type)));
   const pool = choose(rest, shownMains(), discoveryTarget * 2, false);
   const seed = Math.abs(Math.trunc(options.discoverySeed ?? 0));
   const offset = pool.length > 0 ? seed % pool.length : 0;
   const rotated = [...pool.slice(offset), ...pool.slice(0, offset)];
   const discoveryMains = choose(rotated, shownMains(), discoveryTarget, false).sort((a, b) => compare(a, b, bonus));
-  const supports = attachSupports([...shownMains(), ...discoveryMains]);
+
+  // Reading layer: entry by entry, the concrete phrases that let it be skimmed, best reading value
+  // first. Core and discovery already shown in the entry count toward its room.
+  const readingMains: ScoredCandidate[] = [];
+  const inlineMains = () => [...shownMains(), ...discoveryMains, ...readingMains];
+  // A course list or a membership reads easily but tells little: it needs some importance too.
+  const readable = mains
+    .filter((c) => !inlineMains().includes(c) && c.reading >= READING_FLOOR && !(SUPPORTING_TYPES.has(c.type) && c.band === "weak"))
+    .sort((a, b) => b.reading - a.reading || compare(a, b, bonus));
+  for (const c of readable) {
+    const sameItem = inlineMains().filter((s) => s.itemKey === c.itemKey);
+    if (sameItem.length >= readingCap(c)) reject(c, "SECTION_CAP");
+    else if (!fitsReading(c, sameItem)) reject(c, "DENSITY_CAP");
+    else readingMains.push(c);
+  }
+  const supports = attachSupports([...shownMains(), ...discoveryMains, ...readingMains]);
   const inCore = new Set(coreMains.map(groupOf));
 
   const core = [...coreMains, ...supports.filter((s) => inCore.has(groupOf(s)))];
@@ -436,22 +530,14 @@ export function rankSignals(candidates: RankCandidate[], options: RankingOptions
 
   for (const c of core) status.set(c.id, { status: "core" });
   for (const c of discovery) status.set(c.id, { status: "discovery" });
+  for (const c of readingMains) status.set(c.id, { status: "reading" });
   for (const c of pool) if (!status.has(c.id)) status.set(c.id, { status: "pool" });
-  for (const c of kept) if (!status.has(c.id)) status.set(c.id, { status: "rejected", reason: atLeast(c.band, "useful") ? "REDUNDANT" : "LOST_TO_STRONGER_EVIDENCE" });
+  for (const c of kept) if (!status.has(c.id)) status.set(c.id, { status: "rejected", reason: atLeast(c.band, "useful") ? "REDUNDANT" : c.reading < READING_FLOOR ? "LOW_READING_VALUE" : "LOST_TO_STRONGER_EVIDENCE" });
 
-  // Key Evidence: the same ranking, one line per main claim, and one line per experience so the
-  // list describes the person rather than one experience told four ways.
-  const perItem = new Map<string, number>();
-  const facts = kept
-    .filter((c) => c.fact && atLeast(c.band, "useful") && !isSupport(c))
-    .filter((c) => {
-      const used = perItem.get(c.itemKey) ?? 0;
-      if (used >= factsPerItem(c.section)) return false;
-      perItem.set(c.itemKey, used + 1);
-      return true;
-    })
-    .slice(0, MAX_FACTS)
-    .map((c) => ({ text: c.fact!, evidenceId: c.evidenceId }));
+  const { chosen: keyEvidence, reasons: keyReasons } = selectKeyEvidence(kept);
+  const facts = keyEvidence.map((c) => ({ text: withSupportNumbers(keyLine(c)!, c, kept), evidenceId: c.evidenceId }));
+  const inline = new Set([...core, ...discovery, ...readingMains].map((c) => c.id));
+  const listed = new Set(keyEvidence.map((c) => c.id));
 
   const debug = ordered.map((c) => ({
     id: c.id,
@@ -470,8 +556,62 @@ export function rankSignals(candidates: RankCandidate[], options: RankingOptions
     group: groupOf(c),
     labels: c.labels ?? [],
     sentence: c.sentence ?? 0,
+    reading: c.reading,
+    inline: inline.has(c.id),
+    keyEvidence: listed.has(c.id),
+    keyReason: listed.has(c.id) ? undefined : (keyReasons.get(c.id) ?? (isSupport(c) ? "SUPPORT" : !keyLine(c) ? "NO_LINE" : "LOW_KEY_EVIDENCE_VALUE")),
     ...(status.get(c.id) ?? { status: "rejected" as const, reason: "LOW_IMPORTANCE" as const }),
   }));
 
-  return { core, discovery, facts, debug };
+  return { core, discovery, reading: readingMains, facts, debug };
+}
+
+// The model's line, or for a strong claim whose line was rejected, the claim's own words when they
+// already read as a complete action ("Earned 2nd place at the TSA Regional Conference"), so a top
+// fact never drops out of Key Evidence only because its wording failed validation.
+function keyLine(c: ScoredCandidate): string | null {
+  return c.fact ?? (!isSupport(c) && atLeast(c.band, "strong") ? fallbackEvidence(c.quote) : null);
+}
+
+// The model usually folds a claim's supporting clauses into its line, but not always: when the
+// line leaves out a number that a support of the same event states ("a program intended for
+// students aged 18 and older"), that clause is added in its exact source words, if the line stays
+// within the Key Evidence length.
+const NUMBER_TOKEN = /\d[\d,.]*\+?/g;
+const MAX_KEY_WORDS = 32;
+function withSupportNumbers(line: string, main: ScoredCandidate, kept: ScoredCandidate[]): string {
+  const supports = kept.filter((s) => isSupport(s) && s.itemKey === main.itemKey && main.group !== undefined && s.group === main.group).sort((a, b) => b.score - a.score);
+  for (const s of supports) {
+    const numbers = s.quote.match(NUMBER_TOKEN) ?? [];
+    if (numbers.length === 0 || numbers.every((n) => line.includes(n.replace(/\+$/, "")))) continue;
+    const clause = /^\p{Lu}\p{Ll}/u.test(s.quote) ? s.quote.charAt(0).toLowerCase() + s.quote.slice(1) : s.quote;
+    const joined = `${line}; ${clause}`;
+    return joined.split(/\s+/).length <= MAX_KEY_WORDS ? joined : line;
+  }
+  return line;
+}
+
+// Key Evidence: the strongest facts across the whole profile, by importance alone. No section is
+// owed a line, a support never gets its own (its main claim's line carries it), an entry gives one
+// line (About two), and one fact told twice is listed once. Strong and exceptional facts qualify;
+// useful ones only top up a profile with too few of them.
+function selectKeyEvidence(kept: ScoredCandidate[]): { chosen: ScoredCandidate[]; reasons: Map<string, KeyEvidenceReason> } {
+  const reasons = new Map<string, KeyEvidenceReason>();
+  const eligible = kept.filter((c) => keyLine(c) && !isSupport(c) && atLeast(c.band, "useful"));
+  const strong = eligible.filter((c) => atLeast(c.band, "strong"));
+  const topUp = Math.max(0, MIN_KEY_EVIDENCE - strong.length);
+  const useful = eligible.filter((c) => !strong.includes(c) && !SUPPORTING_TYPES.has(c.type));
+  for (const c of useful.slice(topUp)) reasons.set(c.id, "LOW_KEY_EVIDENCE_VALUE");
+  // A claim is judged with its group: a website whose scale sits in a supporting clause ("for a
+  // 4,000+ student school") is as strong as that clause, and its line carries it.
+  const groupScore = (c: ScoredCandidate) => Math.max(c.score, ...kept.filter((s) => isSupport(s) && s.itemKey === c.itemKey && c.group !== undefined && s.group === c.group).map((s) => s.score));
+  const pool = [...strong, ...useful.slice(0, topUp)].sort((a, b) => groupScore(b) - groupScore(a));
+  const chosen: ScoredCandidate[] = [];
+  for (const c of pool) {
+    if (!entryHasRoom(c, chosen)) reasons.set(c.id, "ENTRY_ALREADY_LISTED");
+    else if (chosen.some((k) => similarity(signature(k), signature(c)) >= KEY_DUPLICATE_SIMILARITY)) reasons.set(c.id, "REDUNDANT");
+    else if (chosen.length >= MAX_FACTS) reasons.set(c.id, "GLOBAL_KEY_EVIDENCE_CUTOFF");
+    else chosen.push(c);
+  }
+  return { chosen, reasons };
 }

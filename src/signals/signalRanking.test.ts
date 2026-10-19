@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandFor, rankSignals, scoreCandidate, type RankCandidate } from "./signalRanking";
+import { READING_FLOOR, bandFor, rankSignals, readingGrade, readingScore, scoreCandidate, type RankCandidate } from "./signalRanking";
 import { fallbackEvidence, heuristicGrades } from "./heuristicGrades";
 import type { Grades, SignalFactType, SignalSection } from "../ai/signalTypes";
 
@@ -237,6 +237,15 @@ describe("heuristic fallback grades", () => {
     expect(heuristicGrades(item("experience", "Web Lead — Robotics Club — Sep 2025 - Present — 2026"))).toEqual([]);
   });
 
+  it("never grades LinkedIn's record metadata as evidence", () => {
+    expect(heuristicGrades(item("certifications", "Diploma — Northfield Academy · Issued May 2025 · Credential ID NA-1234 · Skills: Higher Education · Diploma · Transcript"))).toEqual([]);
+    expect(heuristicGrades(item("honors", "1st Place, Regional Competition — Issued by Northfield Music Clubs · Mar 2025"))).toEqual([]);
+    expect(heuristicGrades(item("experience", "Intern — Northfield Realty — Present"))).toEqual([]);
+    // The description after a record line's metadata is still read.
+    const award = "Band Award — Issued by Northfield High School · May 2025 · Awarded to 2 students in recognition of musical excellence.";
+    expect(heuristicGrades(item("honors", award)).map((c) => c.quote)).toEqual(["Awarded to 2 students in recognition of musical excellence"]);
+  });
+
   it("treats years of training as sustained depth", () => {
     const [training] = heuristicGrades(item("about", "After 9 years of studying software development I build web apps"));
     expect(training!.grades.sustainedDepth).toBe(3);
@@ -347,5 +356,174 @@ describe("fallback Key Evidence wording", () => {
     expect(fallbackEvidence("awarded to 12 students annually")).toBeNull();
     expect(fallbackEvidence("for a 4,000+ student school")).toBeNull();
     expect(fallbackEvidence("Built my site")).toBeNull();
+    expect(fallbackEvidence("Awarded to 2 students of approximately 400")).toBeNull();
+  });
+});
+
+describe("Key Evidence and inline highlighting are two answers", () => {
+  // A long yearbook entry: one strong fact, two concrete duties a skimmer needs, one filler clause.
+  const YEARBOOK = "Designed and developed a yearbook website for a 4,000+ student school, providing centralized access to yearbook photos, pricing, and ordering information. Built a custom staff dashboard enabling the yearbook adviser to independently add, edit, and remove photos and student information across multiple website sections. Maintain the website throughout the school year, keeping content, ordering details, and announcements up to date. Worked closely with the team to support various goals.";
+  const at = (quote: string) => YEARBOOK.indexOf(quote);
+  const entry = (kind: keyof typeof KINDS, quote: string, extra: Partial<RankCandidate>) =>
+    candidate(kind, quote, { itemKey: "yearbook", position: at(quote), itemLength: YEARBOOK.length, ...extra });
+  const duty = { type: "responsibility" as const, grades: { ...NONE, ownership: 1, specificity: 2 }, readingValue: 2 };
+  const yearbook = () => [
+    entry("shipped", "Designed and developed a yearbook website for a 4,000+ student school", { readingValue: 3, fact: "Designed and developed a yearbook website serving a 4,000+ student school" }),
+    entry("dashboard", "Built a custom staff dashboard", { readingValue: 3, grades: { ...NONE, ownership: 2, technicalDepth: 2, specificity: 2 }, fact: "Built a custom staff dashboard for the yearbook adviser to manage photos" }),
+    entry("workshop", "Maintain the website throughout the school year", { ...duty, fact: "Maintains the yearbook website throughout the school year" }),
+    entry("interested", "Worked closely with the team to support various goals", { readingValue: 0, fact: null }),
+  ];
+  const strongElsewhere = (n: number) =>
+    Array.from({ length: n }, (_, i) => candidate(i % 2 ? "competition" : "costCut", `Strong fact number ${i} with 1${i}0 people`, { fact: `Strong fact number ${i} reached 1${i}0 people at Northfield`, readingValue: 3 }));
+  const inlineQuotes = (ranking: ReturnType<typeof rankSignals>) => [...ranking.core, ...ranking.discovery, ...ranking.reading].map((c) => c.quote);
+
+  it("highlights a concrete duty for skimming without making it Key Evidence", () => {
+    const ranking = rankSignals([...yearbook(), ...strongElsewhere(4)], { goalActive: false });
+    expect(inlineQuotes(ranking)).toContain("Maintain the website throughout the school year");
+    expect(ranking.facts.map((f) => f.text)).not.toContain("Maintains the yearbook website throughout the school year");
+  });
+
+  it("lets the strongest fact be both highlighted and Key Evidence", () => {
+    const ranking = rankSignals([...yearbook(), ...strongElsewhere(2)], { goalActive: false });
+    expect(inlineQuotes(ranking)).toContain("Designed and developed a yearbook website for a 4,000+ student school");
+    expect(ranking.facts.map((f) => f.text)).toContain("Designed and developed a yearbook website serving a 4,000+ student school");
+  });
+
+  it("gives a long description enough highlights to skim, but never its filler", () => {
+    const ranking = rankSignals(yearbook(), { goalActive: false });
+    expect(inlineQuotes(ranking)).toEqual(expect.arrayContaining(["Designed and developed a yearbook website for a 4,000+ student school", "Built a custom staff dashboard", "Maintain the website throughout the school year"]));
+    expect(inlineQuotes(ranking)).not.toContain("Worked closely with the team to support various goals");
+    expect(ranking.debug.find((d) => d.quote.startsWith("Worked closely"))!.inline).toBe(false);
+  });
+
+  it("still highlights a useful phrase in its entry when the profile has many stronger facts", () => {
+    const ranking = rankSignals([...yearbook(), ...strongElsewhere(30)], { goalActive: false });
+    expect(inlineQuotes(ranking)).toContain("Maintain the website throughout the school year");
+  });
+
+  it("lists only strong facts once a profile has enough of them, from any section", () => {
+    const useful = candidate("mentored", "Mentored 3 new club members", { fact: "Mentored 3 new club members in the Northfield robotics club", grades: { ...NONE, leadership: 1, specificity: 2, ownership: 1 }, readingValue: 2 });
+    const award = candidate("competition", "Won 1st place at the State Science Fair", { section: "honors", fact: "Won 1st place at the North Carolina State Science Fair in engineering" });
+    const ranking = rankSignals([useful, award, ...strongElsewhere(4)], { goalActive: false });
+    const texts = ranking.facts.map((f) => f.text);
+    expect(texts).toContain("Won 1st place at the North Carolina State Science Fair in engineering");
+    expect(texts).not.toContain("Mentored 3 new club members in the Northfield robotics club");
+    expect(ranking.debug.find((d) => d.quote === "Mentored 3 new club members")!.keyReason).toBe("LOW_KEY_EVIDENCE_VALUE");
+  });
+
+  it("merges an admission and the clause that makes it unusual into one line, but highlights both", () => {
+    const text = "At age 13, I was admitted into Senior Software Development program (a program intended for students aged 18 and older) because of my first-place ranking.";
+    const shared = { itemKey: "step", section: "education" as const, itemLength: text.length, group: 1 };
+    const main = candidate("selective", "At age 13, I was admitted into Senior Software Development program", { ...shared, claim: "main", readingValue: 3, fact: "Admitted at age 13 to the Senior Software Development program, intended for students 18 and older" });
+    const support = candidate("selective", "a program intended for students aged 18 and older", { ...shared, position: text.indexOf("a program intended"), claim: "support", readingValue: 2, fact: null });
+    const ranking = rankSignals([main, support], { goalActive: false });
+    expect(ranking.facts.map((f) => f.text)).toEqual(["Admitted at age 13 to the Senior Software Development program, intended for students 18 and older"]);
+    expect(inlineQuotes(ranking)).toEqual(expect.arrayContaining([main.quote, support.quote]));
+  });
+
+  it("separates strong, useful, and generic claims: A and B listed, A to D highlighted, E neither", () => {
+    const routine = { readingValue: 2, type: "responsibility" as const, grades: { ...NONE, ownership: 1, specificity: 2 } };
+    const item = (kind: keyof typeof KINDS, quote: string, i: number, extra: Partial<RankCandidate>) => candidate(kind, quote, { itemKey: "job", itemLength: 900, position: i * 120, ...extra });
+    const claims = [
+      item("costCut", "Cut onboarding time by 40% for 2,000 users", 0, { itemKey: "portal", readingValue: 3, fact: "Cut onboarding time by 40% for 2,000 users of the Northwind portal" }),
+      item("competition", "Won 1st place in the regional hackathon", 1, { itemKey: "hackathon", section: "honors", readingValue: 3, fact: "Won 1st place in the Northwind regional hackathon" }),
+      item("workshop", "Wrote the API documentation", 2, { ...routine, fact: "Wrote the API documentation for the portal" }),
+      item("workshop", "Ran weekly releases", 3, { ...routine, fact: "Ran weekly releases of the portal" }),
+      item("interested", "Collaborated effectively across teams", 4, { readingValue: 0, fact: null }),
+    ];
+    const ranking = rankSignals(claims, { goalActive: false });
+    const texts = ranking.facts.map((f) => f.text);
+    expect(texts).toEqual(expect.arrayContaining(["Cut onboarding time by 40% for 2,000 users of the Northwind portal", "Won 1st place in the Northwind regional hackathon"]));
+    expect(texts).not.toContain("Ran weekly releases of the portal");
+    expect(inlineQuotes(ranking)).toEqual(expect.arrayContaining(claims.slice(0, 4).map((c) => c.quote)));
+    expect(inlineQuotes(ranking)).not.toContain("Collaborated effectively across teams");
+  });
+
+  it("leaves a weak course list or membership unhighlighted even when it reads easily", () => {
+    const courses = candidate("coursework", "APCSP, APCSA, AP Statistics", { section: "education", readingValue: 2, grades: { ...NONE, specificity: 2 } });
+    const club = candidate("participated", "Robotics Club (11th)", { section: "education", readingValue: 2 });
+    const ranking = rankSignals([courses, club], { goalActive: false });
+    expect(ranking.reading).toEqual([]);
+  });
+
+  it("adds a supporting clause whose number the line left out, in the clause's own words", () => {
+    const shared = { itemKey: "step", section: "education" as const, itemLength: 300, group: 1 };
+    const main = candidate("selective", "admitted into the Advanced Engineering track", { ...shared, claim: "main", fact: "Admitted at age 12 to the Advanced Engineering track at Northfield Coding School" });
+    const support = candidate("selective", "a track intended for students aged 17 and older", { ...shared, claim: "support", position: 60, fact: null });
+    expect(rankSignals([main, support], { goalActive: false }).facts.map((f) => f.text)).toEqual([
+      "Admitted at age 12 to the Advanced Engineering track at Northfield Coding School; a track intended for students aged 17 and older",
+    ]);
+    const folded = { ...main, fact: "Admitted at age 12 to the Advanced Engineering track, intended for students aged 17 and older" };
+    expect(rankSignals([folded, support], { goalActive: false }).facts.map((f) => f.text)).toEqual([folded.fact]);
+  });
+
+  it("keeps a top fact in Key Evidence in its own words when its written line was rejected", () => {
+    const placement = candidate("competition", "Earned 2nd place at the TSA Regional Conference", { section: "honors", fact: null });
+    const vague = candidate("competition", "the regional conference", { section: "honors", fact: null });
+    const ranking = rankSignals([placement, vague], { goalActive: false });
+    expect(ranking.facts.map((f) => f.text)).toEqual(["Earned 2nd place at the TSA Regional Conference"]);
+  });
+
+  it("focuses a yappy sentence on its concrete parts", () => {
+    const filler = { type: "other" as const, grades: { ...NONE, genericness: 3, specificity: 0 }, readingValue: 0 };
+    const claims = [
+      candidate("shipped", "creation and eventual deployment of a customer-facing analytics dashboard", { itemKey: "yap", position: 90, group: 0, readingValue: 3, fact: "Contributed to deploying a customer-facing analytics dashboard used by about 2,000 users" }),
+      candidate("costCut", "helped approximately 2,000 users monitor their accounts", { itemKey: "yap", position: 180, group: 0, claim: "support", readingValue: 3, fact: null }),
+      candidate("interested", "Worked collaboratively with multiple stakeholders", { itemKey: "yap", position: 0, group: 1, ...filler }),
+      candidate("interested", "strategically facilitate innovative efforts", { itemKey: "yap", position: 50, group: 2, ...filler }),
+    ];
+    const ranking = rankSignals(claims, { goalActive: false });
+    expect(inlineQuotes(ranking)).toEqual(expect.arrayContaining(["creation and eventual deployment of a customer-facing analytics dashboard", "helped approximately 2,000 users monitor their accounts"]));
+    expect(inlineQuotes(ranking)).not.toContain("Worked collaboratively with multiple stakeholders");
+    expect(inlineQuotes(ranking)).not.toContain("strategically facilitate innovative efforts");
+  });
+});
+
+describe("reading value", () => {
+  it("derives reading value for grades that carry none, and keeps filler low", () => {
+    expect(readingGrade({ grades: { ...NONE, ownership: 3, specificity: 3 } })).toBe(3);
+    expect(readingGrade({ grades: { ...NONE, specificity: 0, genericness: 3 } })).toBe(0);
+    expect(readingGrade({ readingValue: 1, grades: { ...NONE, ownership: 3, specificity: 3 } })).toBe(1);
+  });
+
+  it("rates a concrete duty above filler even when neither is important", () => {
+    expect(readingScore({ readingValue: 2, type: "responsibility", grades: { ...NONE, specificity: 2 } }, 5)).toBeGreaterThanOrEqual(READING_FLOOR);
+    expect(readingScore({ readingValue: 0, type: "self_description", grades: { ...NONE, genericness: 3 } }, 5)).toBeLessThan(READING_FLOOR);
+  });
+});
+
+describe("Key Evidence from one long entry", () => {
+  it("lists a second exceptional event from a long entry, but never a second line about the same event", () => {
+    const exceptional = { ...NONE, ...KINDS.tutoring.grades, distinctiveness: 3, impact: 3, sustainedDepth: 3 };
+    const tutoring = (quote: string, group: number, fact: string) => candidate("tutoring", quote, { itemKey: "tutor", itemLength: 700, group, claim: "main", position: group * 100, fact, grades: exceptional });
+    const ranking = rankSignals(
+      [
+        tutoring("Completed 150+ hours of tutoring in Python", 1, "Completed 150+ hours of Python tutoring for 15+ peers at Northfield High"),
+        tutoring("Progressed from student to tutor over 2 years", 2, "Progressed from programming student to volunteer tutor over 2 years"),
+        tutoring("Tutored 15+ students in Python every week", 1, "Tutored 15+ students in Python every week at Northfield High"),
+      ],
+      { goalActive: false },
+    );
+    expect(ranking.facts.map((f) => f.text)).toEqual(["Completed 150+ hours of Python tutoring for 15+ peers at Northfield High", "Progressed from programming student to volunteer tutor over 2 years"]);
+  });
+});
+
+describe("Key Evidence judges a claim with its group", () => {
+  it("prefers the entry's claim whose supporting clause carries the scale", () => {
+    const shared = { itemKey: "yearbook", itemLength: 500 };
+    const website = candidate("workshop", "Designed and developed a yearbook website", { ...shared, group: 1, claim: "main", grades: { ...NONE, ownership: 3, technicalDepth: 2, specificity: 2, distinctiveness: 2 }, fact: "Designed and developed a yearbook website serving a 4,000+ student school" });
+    const scale = candidate("costCut", "for a 4,000+ student school", { ...shared, group: 1, claim: "support", position: 45, fact: null });
+    const dashboard = candidate("dashboard", "Built a custom staff dashboard", { ...shared, group: 2, claim: "main", position: 150, fact: "Built a custom staff dashboard for the yearbook adviser" });
+    const ranking = rankSignals([website, scale, dashboard], { goalActive: false });
+    expect(ranking.facts.map((f) => f.text)[0]).toBe("Designed and developed a yearbook website serving a 4,000+ student school");
+  });
+});
+
+describe("Key Evidence for an award", () => {
+  it("lists an award once, even when its description holds another exceptional claim", () => {
+    const shared = { itemKey: "tsa", section: "honors" as const, itemLength: 600, claim: "main" as const };
+    const placement = candidate("competition", "Earned 2nd place at the regional conference", { ...shared, group: 1, fact: "Earned 2nd place at the Northfield regional conference as team captain" });
+    const led = candidate("competition", "Led the website's full-stack development", { ...shared, group: 2, position: 80, fact: "Led full-stack development of the second-place Northfield conference website" });
+    expect(rankSignals([placement, led], { goalActive: false }).facts).toHaveLength(1);
   });
 });

@@ -77,6 +77,8 @@ export interface GradedCandidateDTO {
   type: SignalFactType;
   grades: Grades;
   goalRelevance: number;
+  /** 0-3: how much highlighting the phrase helps a reader skim its item. Absent in older grades. */
+  readingValue?: number;
   confidence: number;
   metrics: string[];
   /** A sentence's central claim, or a clause that supports one. Main when absent. */

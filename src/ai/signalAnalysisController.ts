@@ -13,8 +13,10 @@ import { planHighlights, sentenceIndex } from "../signals/signalPlan";
 export const SIGNAL_ANALYSIS_VERSION = `signals-v${SIGNAL_RANKING_VERSION}`;
 export const SIGNAL_DEBOUNCE_MS = 1500;
 export const SIGNAL_TIMEOUT_MS = 75000;
-// Small batches keep each grading call well inside the backend's time limit on dense profiles.
-const MAX_ITEMS_PER_REQUEST = 16;
+// Small batches keep each grading call well inside the backend's time limit on dense profiles, and
+// a few run at once so a long profile is graded in about the time of one call.
+const MAX_ITEMS_PER_REQUEST = 5;
+const MAX_PARALLEL_REQUESTS = 3;
 const MAX_CONTEXT_ITEMS = 120;
 const CONTEXT_TEXT = 160;
 export const SIGNAL_DEBUG_FLAG = "linkwise:debugSignals";
@@ -78,7 +80,7 @@ export function signalsCacheKey(body: AnalyzeSignalsRequestBody): string {
 }
 
 // Key Evidence lines are written alongside each item's grades, so new wording rules must regrade.
-export const KEY_EVIDENCE_WORDING_VERSION = 4;
+export const KEY_EVIDENCE_WORDING_VERSION = 10;
 const gradeKey = (identity: string, goal: string, item: EvidencePayloadItem) => `${SIGNAL_RANKING_VERSION}.${KEY_EVIDENCE_WORDING_VERSION}:${identity}:${goal}:${itemHash(item)}`;
 
 export interface SignalAnalysisControllerOptions {
@@ -107,7 +109,7 @@ function debugEnabled(): boolean {
 
 function logRanking(ranking: RankingResult, profileKey: string): void {
   if (!debugEnabled()) return;
-  const rows = ranking.debug.map((r) => ({ status: r.status, reason: r.reason ?? "", band: r.band, score: r.score, intrinsic: r.intrinsic, goal: r.goalPart, type: r.type, section: r.section, quote: r.quote, fact: r.fact ?? "", sentence: r.sentence, claim: r.claim, group: r.group, labels: r.labels.join(" "), category: phraseCategory(r), confidence: r.confidence, grades: Object.entries(r.grades).filter(([, v]) => v > 0).map(([k, v]) => `${k}${v}`).join(" "), goalRelevance: r.goalRelevance }));
+  const rows = ranking.debug.map((r) => ({ status: r.status, reason: r.reason ?? "", inline: r.inline, keyEvidence: r.keyEvidence, keyReason: r.keyReason ?? "", band: r.band, score: r.score, reading: r.reading, intrinsic: r.intrinsic, goal: r.goalPart, type: r.type, section: r.section, quote: r.quote, fact: r.fact ?? "", sentence: r.sentence, claim: r.claim, group: r.group, labels: r.labels.join(" "), category: phraseCategory(r), confidence: r.confidence, grades: Object.entries(r.grades).filter(([, v]) => v > 0).map(([k, v]) => `${k}${v}`).join(" "), goalRelevance: r.goalRelevance }));
   console.groupCollapsed(`[LinkWise signals] ${profileKey}: ${ranking.core.length} core, ${ranking.discovery.length} discovery, ${ranking.debug.length} candidates`);
   console.table(rows);
   console.groupEnd();
@@ -123,10 +125,12 @@ export class SignalAnalysisController {
   private latest: SignalInput | null = null;
   private signature: string | null = null;
   private debounceHandle: ReturnType<typeof setTimeout> | null = null;
-  private pending: Pending | null = null;
+  private readonly pending = new Set<Pending>();
   private deferred = false;
   private lastError: string | undefined;
   private readonly failed = new Set<string>();
+  // Items the model skipped in a batch: asked once more, then graded locally for this visit.
+  private readonly skipped = new Set<string>();
   // The last grades each item slot had, used for an edited item until its new grades arrive.
   private readonly previous = new Map<string, StoredGrades>();
   private readonly incumbents = new Map<string, Set<string>>();
@@ -184,9 +188,9 @@ export class SignalAnalysisController {
     this.signature = signature;
 
     const keys = items.map((item) => gradeKey(input.profileKey, goal, item));
-    const missing = items.filter((_, i) => !this.cache.get(keys[i]!) && !this.failed.has(keys[i]!) && !this.pending?.keys.has(keys[i]!));
-    this.assemble(input, items, keys, missing.length > 0 || !!this.pending);
-    if (missing.length > 0 && !this.pending) this.schedule();
+    const missing = items.filter((_, i) => !this.cache.get(keys[i]!) && !this.failed.has(keys[i]!) && !this.inFlight(keys[i]!));
+    this.assemble(input, items, keys, missing.length > 0 || this.pending.size > 0);
+    if (missing.length > 0 && this.pending.size < MAX_PARALLEL_REQUESTS) this.schedule();
   }
 
   reset(): void {
@@ -241,6 +245,10 @@ export class SignalAnalysisController {
     this.debounceHandle = setTimeout(() => this.send(), this.debounceMs);
   }
 
+  private inFlight(key: string): boolean {
+    return [...this.pending].some((p) => p.keys.has(key));
+  }
+
   private send(): void {
     this.debounceHandle = null;
     const input = this.latest;
@@ -248,8 +256,14 @@ export class SignalAnalysisController {
     const goal = goalHash(input.goalText);
     const items = gradableItems(input.profile);
     const keys = items.map((item) => gradeKey(input.profileKey, goal, item));
-    const batch = items.map((item, i) => ({ item, key: keys[i]! })).filter(({ key }) => !this.cache.get(key) && !this.failed.has(key)).slice(0, MAX_ITEMS_PER_REQUEST);
-    if (batch.length === 0) return;
+    while (this.pending.size < MAX_PARALLEL_REQUESTS) {
+      const batch = items.map((item, i) => ({ item, key: keys[i]! })).filter(({ key }) => !this.cache.get(key) && !this.failed.has(key) && !this.inFlight(key)).slice(0, MAX_ITEMS_PER_REQUEST);
+      if (batch.length === 0) return;
+      this.dispatch(input, items, batch);
+    }
+  }
+
+  private dispatch(input: SignalInput, items: EvidencePayloadItem[], batch: { item: EvidencePayloadItem; key: string }[]): void {
     const inBatch = new Set(batch.map(({ item }) => item.id));
     const context = items
       .filter((item) => !inBatch.has(item.id))
@@ -263,7 +277,7 @@ export class SignalAnalysisController {
 
     const request = this.request(body);
     const pending: Pending = { keys: new Set(batch.map(({ key }) => key)), cancel: request.cancel };
-    this.pending = pending;
+    this.pending.add(pending);
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<SignalClassificationOutcome>((resolve) => {
       timeoutHandle = setTimeout(() => {
@@ -276,8 +290,7 @@ export class SignalAnalysisController {
       .catch((): SignalClassificationOutcome => ({ status: "unavailable", reason: "unexpected_error" }))
       .then((outcome) => {
         clearTimeout(timeoutHandle);
-        if (this.pending !== pending) return;
-        this.pending = null;
+        if (!this.pending.delete(pending)) return;
         if (outcome.status === "ok") {
           const byId = new Map(batch.map(({ item, key }) => [item.id, key]));
           const grouped = new Map<string, StoredGrades>();
@@ -290,6 +303,11 @@ export class SignalAnalysisController {
             if (key) grouped.get(key)?.candidates.push(candidate);
           }
           this.cache.setMany([...grouped.entries()]);
+          for (const key of pending.keys) {
+            if (grouped.has(key)) continue;
+            if (this.skipped.has(key)) this.failed.add(key);
+            else this.skipped.add(key);
+          }
           this.lastError = undefined;
         } else {
           // Ungraded items fall back to local heuristics for this visit; highlights never go away.
@@ -304,8 +322,8 @@ export class SignalAnalysisController {
   private cancelPending(): void {
     if (this.debounceHandle) clearTimeout(this.debounceHandle);
     this.debounceHandle = null;
-    this.pending?.cancel();
-    this.pending = null;
+    for (const p of this.pending) p.cancel();
+    this.pending.clear();
   }
 
   private setState(next: SignalAnalysisState): void {

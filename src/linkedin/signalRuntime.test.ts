@@ -97,7 +97,7 @@ describe("signalTargets", () => {
     expect(signalTargets([{ ...base, quote: "a", importance: 0.4 }, { ...base, quote: "b", importance: 0.55 }]).map((t) => t.quote)).toEqual(["b"]);
   });
 
-  it("styles each phrase by its kind and leaves out kinds that are switched off", () => {
+  it("styles each phrase by its kind, and draws a switched-off kind in the general style", () => {
     const highlights = [
       { ...base, quote: "Led a 5-person team", importance: 1, category: "leadership" as const, metrics: ["5-person"] },
       { ...base, quote: "Won 2nd place at States", importance: 1, category: "achievements" as const, metrics: ["2nd place"] },
@@ -106,9 +106,25 @@ describe("signalTargets", () => {
       ["leadership", ["5-person"]],
       ["achievements", ["2nd place"]],
     ]);
-    expect(signalTargets(highlights, off("leadership")).map((t) => t.quote)).toEqual(["Won 2nd place at States"]);
+    // Turning a kind off changes its color, never whether the claim shows.
+    expect(signalTargets(highlights, off("leadership")).map((t) => [t.quote, t.layer])).toEqual([
+      ["Led a 5-person team", "general"],
+      ["Won 2nd place at States", "achievements"],
+    ]);
     // Numbers off: the phrases stay, their numbers are simply not marked.
     expect(signalTargets(highlights, off("numbers")).map((t) => t.metrics)).toEqual([[], []]);
+  });
+
+  it("keeps every claim, in the general style, with every category switched off", () => {
+    const highlights = [
+      { ...base, quote: "Reached 500+ people through the website", importance: 1, category: "impact" as const, metrics: ["500+ people"] },
+      { ...base, quote: "9 years of software training", importance: 0.75, category: "general" as const, metrics: [] },
+    ];
+    const allOff = off("roles", "numbers", "impact", "leadership", "skills", "achievements", "projects", "languages");
+    expect(signalTargets(highlights, allOff).map((t) => [t.quote, t.layer, t.metrics])).toEqual([
+      ["Reached 500+ people through the website", "general", []],
+      ["9 years of software training", "general", []],
+    ]);
   });
 
   it("marks the person's skills only inside chosen phrases, never over a number", () => {
@@ -270,7 +286,7 @@ describe("createSignalRuntime", () => {
     expect(published.at(-1)).toMatchObject({ status: "ready" });
   });
 
-  it("hides a switched-off kind and brings it back from the same evidence, with no new request", async () => {
+  it("redraws a switched-off kind in the general style and back from the same evidence, with no new request", async () => {
     prefs = DEFAULT_HIGHLIGHT_PREFERENCES;
     setPage("Led a 4-person web team");
     const { runtime, request } = harness();
@@ -280,6 +296,7 @@ describe("createSignalRuntime", () => {
     prefs = off("leadership");
     runtime.repaint();
     expect(entries.has(QUOTE_HIGHLIGHT)).toBe(false);
+    expect(entries.get(highlightName("general"))!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team"]);
     prefs = DEFAULT_HIGHLIGHT_PREFERENCES;
     runtime.repaint();
     expect(entries.get(QUOTE_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team"]);
