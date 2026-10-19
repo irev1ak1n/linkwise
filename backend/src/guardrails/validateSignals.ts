@@ -1,11 +1,13 @@
-import type { CareerStage, EvidenceFact, SignalClassification, SignalFactType } from "../openai/signalsSchema";
+import { semanticLabelSchema, type CareerStage, type EvidenceFact, type SemanticLabel, type SignalClassification, type SignalFactType } from "../openai/signalsSchema";
 
 // The model's grades are untrusted: every fact must name a submitted item, quote that item's exact
 // text, and keep its grades inside their ranges. What survives is ranked by the extension.
-export const MAX_FACTS_PER_ITEM = 8;
+// A dense paragraph can hold many claims; the extension decides how many are worth showing.
+export const MAX_FACTS_PER_ITEM = 14;
 const MIN_QUOTE_LENGTH = 3;
 const MAX_HIGHLIGHT_LENGTH = 200;
-const MAX_HIGHLIGHT_WORDS = 24;
+// A main claim may need a full clause; shorter is better, but never at the cost of its meaning.
+const MAX_HIGHLIGHT_WORDS = 26;
 const LIST_MAX_WORDS = 14;
 const LIST_LEAD_WORDS = 10;
 const MAX_FACT_LENGTH = 90;
@@ -43,6 +45,9 @@ export interface ValidatedCandidate {
   goalRelevance: number;
   confidence: number;
   metrics: string[];
+  claim: "main" | "support";
+  group: number;
+  labels: SemanticLabel[];
 }
 
 export interface ValidatedClassification {
@@ -213,14 +218,19 @@ function clampGrade(value: number): number {
   return Number.isFinite(value) ? Math.min(3, Math.max(0, Math.round(value))) : 0;
 }
 
-// A phrase like "for a 4,000+ student school" only describes the setting of the real fact.
-const CONTEXT_FRAGMENT = /^(?:for|at|of|in|on|from|with|within|across)\s+(?:a|an|the|my|our|their|\d|~)/i;
+// A phrase like "for a 4,000+ student school" only describes the setting of the real fact. A
+// clause that merely opens with its setting ("At age 13, I was admitted ...", "In 2025, I
+// graduated ...") is a claim, not a fragment.
+const SETTING_OPENER = /^(?:for|at|of|in|on|from|with|within|across)\s+(?:a|an|the|my|our|their|~|\d)\b/i;
+function isContextFragment(text: string): boolean {
+  return SETTING_OPENER.test(text) && !/,\s/.test(text) && wordCount(text) <= 8;
+}
 
 function groundedQuote(quote: string, source: EvidenceText): { text: string; start: number } | null {
   const found = groundedSpan(source.text, quote);
   const text = found && shortenList(found.text);
   if (!found || !text || text.length < MIN_QUOTE_LENGTH || text.length > MAX_HIGHLIGHT_LENGTH || text.includes(" — ")) return null;
-  if (isEntryHeading(text, source) || isBareNumber(text) || CONTEXT_FRAGMENT.test(text)) return null;
+  if (isEntryHeading(text, source) || isBareNumber(text) || isContextFragment(text)) return null;
   return { text, start: found.start };
 }
 
@@ -254,8 +264,18 @@ function toCandidate(raw: EvidenceFact, source: EvidenceText): (ValidatedCandida
     goalRelevance: clampGrade(raw.goalRelevance),
     confidence,
     metrics: extractMetrics(quote.text),
+    claim: raw.claim === "support" ? "support" : "main",
+    group: Number.isFinite(raw.group) ? Math.min(99, Math.max(0, Math.round(raw.group))) : 0,
+    labels: [...new Set(raw.labels.filter((l) => semanticLabelSchema.safeParse(l).success))].slice(0, 4),
     start: quote.start,
   };
+}
+
+// A supporting clause only makes sense beside its main claim; one whose group has no main claim
+// in the item is promoted to a main claim of its own instead of being shown as an orphan.
+function anchorSupports<T extends { claim: "main" | "support"; group: number }>(facts: T[]): T[] {
+  const mains = new Set(facts.filter((f) => f.claim === "main").map((f) => f.group));
+  return facts.map((f) => (f.claim === "support" && !mains.has(f.group) ? { ...f, claim: "main" as const } : f));
 }
 
 export function validateClassification(response: SignalClassification, submitted: EvidenceText[]): ValidatedClassification {
@@ -276,7 +296,7 @@ export function validateClassification(response: SignalClassification, submitted
       })
       .slice(0, MAX_FACTS_PER_ITEM)
       .sort((a, b) => a.start - b.start);
-    candidates.push(...kept.map(({ start: _start, ...candidate }) => candidate));
+    candidates.push(...anchorSupports(kept).map(({ start: _start, ...candidate }) => candidate));
   }
   return { careerStage: response.careerStage, candidates, classified: submitted.map((item) => item.id) };
 }

@@ -8,7 +8,7 @@ export const MAX_GOAL_TEXT = 1500;
 // Version 2: only the items still to be graded go in "evidence"; the rest of the profile is short
 // context, so a lazy-loaded section never resends what is already graded.
 export const analyzeSignalsRequestSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   profile: z.object({
     identity: z.string().min(1).max(300),
     evidence: z.array(evidenceItemSchema).min(1).max(MAX_EVIDENCE_ITEMS),

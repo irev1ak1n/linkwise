@@ -4,7 +4,7 @@ import { MAX_TEXT_LENGTH } from "./requestSchema";
 
 function validBody() {
   return {
-    version: 2 as const,
+    version: 3 as const,
     goal: null as { text: string } | null,
     profile: {
       identity: "jordan-rivera",

@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-// Signal analysis v2: the model classifies evidence, it does not choose what gets highlighted.
-// Each fact gets coarse 0-3 grades the extension combines into a deterministic ranking.
-export const SIGNAL_CONTRACT_VERSION = 2;
+// Signal analysis v3: the model reads each item as claims (a main claim and the clauses that
+// support it), grades them, and labels them. It never chooses what is highlighted: the extension
+// ranks the graded claims deterministically, and only then decides how each is colored.
+export const SIGNAL_CONTRACT_VERSION = 3;
 
 export const signalFactTypeSchema = z.enum([
   "competition_result",
@@ -12,6 +13,8 @@ export const signalFactTypeSchema = z.enum([
   "project_ownership",
   "technical_execution",
   "selective_admission",
+  "milestone",
+  "distinction",
   "credential",
   "sustained_training",
   "teaching_scope",
@@ -26,6 +29,29 @@ export const signalFactTypeSchema = z.enum([
   "other",
 ]);
 
+// What a claim is about, richer than the settings categories; a claim usually has one to three.
+export const semanticLabelSchema = z.enum([
+  "achievement",
+  "milestone",
+  "selectivity",
+  "distinction",
+  "credential",
+  "completion",
+  "impact",
+  "leadership",
+  "ownership",
+  "technical_execution",
+  "project",
+  "training",
+  "duration",
+  "scale",
+  "skill",
+  "education",
+  "teaching",
+  "responsibility",
+  "language",
+]);
+
 export const careerStageSchema = z.enum(["student", "early_career", "professional", "senior", "unknown"]);
 
 // Ordinal grades: 0 none, 1 weak, 2 moderate, 3 strong. Validated and clamped on the way out.
@@ -33,6 +59,11 @@ export const evidenceFactSchema = z.object({
   quote: z.string(),
   fact: z.string(),
   type: signalFactTypeSchema,
+  /** "main" is the sentence's central claim; "support" explains or qualifies a main claim. */
+  claim: z.enum(["main", "support"]),
+  /** Claims about the same event share a group number within their item. */
+  group: z.number(),
+  labels: z.array(semanticLabelSchema),
   impact: z.number(),
   ownership: z.number(),
   result: z.number(),
@@ -59,6 +90,7 @@ export const signalClassificationSchema = z.object({
 });
 
 export type SignalFactType = z.infer<typeof signalFactTypeSchema>;
+export type SemanticLabel = z.infer<typeof semanticLabelSchema>;
 export type CareerStage = z.infer<typeof careerStageSchema>;
 export type EvidenceFact = z.infer<typeof evidenceFactSchema>;
 export type SignalClassification = z.infer<typeof signalClassificationSchema>;

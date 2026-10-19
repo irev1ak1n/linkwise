@@ -26,6 +26,9 @@ function grade(quote: string, overrides: Partial<EvidenceFact> = {}): EvidenceFa
     quote,
     fact: quote,
     type: "other",
+    claim: "main",
+    group: 0,
+    labels: [],
     impact: 1,
     ownership: 1,
     result: 0,
@@ -64,6 +67,7 @@ describe("extractMetrics", () => {
     expect(extractMetrics("placed 2nd at the state olympiad")).toEqual(["2nd"]);
     expect(extractMetrics("Completed 60+ hours of tutoring, supporting 15+ students")).toEqual(["60+ hours", "15+ students"]);
     expect(extractMetrics("At age 14, I was accepted")).toEqual(["age 14"]);
+    expect(extractMetrics("began attending at age of 8")).toEqual(["age of 8"]);
     expect(extractMetrics("raised $12k and grew signups 40%")).toEqual(["$12k", "40%"]);
     expect(extractMetrics("Over 6 years")).toEqual(["6 years"]);
   });
@@ -133,6 +137,36 @@ describe("validateClassification", () => {
     expect(grades["Led a 4-person web team"]).toMatchObject({ scale: 3, sustainedDepth: 0 });
     expect(grades["reached 300+ visitors"]).toMatchObject({ scale: 3 });
     expect(grades["Completed 60+ hours of tutoring in Java"]).toMatchObject({ sustainedDepth: 2 });
+  });
+
+  it("keeps each claim's role, group, and known labels, and promotes a support with no main claim", () => {
+    const result = run([
+      {
+        evidenceId: "experience:0",
+        facts: [
+          grade("Led a 4-person web team", { claim: "main", group: 1, labels: ["leadership", "scale", "bogus" as never] }),
+          grade("earn 3rd place at the State Conference", { claim: "support", group: 1, labels: ["achievement"] }),
+          grade("reached 300+ visitors", { claim: "support", group: 7, labels: ["impact"] }),
+        ],
+      },
+    ]);
+    const byQuote = Object.fromEntries(result.candidates.map((c) => [c.quote, c]));
+    expect(byQuote["Led a 4-person web team"]).toMatchObject({ claim: "main", group: 1, labels: ["leadership", "scale"] });
+    expect(byQuote["earn 3rd place at the State Conference"]).toMatchObject({ claim: "support", group: 1 });
+    expect(byQuote["reached 300+ visitors"]).toMatchObject({ claim: "main", group: 7 });
+  });
+
+  it("keeps a claim that only opens with its setting, like an age or a year", () => {
+    const school: EvidenceText = {
+      id: "education:0",
+      section: "education",
+      text: "Coding School — At age 12, I was admitted into the Advanced track for older students. In 2024, I graduated with an Advanced Diploma in Software Engineering.",
+    };
+    const result = run(
+      [{ evidenceId: "education:0", facts: [grade("At age 12, I was admitted into the Advanced track"), grade("In 2024, I graduated with an Advanced Diploma in Software Engineering")] }],
+      [school],
+    );
+    expect(result.candidates.map((c) => c.quote)).toEqual(["At age 12, I was admitted into the Advanced track", "In 2024, I graduated with an Advanced Diploma in Software Engineering"]);
   });
 
   it("rejects a phrase that only describes the setting of a fact", () => {
