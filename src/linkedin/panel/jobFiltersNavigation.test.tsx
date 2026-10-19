@@ -266,47 +266,126 @@ describe("Settings", () => {
   });
 });
 
-describe("Highlight on profile", () => {
-  it("puts Highlight on profile right under Looking for, as the only keyword editor", async () => {
-    await mountPanel();
-    await openFromMenu("Profile Analyzer");
-    const focus = container.querySelector('[aria-label="Highlight on profile"]')!;
-    expect(focus).not.toBeNull();
-    expect(focus.previousElementSibling!.textContent).toMatch(/Who are you looking for|Looking for/);
-    expect(focus.nextElementSibling?.className ?? "").not.toContain("lw-hl");
-    await act(async () => [...focus.querySelectorAll("button")].find((b) => b.textContent === "Edit")!.click());
-    expect(container.querySelectorAll("textarea[placeholder='Python, robotics, volunteer']")).toHaveLength(1);
-  });
-
-  it("saves Highlight on profile locally, without touching the goal, the analysis, or AI", async () => {
-    const { getGoalStoreState } = await import("./goalStore");
-    await mountPanel();
-    await openFromMenu("Profile Analyzer");
-    const goalBefore = JSON.stringify(getGoalStoreState());
-    const sendMessage = (globalThis as unknown as { chrome: { runtime: { sendMessage: ReturnType<typeof vi.fn> } } }).chrome.runtime.sendMessage;
-    sendMessage.mockClear();
-    const focus = () => container.querySelector('[aria-label="Highlight on profile"]')!;
-    await act(async () => [...focus().querySelectorAll("button")].find((b) => b.textContent === "Edit")!.click());
-    const textarea = focus().querySelector("textarea")!;
+describe("Highlighting settings", () => {
+  const sendMessage = () => (globalThis as unknown as { chrome: { runtime: { sendMessage: ReturnType<typeof vi.fn> } } }).chrome.runtime.sendMessage;
+  const highlights = () => container.querySelector('[aria-label="Profile highlights"]')!;
+  const rowButton = (label: string) => highlights().querySelector<HTMLButtonElement>(`[aria-label="${label} settings"]`)!;
+  const button = (text: string) => [...highlights().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === text)!;
+  async function type(value: string) {
+    const textarea = highlights().querySelector("textarea")!;
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, "Python, TSA");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, value);
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await act(async () => [...focus().querySelectorAll("button")].find((b) => b.textContent === "Save")!.click());
-    expect(stored["finder.highlightKeywords.v1"]).toBe("Python, TSA");
-    expect(focus().textContent).toContain("Python, TSA");
-    expect(JSON.stringify(getGoalStoreState())).toBe(goalBefore);
-    expect(sendMessage).not.toHaveBeenCalled();
+  }
+
+  it("leaves Profile Analyzer without any keyword editor: Looking for goes straight to the next block", async () => {
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    expect(container.querySelector('[aria-label="Highlight on profile"]')).toBeNull();
+    expect(container.querySelector(".lw-focus, .lw-focus-edit")).toBeNull();
+    expect(container.textContent).not.toMatch(/Highlight on profile|Add specific words or phrases/);
+    expect(container.querySelector("textarea[placeholder='Python, robotics, volunteer']")).toBeNull();
   });
 
-  it("turns Signal Mode on from Settings", async () => {
-    const { getSignalModeState } = await import("./signalModeStore");
+  it("lists compact category rows with no subtitles, and Keywords as a custom rule", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     await openSettings();
-    const toggle = container.querySelector<HTMLInputElement>(".lw-signals__toggle input")!;
-    const before = getSignalModeState().enabled;
-    await act(async () => toggle.click());
-    expect(getSignalModeState().enabled).toBe(!before);
+    const auto = [...highlights().querySelectorAll('[aria-label="Auto categories"] .lw-rule__name')].map((el) => el.textContent);
+    expect(auto).toEqual(["Roles", "Meaningful Numbers", "Impact", "Leadership", "Skills & Tools", "Achievements", "Projects", "Languages"]);
+    const custom = [...highlights().querySelectorAll('[aria-label="Custom rules"] .lw-rule__name')].map((el) => el.textContent);
+    expect(custom).toEqual(["Keywords"]);
+    const row = highlights().querySelector(".lw-rules .lw-rule")!;
+    expect(row.querySelectorAll("p")).toHaveLength(0);
+    expect(row.querySelector(".lw-dot__button")).not.toBeNull();
+    expect(row.querySelector('[role="switch"]')).not.toBeNull();
+    // The old single Signal color is gone.
+    expect(highlights().textContent).not.toContain("Signal color");
+  });
+
+  it("keeps an existing keyword list and edits it in Settings: Save only on a real change, Cancel keeps it, no AI", async () => {
+    stored["finder.highlightKeywords.v1"] = "Python, robotics";
+    const { highlightKeywordsPreference } = await import("./keywordPreference");
+    highlightKeywordsPreference.set("Python, robotics");
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    await openSettings();
+    sendMessage().mockClear();
+    set.mockClear();
+    await act(async () => rowButton("Keywords").click());
+    expect(highlights().querySelector("textarea")!.value).toBe("Python, robotics");
+    expect(highlights().textContent).not.toContain("Comma or newline separated");
+    expect(button("Save").disabled).toBe(true);
+    await type(" python\nROBOTICS ");
+    expect(button("Save").disabled).toBe(true);
+    await type("Python, robotics, volunteer");
+    expect(button("Save").disabled).toBe(false);
+    await act(async () => button("Cancel").click());
+    expect(stored["finder.highlightKeywords.v1"]).toBe("Python, robotics");
+    expect(set).not.toHaveBeenCalled();
+
+    await act(async () => rowButton("Keywords").click());
+    expect(highlights().querySelector("textarea")!.value).toBe("Python, robotics");
+    await type("Python, TSA ");
+    await act(async () => button("Save").click());
+    expect(stored["finder.highlightKeywords.v1"]).toBe("Python, TSA");
+    expect(button("Save").disabled).toBe(true);
+    expect(sendMessage()).not.toHaveBeenCalled();
+  });
+
+  it("changes a category's color, switch, and underline at once, keeping its other settings, with no AI", async () => {
+    (await import("./signalModeStore")).setSignalModeEnabled(true);
+    const { highlightPreferences } = await import("./highlightPreferences");
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    await openSettings();
+    sendMessage().mockClear();
+    const roles = [...highlights().querySelectorAll(".lw-rule")].find((r) => r.textContent?.includes("Roles"))!;
+    await act(async () => roles.querySelector<HTMLButtonElement>(".lw-dot__button")!.click());
+    await act(async () => roles.querySelector<HTMLButtonElement>('[aria-label="Pink"]')!.click());
+    expect(roles.querySelector(".lw-dot__popover")).toBeNull();
+    await act(async () => roles.querySelector<HTMLInputElement>('[role="switch"]')!.click());
+    expect(highlightPreferences.getState().value.categories.roles).toMatchObject({ color: "pink", enabled: false });
+    await act(async () => roles.querySelector<HTMLInputElement>('[role="switch"]')!.click());
+    await act(async () => rowButton("Roles").click());
+    await act(async () => highlights().querySelector<HTMLInputElement>('[aria-label="Underline Roles"]')!.click());
+    expect(highlightPreferences.getState().value.categories.roles).toEqual({ enabled: true, color: "pink", underline: true });
+    expect(highlights().querySelector<HTMLElement>(".lw-rule-detail__preview")!.style.textDecoration).toContain("underline");
+    expect(stored["finder.highlightPreferences.v1"]).toBeDefined();
+    expect(sendMessage()).not.toHaveBeenCalled();
+
+    await act(async () => button("← Highlighting").click());
+    await act(async () => button("Reset highlight styles").click());
+    expect(highlightPreferences.getState().value.categories.roles).toEqual({ enabled: true, color: "blue", underline: false });
+  });
+
+  it("closes the color palette with Escape or a click elsewhere", async () => {
+    (await import("./signalModeStore")).setSignalModeEnabled(true);
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    await openSettings();
+    const dot = () => highlights().querySelector<HTMLButtonElement>(".lw-dot__button")!;
+    await act(async () => dot().click());
+    expect(highlights().querySelector(".lw-dot__popover")).not.toBeNull();
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    expect(highlights().querySelector(".lw-dot__popover")).toBeNull();
+    await act(async () => dot().click());
+    await act(async () => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true, composed: true })));
+    expect(highlights().querySelector(".lw-dot__popover")).toBeNull();
+  });
+
+  it("turns Signal Mode on from Settings, and greys out the automatic categories while it is off", async () => {
+    const { getSignalModeState, setSignalModeEnabled } = await import("./signalModeStore");
+    setSignalModeEnabled(false);
+    await mountPanel();
+    await openFromMenu("Profile Analyzer");
+    await openSettings();
+    const toggle = () => highlights().querySelector<HTMLInputElement>('[aria-label="Signal Mode"]')!;
+    expect(highlights().querySelectorAll('[aria-label="Auto categories"] .lw-rule--disabled')).toHaveLength(8);
+    expect(highlights().querySelector('[aria-label="Custom rules"] .lw-rule--disabled')).toBeNull();
+    await act(async () => toggle().click());
+    expect(getSignalModeState().enabled).toBe(true);
+    expect(highlights().querySelectorAll(".lw-rule--disabled")).toHaveLength(0);
   });
 });

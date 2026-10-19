@@ -16,12 +16,9 @@ import { ManualSectionsCheckbox } from "./ManualSectionsCheckbox";
 import { autoExpandPreference } from "./autoExpandPreference";
 import { useStoredPreference } from "./useStoredPreference";
 import { JobFiltersPage } from "./JobFiltersPage";
-import { SignalModeSection } from "./SignalModeSection";
-import { FocusOnSection } from "./FocusOnSection";
+import { HighlightSettings } from "./HighlightSettings";
 import { SettingsPage } from "./SettingsPage";
 import { highlightKeywordsPreference } from "./keywordPreference";
-import { highlightColorPreference } from "./highlightColorPreference";
-import { keywordColorPreference } from "./keywordColorPreference";
 import { ScannerView } from "./ScannerView";
 import { deriveScanState } from "./scanProgress";
 import { useScanHandoff } from "./useScanHandoff";
@@ -58,8 +55,6 @@ export function PanelApp({ onClose }: PanelAppProps) {
   const { enabled: manualSectionsEnabled, setManualSectionsPreference } = useManualSectionsPreference();
   const { value: autoExpandEnabled } = useStoredPreference(autoExpandPreference);
   const { value: highlightKeywords } = useStoredPreference(highlightKeywordsPreference);
-  const { value: highlightColor } = useStoredPreference(highlightColorPreference);
-  const { value: keywordColor } = useStoredPreference(keywordColorPreference);
   const { settings: jobsSettings, setJobsSettings } = useJobsSettings();
   const signalMode = useSignalMode();
   const { value: tool } = useStoredPreference(panelToolPreference);
@@ -112,17 +107,14 @@ export function PanelApp({ onClose }: PanelAppProps) {
 
   // How LinkWise scans and highlights profiles, set once in Settings.
   const highlights = (
-      <SignalModeSection
-        enabled={signalMode.enabled}
-        highlighted={signalMode.highlighted}
-        onChange={signalMode.setSignalModeEnabled}
-        keywords={highlightKeywords}
-        color={highlightColor}
-        onColorChange={highlightColorPreference.set}
-        keywordColor={keywordColor}
-        onKeywordColorChange={keywordColorPreference.set}
-      />
-    );
+    <HighlightSettings
+      signalEnabled={signalMode.enabled}
+      highlighted={signalMode.highlighted}
+      onSignalChange={signalMode.setSignalModeEnabled}
+      keywords={highlightKeywords}
+      onKeywordsSave={highlightKeywordsPreference.set}
+    />
+  );
 
   function renderProfileSection() {
     if (profileKey === null) {
@@ -209,7 +201,6 @@ export function PanelApp({ onClose }: PanelAppProps) {
           <>
             <AnalyzerHero />
             <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
-            <FocusOnSection keywords={highlightKeywords} onSave={highlightKeywordsPreference.set} />
             {renderProfileSection()}
           </>
         )}
