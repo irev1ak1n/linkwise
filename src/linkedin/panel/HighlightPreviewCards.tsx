@@ -82,7 +82,7 @@ export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
                 <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" />
               </Icon>
             </span>
-            {PREVIEW_POST.reactions}
+            <span>{text(PREVIEW_POST.reactions)}</span>
           </span>
           <span>{PREVIEW_POST.comments}</span>
         </footer>
@@ -103,7 +103,9 @@ export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
           </span>
           <div className="lw-pv__entry-text">
             <span className="lw-pv__title">{text(PREVIEW_EXPERIENCE.title)}</span>
-            <span className="lw-pv__meta">{PREVIEW_EXPERIENCE.meta}</span>
+            <span className="lw-pv__meta">
+              <span>{text(PREVIEW_EXPERIENCE.meta)}</span>
+            </span>
             <ul className="lw-pv__bullets">
               {PREVIEW_EXPERIENCE.bullets.map((bullet) => (
                 <li key={bullet.text}>{text(bullet)}</li>
@@ -148,7 +150,9 @@ export function HighlightPreviewCards({ id, rule, keywords }: PreviewProps) {
           </span>
           <div className="lw-pv__entry-text">
             <span className="lw-pv__title">{text(PREVIEW_EDUCATION.degree)}</span>
-            <span className="lw-pv__meta">{PREVIEW_EDUCATION.meta}</span>
+            <span className="lw-pv__meta">
+              <span>{text(PREVIEW_EDUCATION.meta)}</span>
+            </span>
             <p className="lw-pv__line">{text(PREVIEW_EDUCATION.coursework)}</p>
             {id === "languages" && <p className="lw-pv__line">{text(PREVIEW_EDUCATION.languages)}</p>}
           </div>

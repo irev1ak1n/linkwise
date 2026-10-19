@@ -251,26 +251,40 @@ describe("highlight category page", () => {
     return { post: marksIn("Post example"), experience: marksIn("Experience example"), skills: marksIn("Skills example"), education: marksIn("Education example") };
   }
 
-  it("shows the same four cards on every page, highlighting only the open category's phrases", async () => {
+  it("shows the same four cards on every page, highlighting only the open category's fixed spans", async () => {
     await mountPanel();
+    const ALL_SKILLS = ["Python", "C++", "React", "Node.js", "AWS", "Docker", "SQL", "Blender"];
     expect(await marksFor("Roles")).toEqual({ post: ["Software Engineer"], experience: ["Software Developer Intern"], skills: [], education: [] });
     expect(await marksFor("Meaningful Numbers")).toEqual({
-      post: ["10,000+", "40%", "team of 5", "1st place"],
-      experience: ["500+", "30%", "team of 4", "2 product teams"],
+      post: ["10,000+", "40%", "team of 5", "1st place", "124"],
+      experience: ["Jun 2024 – Aug 2024", "500+", "30%", "team of 4", "2 product teams"],
       skills: [],
-      // Years are dates, not meaningful numbers.
+      education: ["2024 – 2028"],
+    });
+    expect(await marksFor("Impact")).toEqual({
+      post: ["used by 10,000+ students", "improving engagement by 40%"],
+      experience: ["used by 500+ employees", "improving workflow efficiency by 30%"],
+      skills: [],
+      education: [],
+    });
+    expect(await marksFor("Leadership")).toEqual({
+      post: ["led the development", "team of 5 developers"],
+      experience: ["Collaborated with a team of 4 engineers"],
+      skills: [],
       education: [],
     });
     expect(await marksFor("Skills & Tools")).toEqual({
-      post: ["React, Python, and AWS"],
-      experience: ["TypeScript, React, and Azure"],
-      skills: ["Python", "React", "AWS"],
-      education: ["AI, Machine Learning, Database Systems, Computer Vision"],
+      post: ["React", "Python", "AWS"],
+      experience: ["TypeScript", "React", "Azure"],
+      skills: ALL_SKILLS,
+      education: ["AI", "Machine Learning", "Database Systems", "Computer Vision"],
     });
-    expect(await marksFor("Achievements")).toEqual({ post: ["1st place at our regional hackathon"], experience: [], skills: [], education: [] });
-    expect((await marksFor("Impact")).post).toEqual(["used by 10,000+ students", "improving engagement by 40%"]);
-    // Skill pills that do not apply stay neutral.
+    expect(await marksFor("Achievements")).toEqual({ post: ["1st place", "regional hackathon"], experience: [], skills: [], education: [] });
+    expect(await marksFor("Projects")).toEqual({ post: ["full-stack web application", "platform"], experience: ["internal tools", "features"], skills: [], education: [] });
+    // Pills that do not apply stay neutral.
     expect(container.querySelectorAll(".lw-pv__pill:not(.lw-pv__pill--marked)")).toHaveLength(8);
+    // Marks keep the text around them intact.
+    expect(container.querySelector('[aria-label="Post example"] .lw-pv__body')!.textContent).toContain("the development of a full-stack web application used by");
   });
 
   it("adds a languages line only on the Languages page", async () => {
@@ -306,7 +320,8 @@ describe("highlight category page", () => {
     });
     const colors = new Set(previewMarks().map((m) => m.style.backgroundColor));
     expect([...colors]).toEqual(["rgba(139, 199, 255, 0.45)"]);
-    expect(previewMarks()).toHaveLength(6);
+    // 3 in the post, 3 in Experience, 8 pills, 4 courses.
+    expect(previewMarks()).toHaveLength(18);
   });
 
   it("never asks for AI while colors change", async () => {
