@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignalHighlighter, highlightName, signalStyles, type HighlightRegistryLike } from "./signalHighlighter";
 import type { SignalTarget } from "./signalRanges";
 import { HIGHLIGHT_SHADES } from "./highlightPalette";
-import { DEFAULT_HIGHLIGHT_PREFERENCES, type HighlightPreferences } from "../signals/highlightCategories";
+import { HIGHLIGHT_CATEGORIES, DEFAULT_HIGHLIGHT_PREFERENCES, type HighlightPreferences } from "../signals/highlightCategories";
 
 interface FakeHighlight {
   ranges: Range[];
@@ -126,6 +126,12 @@ describe("SignalHighlighter", () => {
     const css = document.getElementById("lw-signal-style")!.textContent!;
     expect(css).toContain("linkwise-signal-impact) { background-color: rgba(250, 204, 21, 0.35);");
     expect([...entries.values()].map((e) => e.ranges)).toEqual(before);
+  });
+
+  it.each(HIGHLIGHT_CATEGORIES)("restyles %s on the page from its own custom color only", (category) => {
+    const css = signalStyles(withStyle({ [category]: { ...DEFAULT_HIGHLIGHT_PREFERENCES.categories[category], custom: { hex: "#A855F7", opacity: 0.45 } } }));
+    const rules = css.split("\n");
+    expect(rules.filter((r) => r.includes("rgba(168, 85, 247, 0.45)"))).toEqual([expect.stringContaining(`linkwise-signal-${category})`)]);
   });
 
   it("styles every category, underlined only where asked", () => {

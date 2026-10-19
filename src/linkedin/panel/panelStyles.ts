@@ -2195,6 +2195,16 @@ export function getPanelStyles(widthPx: number): string {
     gap: 6px;
   }
 
+  .lw-rule-detail__words {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #e0e6ef;
+    border-radius: 14px;
+    background: #fff;
+  }
+
   /* Color editor: square + hue slider + values, sized for the 360px sidebar. */
   .lw-ce {
     display: flex;

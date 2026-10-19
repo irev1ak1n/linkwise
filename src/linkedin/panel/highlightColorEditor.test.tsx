@@ -70,6 +70,11 @@ const hex = () => q<HTMLInputElement>("#lw-ce-hex");
 const channel = (name: "Red" | "Green" | "Blue") => q<HTMLInputElement>(`input[aria-label="${name}"]`);
 const rgb = () => [channel("Red").value, channel("Green").value, channel("Blue").value].map(Number);
 const roles = () => highlightPreferences.getState().value.categories.roles;
+const editableOpacity = (id: string) => {
+  const prefs = highlightPreferences.getState().value;
+  const style = id === "keywords" ? prefs.keywords : prefs.categories[id as keyof typeof prefs.categories];
+  return style.custom!.opacity;
+};
 const previewMarks = () => [...container.querySelectorAll<HTMLElement>(".lw-pv__mark, .lw-pv__pill--marked")];
 const marksIn = (card: string) => [...container.querySelectorAll<HTMLElement>(`[aria-label="${card}"] .lw-pv__mark, [aria-label="${card}"] .lw-pv__pill--marked`)].map((m) => m.textContent);
 
@@ -337,6 +342,93 @@ describe("highlight category page", () => {
     await act(async () => row.querySelector<HTMLButtonElement>(".lw-dot__button")!.click());
     await act(async () => row.querySelector<HTMLButtonElement>('[aria-label="Pink"]')!.click());
     expect(roles()).toEqual({ enabled: true, color: "pink", underline: false });
+  });
+});
+
+const RULES = [
+  { id: "roles", label: "Roles" },
+  { id: "numbers", label: "Meaningful Numbers" },
+  { id: "impact", label: "Impact" },
+  { id: "leadership", label: "Leadership" },
+  { id: "skills", label: "Skills & Tools" },
+  { id: "achievements", label: "Achievements" },
+  { id: "projects", label: "Projects" },
+  { id: "languages", label: "Languages" },
+  { id: "keywords", label: "Keywords" },
+] as const;
+const styleOf = (id: (typeof RULES)[number]["id"]) => {
+  const prefs = highlightPreferences.getState().value;
+  return id === "keywords" ? prefs.keywords : prefs.categories[id];
+};
+const FIXTURE_PHRASES = [
+  "led the development", "10,000+", "40%", "team of 5", "React, Python, and AWS", "1st place",
+  "500+", "30%", "TypeScript, React, and Azure", "team of 4", "2 product teams", "Node.js", "AI", "Machine Learning",
+];
+
+describe("every highlight rule opens the same full editor", () => {
+  it("covers every category the settings know, and Keywords", async () => {
+    const { HIGHLIGHT_CATEGORIES } = await import("../../signals/highlightCategories");
+    expect(RULES.map((r) => r.id)).toEqual([...HIGHLIGHT_CATEGORIES, "keywords"]);
+  });
+
+  it.each(RULES)("$label: the row opens the editor with every control and the full Live Preview", async ({ id, label }) => {
+    await mountPanel();
+    await act(async () => rowButton(label).click());
+    expect(getHighlightRule()).toBe(id);
+    expect(q(".lw-rule-detail__title").textContent).toBe(label);
+    expect(q(".lw-rule-detail__title svg")).not.toBeNull();
+    for (const selector of [".lw-ce__square", ".lw-ce__hue", ".lw-ce__preview", "#lw-ce-hex", ".lw-ce__recent", "#lw-ce-opacity"]) expect(container.querySelector(selector)).not.toBeNull();
+    expect(q(".lw-ce__rgb").querySelectorAll("input")).toHaveLength(3);
+    expect([...container.querySelectorAll(".lw-live > article")].map((a) => a.getAttribute("aria-label"))).toEqual(["Post example", "Experience example", "Skills example", "Education example"]);
+    expect(previewMarks().map((m) => m.textContent)).toEqual(FIXTURE_PHRASES);
+    // Only Keywords has its words editor, above the color.
+    expect(container.querySelector('[aria-label="Custom words"] textarea') !== null).toBe(id === "keywords");
+
+    sendMessage.mockClear();
+    await typeInto(hex(), "#4F46E5");
+    expect(styleOf(id).custom?.hex).toBe("#4F46E5");
+    expect(new Set(previewMarks().map((m) => m.style.backgroundColor)).size).toBe(1);
+    expect(previewMarks()[0]!.style.backgroundColor).toBe(`rgba(79, 70, 229, ${editableOpacity(id)})`);
+    await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
+    // The row's dot shows the new color at once.
+    const row = [...container.querySelectorAll(".lw-rule")].find((r) => r.querySelector(".lw-rule__name")?.textContent === label)!;
+    expect(row.querySelector<HTMLElement>(".lw-dot__button")!.style.backgroundColor).toBe("rgb(79, 70, 229)");
+    await act(async () => rowButton(label).click());
+    expect(hex().value).toBe("#4F46E5");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.each(RULES.filter((r) => r.id !== "keywords"))("$label: still opens while Signal Mode is off", async ({ id, label }) => {
+    setSignalModeEnabled(false);
+    await mountPanel();
+    const row = [...container.querySelectorAll(".lw-rule")].find((r) => r.querySelector(".lw-rule__name")?.textContent === label)!;
+    expect(row.classList.contains("lw-rule--disabled")).toBe(true);
+    await act(async () => row.querySelector<HTMLButtonElement>(".lw-rule__name")!.click());
+    expect(getHighlightRule()).toBe(id);
+    expect(previewMarks()).toHaveLength(FIXTURE_PHRASES.length);
+  });
+
+  it("keeps every rule's color and opacity apart", async () => {
+    await mountPanel();
+    const picks: [string, string, string][] = [["Roles", "#EF4444", "60"], ["Skills & Tools", "#3B82F6", "30"], ["Projects", "#A855F7", "45"], ["Languages", "#22C55E", "25"], ["Keywords", "#F97316", "55"]];
+    for (const [label, color, opacity] of picks) {
+      await openCategory(label);
+      await typeInto(hex(), color);
+      const slider = q<HTMLInputElement>("#lw-ce-opacity");
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(slider, opacity);
+        slider.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
+    }
+    for (const [label, color, opacity] of picks) {
+      await openCategory(label);
+      expect([hex().value, q<HTMLInputElement>("#lw-ce-opacity").value]).toEqual([color, opacity]);
+      await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
+    }
+    // The untouched ones keep their presets.
+    expect(styleOf("impact").custom).toBeUndefined();
+    expect(styleOf("numbers").custom).toBeUndefined();
   });
 });
 

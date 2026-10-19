@@ -133,6 +133,8 @@ describe("KeywordHighlighter", () => {
     expect(style()).toContain("dotted");
     keywords.setStyle({ color: "green", underline: false });
     expect(style()).not.toContain("dotted");
+    keywords.setStyle({ color: "green", underline: false, custom: { hex: "#F97316", opacity: 0.55 } });
+    expect(style()).toContain("rgba(249, 115, 22, 0.55)");
     expect(entries.get(KEYWORD_HIGHLIGHT)!.ranges).toBe(ranges);
     expect(document.body.innerHTML).toBe(before);
   });

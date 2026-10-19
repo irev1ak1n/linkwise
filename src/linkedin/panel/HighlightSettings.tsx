@@ -150,16 +150,18 @@ function RuleRow({
   disabled?: boolean;
 }) {
   const { label } = infoFor(id);
+  // While Signal Mode is off its categories are greyed out and their quick controls rest, but
+  // every row still opens its full editor: a style can be set up before it is ever shown.
   return (
     <li className={disabled ? "lw-rule lw-rule--disabled" : "lw-rule"}>
-      <button type="button" className="lw-rule__name" onClick={onOpen} disabled={disabled}>
+      <button type="button" className="lw-rule__name" onClick={onOpen}>
         <RuleIcon id={id} />
         <span>{label}</span>
       </button>
       <ColorDot name={label} rule={rule} disabled={disabled} onChange={(color) => onChange({ color, custom: undefined })} />
       <span className="lw-rule__divider" aria-hidden="true" />
       <Switch label={`Highlight ${label}`} checked={rule.enabled} disabled={disabled} onChange={(enabled) => onChange({ enabled })} />
-      <button type="button" className="lw-rule__more" aria-label={`${label} settings`} onClick={onOpen} disabled={disabled}>
+      <button type="button" className="lw-rule__more" aria-label={`${label} settings`} onClick={onOpen}>
         ›
       </button>
     </li>
@@ -212,7 +214,10 @@ function KeywordsEditor({ keywords, onSave, onCancel }: { keywords: string; onSa
   );
 }
 
-function RuleDetail({
+// The one editor every highlight rule opens: the eight automatic categories and Keywords get the
+// same page, which differs only by the rule's name, icon, and stored style (plus, for Keywords,
+// the words themselves).
+function HighlightCategoryEditor({
   id,
   rule,
   onChange,
@@ -242,7 +247,12 @@ function RuleDetail({
         </h3>
         <Switch label={`Highlight ${label}`} checked={rule.enabled} onChange={(enabled) => onChange({ enabled })} />
       </header>
-      {id === "keywords" && <KeywordsEditor keywords={keywords} onSave={onKeywordsSave} onCancel={onBack} />}
+      {id === "keywords" && (
+        <section className="lw-rule-detail__words" aria-label="Custom words">
+          <h4 className="lw-ce__heading">Custom Words</h4>
+          <KeywordsEditor keywords={keywords} onSave={onKeywordsSave} onCancel={onBack} />
+        </section>
+      )}
       <HighlightColorEditor
         name={label}
         value={editableColor(rule)}
@@ -289,7 +299,7 @@ export function HighlightSettings({ signalEnabled, highlighted, onSignalChange, 
   if (detail) {
     return (
       <section className="lw-highlighting" aria-label="Profile highlights" ref={sectionRef}>
-        <RuleDetail
+        <HighlightCategoryEditor
           id={detail}
           rule={ruleFor(detail)}
           onChange={change(detail)}
