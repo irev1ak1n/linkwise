@@ -120,7 +120,7 @@ describe("highlight category page", () => {
 
     await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
     expect(getHighlightRule()).toBeNull();
-    expect(container.querySelector('[aria-label="Auto categories"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Highlight categories"]')).not.toBeNull();
   });
 
   it("has compact icon Back and Menu buttons that share one style, and Menu opens the menu", async () => {
@@ -455,6 +455,22 @@ describe("every highlight rule opens the same full editor", () => {
     await act(async () => rowButton(label).click());
     expect(hex().value).toBe("#4F46E5");
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.each(RULES)("$label: the whole row opens the editor, but its switch and color dot never navigate", async ({ id, label }) => {
+    await mountPanel();
+    const row = () => [...container.querySelectorAll<HTMLElement>(".lw-rule--row")].find((r) => r.querySelector(".lw-rule__name")?.textContent === label)!;
+    const before = styleOf(id).enabled;
+    await act(async () => row().querySelector<HTMLInputElement>(".lw-switch")!.click());
+    expect(styleOf(id).enabled).toBe(!before);
+    await act(async () => row().querySelector<HTMLInputElement>(".lw-switch")!.click());
+    await act(async () => row().querySelector<HTMLButtonElement>(".lw-dot__button")!.click());
+    expect(row().querySelector(".lw-dot__popover")).not.toBeNull();
+    expect(getHighlightRule()).toBeNull();
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    // A click on the row itself, away from its controls.
+    await act(async () => row().dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(getHighlightRule()).toBe(id);
   });
 
   it.each(RULES.filter((r) => r.id !== "keywords"))("$label: still opens while Signal Mode is off", async ({ id, label }) => {

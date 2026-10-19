@@ -155,16 +155,26 @@ function RuleRow({
   // While Signal Mode is off its categories are greyed out and their quick controls rest, but
   // every row still opens its full editor: a style can be set up before it is ever shown.
   return (
-    <li className={disabled ? "lw-rule lw-rule--disabled" : "lw-rule"}>
+    // The whole row opens the editor; the color dot and the switch keep their own clicks.
+    <li
+      className={disabled ? "lw-rule lw-rule--row lw-rule--disabled" : "lw-rule lw-rule--row"}
+      onClick={(event) => {
+        if (!(event.target as Element).closest(".lw-dot, .lw-switch, button")) onOpen();
+      }}
+    >
       <button type="button" className="lw-rule__name" onClick={onOpen}>
-        <RuleIcon id={id} />
+        <span className="lw-rule__tile" aria-hidden="true">
+          <RuleIcon id={id} />
+        </span>
         <span>{label}</span>
       </button>
       <ColorDot name={label} rule={rule} disabled={disabled} onChange={(color) => onChange({ color, custom: undefined })} />
       <span className="lw-rule__divider" aria-hidden="true" />
       <Switch label={`Highlight ${label}`} checked={rule.enabled} disabled={disabled} onChange={(enabled) => onChange({ enabled })} />
       <button type="button" className="lw-rule__more" aria-label={`${label} settings`} onClick={onOpen}>
-        ›
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="m9 6 6 6-6 6" />
+        </svg>
       </button>
     </li>
   );
@@ -340,14 +350,13 @@ export function HighlightSettings({ signalEnabled, highlighted, onSignalChange, 
         </span>
         <Switch label="Signal Mode" checked={signalEnabled} onChange={onSignalChange} />
       </label>
-      <h4 className="lw-rules__label">Auto categories</h4>
-      <ul className="lw-rules" aria-label="Auto categories">
+      {/* One grouped list: the automatic categories, then the user's own Keywords. Keywords keep
+          their own rules (and stay usable without Signal Mode); only the grouping is shared. */}
+      <h4 className="lw-rules__label">Highlight categories</h4>
+      <ul className="lw-rules" aria-label="Highlight categories">
         {HIGHLIGHT_CATEGORIES.map((id) => (
           <RuleRow key={id} id={id} rule={prefs.categories[id]} onOpen={() => open(id)} onChange={change(id)} disabled={!signalEnabled} />
         ))}
-      </ul>
-      <h4 className="lw-rules__label">Custom rules</h4>
-      <ul className="lw-rules" aria-label="Custom rules">
         <RuleRow id="keywords" rule={prefs.keywords} onOpen={() => open("keywords")} onChange={change("keywords")} />
       </ul>
       <button type="button" className="lw-rules__reset" onClick={() => highlightPreferences.set({ ...resetHighlightStyles() })}>

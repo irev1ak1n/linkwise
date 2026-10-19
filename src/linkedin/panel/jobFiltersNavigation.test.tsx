@@ -289,14 +289,18 @@ describe("Highlighting settings", () => {
     expect(container.querySelector("textarea[placeholder='Python, robotics, volunteer']")).toBeNull();
   });
 
-  it("lists compact category rows with no subtitles, and Keywords as a custom rule", async () => {
+  it("lists every category and Keywords last, as rows of one grouped list with no subtitles", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     await openSettings();
-    const auto = [...highlights().querySelectorAll('[aria-label="Auto categories"] .lw-rule__name')].map((el) => el.textContent);
-    expect(auto).toEqual(["Roles", "Meaningful Numbers", "Impact", "Leadership", "Skills & Tools", "Achievements", "Projects", "Languages"]);
-    const custom = [...highlights().querySelectorAll('[aria-label="Custom rules"] .lw-rule__name')].map((el) => el.textContent);
-    expect(custom).toEqual(["Keywords"]);
+    const lists = highlights().querySelectorAll("ul");
+    expect(lists).toHaveLength(1);
+    const rows = [...lists[0]!.querySelectorAll(":scope > li .lw-rule__name")].map((el) => el.textContent);
+    expect(rows).toEqual(["Roles", "Meaningful Numbers", "Impact", "Leadership", "Skills & Tools", "Achievements", "Projects", "Languages", "Keywords"]);
+    expect(highlights().textContent).not.toMatch(/Auto categories|Custom rules/i);
+    expect(highlights().querySelector(".lw-rules__label")!.textContent).toBe("Highlight categories");
+    // Chevrons are icons, not text glyphs.
+    for (const more of highlights().querySelectorAll(".lw-rule__more")) expect(more.querySelector("svg") && more.textContent === "").toBe(true);
     const row = highlights().querySelector(".lw-rules .lw-rule")!;
     expect(row.querySelectorAll("p")).toHaveLength(0);
     expect(row.querySelector(".lw-dot__button")).not.toBeNull();
@@ -378,8 +382,9 @@ describe("Highlighting settings", () => {
     await openFromMenu("Profile Analyzer");
     await openSettings();
     const toggle = () => highlights().querySelector<HTMLInputElement>('[aria-label="Signal Mode"]')!;
-    expect(highlights().querySelectorAll('[aria-label="Auto categories"] .lw-rule--disabled')).toHaveLength(8);
-    expect(highlights().querySelector('[aria-label="Custom rules"] .lw-rule--disabled')).toBeNull();
+    expect(highlights().querySelectorAll(".lw-rule--disabled .lw-rule__name")).toHaveLength(8);
+    // Keywords are the user's own words, not Signal Mode's, so they stay usable.
+    expect([...highlights().querySelectorAll(".lw-rule--row:not(.lw-rule--disabled) .lw-rule__name")].map((e) => e.textContent)).toEqual(["Keywords"]);
     await act(async () => toggle().click());
     expect(getSignalModeState().enabled).toBe(true);
     expect(highlights().querySelectorAll(".lw-rule--disabled")).toHaveLength(0);

@@ -1974,31 +1974,73 @@ export function getPanelStyles(widthPx: number): string {
     text-transform: uppercase;
     color: #8a949c;
   }
+  /* One grouped list of rows. No overflow clipping: a row's quick palette opens past the edge. */
   .lw-rules {
     display: flex;
     flex-direction: column;
-    gap: 6px;
     margin: 0;
     padding: 0;
     list-style: none;
+    border: 1px solid #e0e6ef;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
   }
   .lw-rule {
     display: flex;
     align-items: center;
     gap: 8px;
+    box-sizing: border-box;
+  }
+  /* Signal Mode stays a card of its own, above the list. */
+  .lw-rule--master {
     min-height: 46px;
-    padding: 0 6px 0 12px;
+    padding: 0 12px;
     border: 1px solid #e0e6ef;
     border-radius: 12px;
     background: #fff;
-    box-sizing: border-box;
-  }
-  .lw-rule--master {
     cursor: pointer;
-    padding-right: 12px;
   }
-  .lw-rule--disabled {
+  .lw-rule--row {
+    position: relative;
+    min-height: 54px;
+    padding: 0 8px 0 11px;
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+  /* The divider starts after the icon, and the last row has none. */
+  .lw-rule--row:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 53px;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: #e8ecf3;
+  }
+  .lw-rule--row:first-child {
+    border-radius: 14px 14px 0 0;
+  }
+  .lw-rule--row:last-child {
+    border-radius: 0 0 14px 14px;
+  }
+  .lw-rule--row:hover {
+    background: #f8faff;
+  }
+  .lw-rule--row:active {
+    background: #eef3fd;
+  }
+  .lw-rule--disabled > :not(.lw-rule__more) {
     opacity: 0.5;
+  }
+  .lw-rule__tile {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #f1f5fe;
   }
   .lw-rule__name {
     flex: 1;
@@ -2010,9 +2052,9 @@ export function getPanelStyles(widthPx: number): string {
     border: 0;
     background: none;
     font: inherit;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    color: #1d2226;
+    color: #1d2a3a;
     text-align: left;
     cursor: pointer;
   }
@@ -2040,20 +2082,32 @@ export function getPanelStyles(widthPx: number): string {
     color: #2563eb;
   }
   .lw-rule__divider {
+    flex: none;
     width: 1px;
-    height: 20px;
-    background: #e0e6ef;
+    height: 22px;
+    background: #e3e8f0;
   }
   .lw-rule__more {
-    width: 22px;
-    height: 30px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 32px;
     padding: 0;
     border: 0;
     background: none;
-    font-size: 20px;
-    line-height: 1;
-    color: #8a949c;
+    color: #98a2ae;
     cursor: pointer;
+  }
+  .lw-rule__more svg {
+    width: 17px;
+    height: 17px;
+  }
+  .lw-rule__more:focus-visible,
+  .lw-rule__name:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+    border-radius: 6px;
   }
   .lw-switch {
     flex: none;
@@ -2099,8 +2153,8 @@ export function getPanelStyles(widthPx: number): string {
     display: inline-flex;
   }
   .lw-dot__button {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     padding: 0;
     border: 1px solid rgba(0, 0, 0, 0.14);
     border-radius: 50%;
