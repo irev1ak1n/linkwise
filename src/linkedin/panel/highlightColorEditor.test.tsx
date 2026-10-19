@@ -424,6 +424,59 @@ const FIXTURE_PHRASES = [
   "500+", "30%", "TypeScript, React, and Azure", "team of 4", "2 product teams", "Node.js", "AI", "Machine Learning",
 ];
 
+describe("Scanning settings", () => {
+  const rows = () => [...container.querySelectorAll<HTMLElement>(".lw-scan-options .lw-scan-option")].map((r) => r.querySelector(".lw-scan-option__title")!.textContent);
+  const modeCard = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Scan mode"] [role="radio"]')].find((b) => b.textContent === label)!;
+  const rowSwitch = (title: string) => [...container.querySelectorAll<HTMLInputElement>(".lw-scan-option input")].find((i) => i.getAttribute("aria-label") === title)!;
+
+  it("shows the chooser first, then only the selected mode's settings, as switches", async () => {
+    const { setScanMode } = await import("./scanModeStore");
+    setScanMode("scroll");
+    await mountPanel();
+    const scanning = q('[aria-label="Scanning"]');
+    expect(scanning.firstElementChild!.textContent).toBe("Scanning");
+    expect(scanning.querySelector(".lw-sm")).not.toBeNull();
+    expect(rows()).toEqual(["Expand profile details"]);
+    expect(modeCard("Analyze as I scroll").getAttribute("aria-checked")).toBe("true");
+    // Switches, not the old checkboxes; and no chevrons, since nothing here opens a page.
+    expect(container.querySelectorAll('.lw-scan-options input[type="checkbox"]:not([role="switch"])')).toHaveLength(0);
+    expect(container.querySelector(".lw-scan-options .lw-rule__more")).toBeNull();
+
+    sendMessage.mockClear();
+    await act(async () => modeCard("Auto scan profile").click());
+    expect(modeCard("Auto scan profile").getAttribute("aria-checked")).toBe("true");
+    expect(rows()).toEqual(["Expand profile details", "Enhanced analysis", "Analyze sections I open"]);
+    await act(async () => modeCard("Analyze as I scroll").click());
+    expect(rows()).toEqual(["Expand profile details"]);
+    // Changing modes in Settings never asks for a scan or an analysis.
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps each mode's own settings and flips them from the switches", async () => {
+    const { setScanMode } = await import("./scanModeStore");
+    const { getExpandDetailsState } = await import("./expandDetailsStore");
+    const { getEnhancedAnalysisState } = await import("./enhancedAnalysisStore");
+    const { autoExpandPreference } = await import("./autoExpandPreference");
+    setScanMode("auto");
+    await mountPanel();
+    const auto = autoExpandPreference.getState().value;
+    await act(async () => rowSwitch("Expand profile details").click());
+    expect(autoExpandPreference.getState().value).toBe(!auto);
+    const enhanced = getEnhancedAnalysisState().enabled;
+    await act(async () => rowSwitch("Enhanced analysis").click());
+    expect(getEnhancedAnalysisState().enabled).toBe(!enhanced);
+    // The scroll mode's Expand setting is its own, untouched by the Auto scan one.
+    const scrollExpand = getExpandDetailsState().enabled;
+    await act(async () => modeCard("Analyze as I scroll").click());
+    expect(rowSwitch("Expand profile details").checked).toBe(scrollExpand);
+    // Restore for the other tests.
+    await act(async () => rowSwitch("Expand profile details").click());
+    await act(async () => rowSwitch("Expand profile details").click());
+    autoExpandPreference.set(auto);
+    (await import("./enhancedAnalysisStore")).setEnhancedAnalysisPreference(enhanced);
+  });
+});
+
 describe("Smart Highlights card", () => {
   const card = () => q('[aria-label="Smart Highlights"][role="group"]');
   const toggle = () => q<HTMLInputElement>('input[aria-label="Smart Highlights"]');

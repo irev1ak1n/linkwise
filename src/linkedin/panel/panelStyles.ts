@@ -175,18 +175,165 @@ export function getPanelStyles(widthPx: number): string {
     line-height: 1.4;
   }
 
-  /* Scan mode toggle, compact and secondary to the goal/analysis content around it. */
-  .lw-scan-mode {
+  /* Scan mode chooser: one image (panels, icons, glow) with the real text and the selection on
+     top. Positions are fractions of the art, measured from it, so they track it at any width. */
+  .lw-sm {
+    position: relative;
+    aspect-ratio: 1362 / 820;
+    border-radius: 18px;
+    overflow: hidden;
+    isolation: isolate;
+    background: #0a1048;
+    box-shadow: 0 8px 22px rgba(30, 50, 170, 0.22);
+    color: #fff;
+  }
+  .lw-sm__art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    user-select: none;
+  }
+  /* The wide top panel, beside its icon. */
+  .lw-sm__head {
+    position: absolute;
+    left: 22.1%;
+    right: 6%;
+    top: 14.9%;
+    height: 27.3%;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    justify-content: center;
+    gap: 2px;
+    text-shadow: 0 1px 6px rgba(5, 8, 40, 0.5);
   }
-  .lw-scan-mode__label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--lw-section-label);
+  .lw-sm__title {
+    font-size: 16px;
     font-weight: 700;
+    line-height: 1.15;
+  }
+  .lw-sm__subtitle {
+    font-size: 11px;
+    line-height: 1.3;
+    color: rgba(214, 222, 255, 0.85);
+  }
+  .lw-sm__option {
+    position: absolute;
+    top: 46.8%;
+    height: 39.6%;
+    padding: 0;
+    border: 0;
+    border-radius: 11px;
+    background: rgba(3, 6, 32, 0.28);
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .lw-sm__option--scroll {
+    left: 3.74%;
+    width: 45%;
+  }
+  .lw-sm__option--auto {
+    left: 50.95%;
+    width: 45.74%;
+  }
+  .lw-sm__option:hover {
+    background: rgba(3, 6, 32, 0.12);
+  }
+  .lw-sm__option.is-selected {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px rgba(170, 195, 255, 0.95), 0 0 14px rgba(90, 135, 255, 0.55);
+  }
+  .lw-sm__option:focus-visible {
+    outline: 2px solid #c7d2fe;
+    outline-offset: 2px;
+  }
+  /* Beside the panel's icon, never over it. */
+  .lw-sm__label {
+    position: absolute;
+    left: 40%;
+    right: 5%;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    font-size: 13.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-shadow: 0 1px 6px rgba(5, 8, 40, 0.55);
+  }
+  /* Where the art's own check badge sat, on whichever mode is selected. */
+  .lw-sm__check {
+    position: absolute;
+    right: 4.2%;
+    top: 6.8%;
+    width: 12.2%;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #fff;
+    color: #3048e0;
+    box-shadow: 0 0 10px rgba(140, 170, 255, 0.75);
+  }
+  .lw-sm__check svg {
+    width: 62%;
+    height: 62%;
+  }
+
+  /* The selected mode's settings: clean white rows under the chooser. */
+  .lw-scan-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .lw-scan-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 70px;
+    padding: 12px 12px 12px 12px;
+    border: 1px solid #e0e6ef;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+    box-sizing: border-box;
+    cursor: pointer;
+  }
+  .lw-scan-option__tile {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #eef3fe;
+    color: #2f5be0;
+  }
+  .lw-scan-option__tile svg {
+    width: 20px;
+    height: 20px;
+  }
+  .lw-scan-option__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .lw-scan-option__title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1d2a3a;
+  }
+  .lw-scan-option__hint {
+    font-size: 12px;
+    line-height: 1.35;
+    color: #6b7785;
   }
   .lw-scan-mode__control {
     display: flex;
@@ -219,7 +366,7 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a949c;
   }
 
-  /* Compact checkbox next to the Scan mode toggle, only shown in "Analyze as I scroll". */
+  /* Compact checkbox (Job Filters). */
   .lw-expand-details {
     display: flex;
     align-items: center;
@@ -230,24 +377,6 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-expand-details input {
     margin: 0;
-  }
-
-  /* Checkbox under the Scan mode toggle, only shown in "Auto scan profile". */
-  .lw-enhanced-analysis__label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11.5px;
-    color: #56687a;
-    cursor: pointer;
-  }
-  .lw-enhanced-analysis__label input {
-    margin: 0;
-  }
-  .lw-enhanced-analysis__hint {
-    margin: 2px 0 0 20px;
-    font-size: 11px;
-    color: #8a949c;
   }
 
   /* Hands-free reading speed and state, under the Auto scan options. */

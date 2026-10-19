@@ -10,9 +10,7 @@ import { useJobsSettings } from "./useJobsSettings";
 import { useSignalMode } from "./useSignalMode";
 import { GoalSetupSection } from "./GoalSetupSection";
 import { ScanModeToggle } from "./ScanModeToggle";
-import { ExpandDetailsCheckbox } from "./ExpandDetailsCheckbox";
-import { EnhancedAnalysisCheckbox } from "./EnhancedAnalysisCheckbox";
-import { ManualSectionsCheckbox } from "./ManualSectionsCheckbox";
+import { ScanOptionRow } from "./ScanOptionRow";
 import { autoExpandPreference } from "./autoExpandPreference";
 import { useStoredPreference } from "./useStoredPreference";
 import { JobFiltersPage } from "./JobFiltersPage";
@@ -182,12 +180,37 @@ export function PanelApp({ onClose }: PanelAppProps) {
             scanning={
               <>
                 <ScanModeToggle mode={scanMode} onChange={setScanMode} />
-                {scanMode === "scroll" && <ExpandDetailsCheckbox enabled={expandDetailsEnabled} onChange={setExpandDetailsPreference} />}
-                {scanMode === "auto" && (
-                  <ExpandDetailsCheckbox enabled={autoExpandEnabled} onChange={autoExpandPreference.set} hint="Reveal full descriptions while scanning." />
-                )}
-                {scanMode === "auto" && <EnhancedAnalysisCheckbox enabled={enhancedAnalysisEnabled} onChange={setEnhancedAnalysisPreference} />}
-                {scanMode === "auto" && <ManualSectionsCheckbox enabled={manualSectionsEnabled} onChange={setManualSectionsPreference} />}
+                {/* Only the settings that apply to the selected mode, each mode keeping its own values. */}
+                <div className="lw-scan-options">
+                  {scanMode === "scroll" && (
+                    <ScanOptionRow
+                      icon="expand"
+                      title="Expand profile details"
+                      hint="Reveal full descriptions as you scroll."
+                      enabled={expandDetailsEnabled}
+                      onChange={setExpandDetailsPreference}
+                    />
+                  )}
+                  {scanMode === "auto" && (
+                    <>
+                      <ScanOptionRow icon="expand" title="Expand profile details" hint="Reveal full descriptions while scanning." enabled={autoExpandEnabled} onChange={autoExpandPreference.set} />
+                      <ScanOptionRow
+                        icon="enhanced"
+                        title="Enhanced analysis"
+                        hint="Open profile sections for a more complete analysis."
+                        enabled={enhancedAnalysisEnabled}
+                        onChange={setEnhancedAnalysisPreference}
+                      />
+                      <ScanOptionRow
+                        icon="sections"
+                        title="Analyze sections I open"
+                        hint="Add information from profile sections you visit."
+                        enabled={manualSectionsEnabled}
+                        onChange={setManualSectionsPreference}
+                      />
+                    </>
+                  )}
+                </div>
               </>
             }
           />
