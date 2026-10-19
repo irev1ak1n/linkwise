@@ -1,9 +1,10 @@
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import type { MatchResult } from "../../matching/scoreProfile";
 import { matchDisplayColor, matchDisplayLabel, matchDisplayState, type MatchDisplayState } from "../../matching/matchColors";
 import { EXPERIENCE_LEVEL_LABELS, type RecommendationLabel } from "../../matching/profileAnalysis";
 import { buildProfileEvidence } from "../../evidence/buildProfileEvidence";
 import { buildFinalAnalysis, type FinalAnalysis } from "../../ai/mergeIntoAnalysis";
+import { logMatchChange, matchSnapshot } from "../../ai/matchDiagnostics";
 import { describeAiUnavailableReason } from "../../ai/aiUnavailableReason";
 import { sectionLabel } from "./sectionLabels";
 import { confirmedCriteria, criteriaBreakdown, evidenceGroups, firstSentences } from "./analysisDetails";
@@ -44,6 +45,9 @@ export function AnalysisView({ profileKey = null, result, goal, profile, aiState
     return buildFinalAnalysis(goal, profile, evidence, result, ai);
   }, [goal, profile, evidence, result, aiState]);
   const state = matchDisplayState(final.result);
+  useEffect(() => {
+    if (profileKey && aiState.status === "ready" && !aiState.updating) logMatchChange(matchSnapshot(profileKey, location.pathname, profile, final));
+  }, [profileKey, profile, final, aiState]);
   const status = <AnalysisStatus aiState={aiState} onRetry={onRetry} updatingSection={updatingSection} />;
   const tracking = useSavedProfileTracking({ profileKey, profile, goal, final, ready: aiState.status === "ready" && !aiState.updating });
   const savedBar = profileKey ? <SavedProfileBar saved={tracking.saved} checking={tracking.checking} onSave={tracking.save} /> : null;
@@ -112,6 +116,8 @@ function AnalysisStatus({ aiState, onRetry, updatingSection }: Pick<AnalysisView
 
 function ScoreNotes({ final, state }: { final: FinalAnalysis; state: MatchDisplayState }) {
   if (state.kind === "low_confidence") return <p className="lw-an-score__note">Limited profile information — this score may change once more of the profile loads.</p>;
+  // Criteria exist but none could be assessed: only part of the profile (a details page) was read.
+  if (final.result.scorePercent === null && final.result.missing.length > 0) return <p className="lw-an-score__note">Only part of this profile has been read so far — open the main profile for a full analysis.</p>;
   if (final.result.scorePercent === null) return <p className="lw-an-score__note">Add at least one criterion (other than Excluded) to score this profile.</p>;
   if (!final.result.complete) return <p className="lw-an-score__note">A Must-Have criterion could not be confirmed on this profile.</p>;
   return null;

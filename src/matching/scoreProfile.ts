@@ -8,7 +8,7 @@
 // content-script bundle that's currently ~215KB, and would mean running WASM inference on
 // every page visit. Real semantic reasoning happens server-side instead (see backend/).
 import type { Criterion, CriterionImportance, Goal } from "../models/goal";
-import type { LinkedInProfile } from "../models/profile";
+import { isSectionOnlyProfile, type LinkedInProfile } from "../models/profile";
 import type { EvidenceStrength } from "../models/evidence";
 import { buildProfileEvidence } from "../evidence/buildProfileEvidence";
 import { evaluateCriterion, type SemanticEvidence } from "./semanticMatcher";
@@ -170,13 +170,15 @@ export function computeMatchResult(
 }
 
 // The fully local path, no network, no AI. Also the fallback when the backend is unavailable.
+// With only a section page read, a criterion it does not mention is unknown, not missing.
 export function scoreProfileAgainstGoal(goal: Goal, profile: LinkedInProfile): MatchResult {
   const evidence = buildProfileEvidence(profile);
+  const sectionOnly = isSectionOnlyProfile(profile);
   const assessments = new Map<string, CriterionAssessment>();
   for (const criterion of goal.criteria) {
     const result = evaluateCriterion(criterion, profile, evidence);
     assessments.set(criterion.id, {
-      strength: result.strength,
+      strength: sectionOnly && result.strength === "missing" ? "unknown" : result.strength,
       evidence: result.evidence,
       note: result.partialEvidence?.snippet ?? result.explanation,
       explanation: result.explanation,

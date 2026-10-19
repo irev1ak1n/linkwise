@@ -7,7 +7,7 @@ import type { AnalyzeProfileApiResponse } from "./apiTypes";
 function fakePayload(): AnalyzeProfileRequestBody {
   return {
     goal: { id: "g1", description: "Test", criteria: [{ id: "c1", label: "Python", importance: "MUST_HAVE" }] },
-    profile: { identity: "Jordan Rivera", evidence: [] },
+    profile: { identity: "Jordan Rivera", evidence: [], coverage: "full" },
     localAnalysis: { score: null, confidence: 0, profileExtracted: true, criterionResults: [] },
   };
 }

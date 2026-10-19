@@ -522,9 +522,9 @@ export function extractDetailsPageProfile(doc: Document = document): LinkedInPro
   const list = detailsEntryList(doc);
   // A details page never shows who the person is, only the section, so identity always comes
   // from the profile session instead.
-  if (!section || (!list && !container)) return { ...extractLinkedInProfile(doc), name: undefined, headline: undefined, location: undefined };
+  if (!section || (!list && !container)) return { ...extractLinkedInProfile(doc), name: undefined, headline: undefined, location: undefined, sectionOnly: true };
 
-  const profile: LinkedInProfile = { ...EMPTY_PROFILE, experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [] };
+  const profile: LinkedInProfile = { ...EMPTY_PROFILE, experience: [], education: [], skills: [], projects: [], certifications: [], organizations: [], volunteering: [], languages: [], honors: [], sectionOnly: true };
   if (section !== "skills" && section !== "about") {
     const root = (container ?? list)!;
     if (section === "experience") profile.experience = structuredEntries(root, section, experienceFromBlock);

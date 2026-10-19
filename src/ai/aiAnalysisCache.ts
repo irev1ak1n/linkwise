@@ -36,6 +36,23 @@ const ANALYSIS_CACHE_TTL_MS = PROFILE_SESSION_RETENTION_MS;
 const resultCache = createPersistentCache<ReadyOutcome>("finder.analysisCache.v1", ANALYSIS_CACHE_TTL_MS, 30);
 const inFlightRequests = new Map<string, Promise<AiAnalysisOutcome>>();
 
+// The latest result per person and goal, with the evidence it was made from, so the next analysis
+// of the same person (after a details page adds evidence) can build on it instead of starting over.
+export interface LatestAnalysis {
+  key: string;
+  /** Hashes of the evidence texts that analysis saw. */
+  evidence: string[];
+}
+const latestCache = createPersistentCache<LatestAnalysis>("finder.analysisLatest.v1", ANALYSIS_CACHE_TTL_MS, 30);
+
+export function getLatestAnalysis(person: string): LatestAnalysis | undefined {
+  return latestCache.get(person);
+}
+
+export function setLatestAnalysis(person: string, value: LatestAnalysis): void {
+  if (latestCache.get(person)?.key !== value.key) latestCache.set(person, value);
+}
+
 export function getCachedAnalysis(key: string): ReadyOutcome | undefined {
   return resultCache.get(key);
 }
@@ -60,19 +77,20 @@ export function forgetInFlight(key: string): void {
 }
 
 export function hydrateAnalysisCache(): Promise<void> {
-  return resultCache.hydrate();
+  return Promise.all([resultCache.hydrate(), latestCache.hydrate()]).then(() => {});
 }
 
 export function isAnalysisCacheReady(): boolean {
-  return resultCache.isReady();
+  return resultCache.isReady() && latestCache.isReady();
 }
 
 export function whenAnalysisCacheReady(): Promise<void> {
-  return resultCache.whenReady();
+  return Promise.all([resultCache.whenReady(), latestCache.whenReady()]).then(() => {});
 }
 
 /** For tests, resets both maps between cases. */
 export function clearAiAnalysisCache(): void {
   resultCache.clear();
+  latestCache.clear();
   inFlightRequests.clear();
 }

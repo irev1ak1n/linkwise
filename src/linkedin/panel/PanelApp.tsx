@@ -80,7 +80,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
   // Memoized so this stays reference-stable, an unstable one would re-trigger AI on every render.
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
 
-  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && tool !== "optimizer");
+  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && tool !== "optimizer", profileKey);
 
   const scanState =
     profile && collection

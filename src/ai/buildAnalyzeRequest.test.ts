@@ -3,7 +3,7 @@ import { buildAnalyzeProfileRequest, buildLocalCriterionResults } from "./buildA
 import { buildEvidencePayload } from "./evidencePayload";
 import { scoreProfileAgainstGoal } from "../matching/scoreProfile";
 import { createCriterion, createGoal } from "../models/goal";
-import type { LinkedInProfile } from "../models/profile";
+import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 
 function profile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
   return {
@@ -94,5 +94,15 @@ describe("buildLocalCriterionResults", () => {
     const p = profile({ skills: ["Python"] });
     const evidence = buildEvidencePayload(p);
     expect(buildLocalCriterionResults(goal, p, evidence)).toEqual(buildLocalCriterionResults(goal, p, evidence));
+  });
+});
+
+describe("buildAnalyzeProfileRequest - coverage", () => {
+  it("marks evidence from details pages only as section coverage, and a read main page as full", () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+    const honorsOnly: LinkedInProfile = { ...EMPTY_PROFILE, extracted: true, sectionOnly: true, honors: [{ name: "Yale Book Award" }] };
+    expect(buildAnalyzeProfileRequest(goal, honorsOnly, scoreProfileAgainstGoal(goal, honorsOnly)).profile.coverage).toBe("section");
+    const full = { ...honorsOnly, sectionOnly: undefined, name: "Jordan Rivera" };
+    expect(buildAnalyzeProfileRequest(goal, full, scoreProfileAgainstGoal(goal, full)).profile.coverage).toBe("full");
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { scoreProfileAgainstGoal } from "./scoreProfile";
 import { createCriterion, createGoal, type Goal } from "../models/goal";
-import type { LinkedInProfile } from "../models/profile";
+import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 
 function makeProfile(overrides: Partial<LinkedInProfile>): LinkedInProfile {
   return {
@@ -273,5 +273,16 @@ describe("scoreProfileAgainstGoal - changing the goal recalculates from the same
     expect(resultB.scorePercent).toBeLessThan(resultA.scorePercent!);
     expect(resultB.missing).toHaveLength(1);
     expect(resultB.missing[0].criterion.label).toBe("Java");
+  });
+});
+
+describe("scoreProfileAgainstGoal - evidence from details pages only", () => {
+  it("reads a criterion the sections do not mention as unknown, not missing", () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE"), createCriterion("Science fair", "PREFERRED")] };
+    const honorsOnly: LinkedInProfile = { ...EMPTY_PROFILE, extracted: true, sectionOnly: true, honors: [{ name: "Regional Science Fair - 3rd Place" }] };
+    const result = scoreProfileAgainstGoal(goal, honorsOnly);
+    expect(result.missing.find((m) => m.criterion.label === "Python")!.strength).toBe("unknown");
+    const full = scoreProfileAgainstGoal(goal, { ...honorsOnly, sectionOnly: undefined, name: "Jordan Rivera", skills: ["Java"], experience: [{ title: "Web Developer", company: "Northfield High" }] });
+    expect(full.missing.find((m) => m.criterion.label === "Python")!.strength).toBe("missing");
   });
 });

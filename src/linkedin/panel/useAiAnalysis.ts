@@ -13,6 +13,8 @@ export function useAiAnalysis(
   profile: LinkedInProfile | null,
   localResult: MatchResult | null,
   enabled: boolean,
+  /** The person, so a later analysis of them builds on their earlier one. */
+  profileKey: string | null = null,
 ): { state: AiAnalysisState; retry: () => void } {
   const [state, setState] = useState<AiAnalysisState>({ status: "idle" });
   const controllerRef = useRef<AiAnalysisController | null>(null);
@@ -25,14 +27,14 @@ export function useAiAnalysis(
       setState({ status: "idle" });
       return;
     }
-    controller.request(goal, profile, localResult, setState);
-  }, [goal, profile, localResult, enabled]);
+    controller.request(goal, profile, localResult, setState, profileKey);
+  }, [goal, profile, localResult, enabled, profileKey]);
 
   useEffect(() => () => controllerRef.current?.reset(), []);
 
   const retry = useCallback(() => {
-    if (enabled && goal && profile && localResult) controllerRef.current!.retry(goal, profile, localResult, setState);
-  }, [enabled, goal, profile, localResult]);
+    if (enabled && goal && profile && localResult) controllerRef.current!.retry(goal, profile, localResult, setState, profileKey);
+  }, [enabled, goal, profile, localResult, profileKey]);
 
   return { state, retry };
 }

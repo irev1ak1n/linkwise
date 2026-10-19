@@ -2,7 +2,7 @@
 // raw HTML or cookies. Re-evaluates every criterion (including EXCLUDED ones) directly, since
 // computeMatchResult discards a non-disqualifying EXCLUDED result once it's not needed.
 import type { Criterion, Goal } from "../models/goal";
-import type { LinkedInProfile } from "../models/profile";
+import { isSectionOnlyProfile, type LinkedInProfile } from "../models/profile";
 import type { EvidenceStrength } from "../models/evidence";
 import type { MatchResult } from "../matching/scoreProfile";
 import { evaluateCriterion } from "../matching/semanticMatcher";
@@ -27,6 +27,18 @@ export interface AnalyzeRequestProfile {
   headline?: string;
   location?: string;
   evidence: EvidencePayloadItem[];
+  /** "full" once the person's main page was read; "section" when only details pages were, so
+   * what they do not mention is unknown about the person rather than missing. */
+  coverage: "full" | "section";
+}
+
+/** The earlier result for this same person and goal, sent when their evidence has grown, so a
+ * criterion only changes when the new evidence actually says something about it. */
+export interface PreviousAnalysis {
+  matchPercent: number;
+  assessments: { criterionId: string; strength: EvidenceStrength; evidenceSection?: string; evidenceText?: string }[];
+  /** Evidence items that were not part of the earlier analysis. */
+  newEvidenceIds: string[];
 }
 
 export interface LocalCriterionResult {
@@ -45,6 +57,7 @@ export interface AnalyzeProfileRequestBody {
     profileExtracted: boolean;
     criterionResults: LocalCriterionResult[];
   };
+  previous?: PreviousAnalysis;
 }
 
 // One honest local strength per criterion, EXCLUDED ones included, for the backend's guardrails.
@@ -75,6 +88,7 @@ export function buildAnalyzeProfileRequest(goal: Goal, profile: LinkedInProfile,
       headline: profile.headline,
       location: profile.location,
       evidence,
+      coverage: isSectionOnlyProfile(profile) ? "section" : "full",
     },
     localAnalysis: {
       score: localResult.scorePercent,

@@ -358,3 +358,49 @@ describe("AiAnalysisController - one profile across its pages", () => {
     vi.useRealTimers();
   });
 });
+
+describe("AiAnalysisController - the same person after more evidence", () => {
+  const goal = { ...createGoal("Multilingual developers"), criteria: [createCriterion("Python", "PREFERRED")] };
+  const main = profile({ name: "Jordan Rivera", headline: "Student", skills: ["Python"] });
+  const withHonors = { ...main, honors: [{ name: "Yale Book Award" }] };
+  const answered = (requestAiAnalysis: ReturnType<typeof vi.fn>) => requestAiAnalysis.mock.calls.map(([body]) => body);
+
+  function run(personKeys: [string, string]) {
+    const outcome = readyOutcome();
+    outcome.result = { ...outcome.result, scorePercent: 56, missing: [{ criterion: goal.criteria[0]!, strength: "weak" }] };
+    const requestAiAnalysis = vi.fn(() => makePendingRequest(Promise.resolve(outcome)).pending);
+    const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 10 });
+    return { requestAiAnalysis, controller, personKeys };
+  }
+
+  it("sends the earlier result and which evidence is new when the same person gains a section", async () => {
+    const { requestAiAnalysis, controller } = run(["jordan", "jordan"]);
+    controller.request(goal, main, scoreProfileAgainstGoal(goal, main), vi.fn(), "jordan");
+    await vi.advanceTimersByTimeAsync(20);
+    controller.request(goal, withHonors, scoreProfileAgainstGoal(goal, withHonors), vi.fn(), "jordan");
+    await vi.advanceTimersByTimeAsync(20);
+    const [first, second] = answered(requestAiAnalysis);
+    expect(first.previous).toBeUndefined();
+    expect(second.previous).toMatchObject({ matchPercent: 56, assessments: [{ criterionId: goal.criteria[0]!.id, strength: "weak" }] });
+    expect(second.previous.newEvidenceIds).toEqual(second.profile.evidence.filter((e: { section: string }) => e.section === "honors").map((e: { id: string }) => e.id));
+  });
+
+  it("never hands one person's result to another", async () => {
+    const { requestAiAnalysis, controller } = run(["jordan", "sam"]);
+    controller.request(goal, main, scoreProfileAgainstGoal(goal, main), vi.fn(), "jordan");
+    await vi.advanceTimersByTimeAsync(20);
+    const sam = { ...withHonors, name: "Sam Lee" };
+    controller.request(goal, sam, scoreProfileAgainstGoal(goal, sam), vi.fn(), "sam");
+    await vi.advanceTimersByTimeAsync(20);
+    expect(answered(requestAiAnalysis)[1].previous).toBeUndefined();
+  });
+
+  it("asks nothing when navigation brings no new evidence", async () => {
+    const { requestAiAnalysis, controller } = run(["jordan", "jordan"]);
+    controller.request(goal, main, scoreProfileAgainstGoal(goal, main), vi.fn(), "jordan");
+    await vi.advanceTimersByTimeAsync(20);
+    controller.request(goal, { ...main }, scoreProfileAgainstGoal(goal, { ...main }), vi.fn(), "jordan");
+    await vi.advanceTimersByTimeAsync(20);
+    expect(requestAiAnalysis).toHaveBeenCalledTimes(1);
+  });
+});

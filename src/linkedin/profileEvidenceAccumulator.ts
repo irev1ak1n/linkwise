@@ -99,6 +99,9 @@ function mergeSkills(a: string[], b: string[]): string[] {
   return dedupeBy([...a, ...b], (s) => normalize(s));
 }
 
+// Nothing read yet counts as section-only, so it never turns a details reading into a full one.
+const sectionOnlyEvidence = (profile: LinkedInProfile) => profile.sectionOnly === true || !profile.extracted;
+
 // Identity fields keep whichever value was already accumulated, since the main profile page
 // is the only place they ever come from and every later section pass leaves them undefined.
 export function mergeProfileEvidence(accumulated: LinkedInProfile, incoming: LinkedInProfile): LinkedInProfile {
@@ -117,6 +120,8 @@ export function mergeProfileEvidence(accumulated: LinkedInProfile, incoming: Lin
     languages: mergeListEntries(accumulated.languages, incoming.languages),
     honors: mergeListEntries(accumulated.honors, incoming.honors),
     extracted: accumulated.extracted || incoming.extracted,
+    // Still section-only only if both sides were; any main-page evidence makes it a full profile.
+    ...(sectionOnlyEvidence(accumulated) && sectionOnlyEvidence(incoming) ? { sectionOnly: true as const } : {}),
   };
 }
 

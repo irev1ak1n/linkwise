@@ -75,6 +75,10 @@ export interface LinkedInProfile {
   honors: ProfileHonorEntry[];
   /** True once at least a name or headline was found, versus nothing readable at all. */
   extracted: boolean;
+  /** Set when every piece of this evidence came from "/details/{section}/" pages: the person's
+   * main page was never read, so the evidence speaks for its own sections only. Merging in any
+   * main-page reading clears it. */
+  sectionOnly?: true;
 }
 
 export const EMPTY_PROFILE: LinkedInProfile = {
@@ -89,6 +93,12 @@ export const EMPTY_PROFILE: LinkedInProfile = {
   honors: [],
   extracted: false,
 };
+
+// Evidence read only from details pages speaks for its own sections only, so anything it does not
+// mention is unknown about the person, never missing.
+export function isSectionOnlyProfile(profile: LinkedInProfile): boolean {
+  return profile.extracted && profile.sectionOnly === true;
+}
 
 // Which known sections actually have content right now. An absent section isn't missing
 // information, some profiles genuinely have no Projects section.

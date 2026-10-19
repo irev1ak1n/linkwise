@@ -214,3 +214,30 @@ describe("reconcileSections - a section read completely is the current truth", (
     expect(after).not.toBe(before);
   });
 });
+
+describe("a details page is more about the same person, never the whole person", () => {
+  const main = profile({
+    name: "Jordan Rivera",
+    headline: "Student developer",
+    experience: [{ title: "Web Developer", company: "Northfield High" }],
+    languages: [{ name: "Spanish", description: "Full professional proficiency" }],
+    honors: [{ name: "Regional Science Fair - 3rd Place" }],
+  });
+  const honorsPage = profile({ honors: [{ name: "Regional Science Fair - 3rd Place", description: "Issued by Northfield Science Council" }, { name: "Yale Book Award" }], sectionOnly: true });
+
+  it("adds an Honors page to the main profile without losing languages or experience", () => {
+    const merged = accumulateForPage(main, honorsPage, true, ["honors"]);
+    expect(merged.languages).toEqual(main.languages);
+    expect(merged.experience).toEqual(main.experience);
+    expect(merged.honors.map((h) => h.name)).toEqual(["Regional Science Fair - 3rd Place", "Yale Book Award"]);
+    // The richer copy of the same award replaces the short one instead of duplicating it.
+    expect(merged.honors[0]!.description).toBe("Issued by Northfield Science Council");
+    expect(merged.sectionOnly).toBeUndefined();
+  });
+
+  it("stays section-only until the main page is read, then becomes a full profile", () => {
+    const cold = accumulateForPage({ ...EMPTY_PROFILE }, honorsPage, true);
+    expect(cold.sectionOnly).toBe(true);
+    expect(accumulateForPage(cold, main, false).sectionOnly).toBeUndefined();
+  });
+});

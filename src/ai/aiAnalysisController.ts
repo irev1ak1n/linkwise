@@ -3,10 +3,10 @@
 import type { Goal } from "../models/goal";
 import type { LinkedInProfile } from "../models/profile";
 import type { MatchResult } from "../matching/scoreProfile";
-import { buildAnalyzeProfileRequest, type AnalyzeProfileRequestBody } from "./buildAnalyzeRequest";
+import { buildAnalyzeProfileRequest, type AnalyzeProfileRequestBody, type PreviousAnalysis } from "./buildAnalyzeRequest";
 import { requestAiAnalysis as defaultRequestAiAnalysis, type PendingAiRequest } from "./analyzeProfileClient";
 import { analysisSubjectKey, computeAnalysisCacheKey } from "./analysisCacheKey";
-import { forgetInFlight, getCachedAnalysis, getOrStartInFlight, isAnalysisCacheReady, setCachedAnalysis, whenAnalysisCacheReady } from "./aiAnalysisCache";
+import { forgetInFlight, getCachedAnalysis, getLatestAnalysis, getOrStartInFlight, hashString, isAnalysisCacheReady, setCachedAnalysis, setLatestAnalysis, whenAnalysisCacheReady, type LatestAnalysis } from "./aiAnalysisCache";
 import type { AiAnalysisOutcome } from "./apiTypes";
 
 // Lets rapid edits settle before spending an API call on each one.
@@ -29,6 +29,27 @@ export interface AiAnalysisControllerOptions {
 interface Job {
   key: string;
   body: AnalyzeProfileRequestBody;
+  /** The person and goal this analysis belongs to, when known. */
+  person: string | null;
+}
+
+const evidenceHashes = (body: AnalyzeProfileRequestBody) => body.profile.evidence.map((item) => hashString(item.text));
+
+// The earlier result for the same person and goal, as the next request's starting point: what it
+// concluded per criterion, and which evidence is new since then.
+function previousAnalysis(latest: LatestAnalysis | undefined, key: string, body: AnalyzeProfileRequestBody): PreviousAnalysis | undefined {
+  if (!latest || latest.key === key) return undefined;
+  const outcome = getCachedAnalysis(latest.key);
+  if (!outcome || outcome.result.scorePercent === null) return undefined;
+  const seen = new Set(latest.evidence);
+  return {
+    matchPercent: outcome.result.scorePercent,
+    assessments: [
+      ...outcome.result.reasons.map((r) => ({ criterionId: r.criterion.id, strength: r.strength, evidenceSection: r.evidence.sourceSection, evidenceText: r.evidence.snippet })),
+      ...outcome.result.missing.map((m) => ({ criterionId: m.criterion.id, strength: m.strength })),
+    ],
+    newEvidenceIds: body.profile.evidence.filter((item) => !seen.has(hashString(item.text))).map((item) => item.id),
+  };
 }
 
 export class AiAnalysisController {
@@ -74,7 +95,7 @@ export class AiAnalysisController {
 
   /** Requests (or reuses a cached) AI analysis. New evidence for the same profile and goal never
    * cancels an in-flight request; it queues one refresh instead. */
-  request(goal: Goal, profile: LinkedInProfile, localResult: MatchResult, onStateChange: (state: AiAnalysisState) => void): void {
+  request(goal: Goal, profile: LinkedInProfile, localResult: MatchResult, onStateChange: (state: AiAnalysisState) => void, personKey: string | null = null): void {
     this.onStateChange = onStateChange;
     if (!isAnalysisCacheReady()) {
       if (!this.deferred) {
@@ -84,7 +105,7 @@ export class AiAnalysisController {
           if (args) this.request(...args);
         });
       }
-      this.deferred = [goal, profile, localResult, onStateChange];
+      this.deferred = [goal, profile, localResult, onStateChange, personKey];
       if (!this.showingResult) this.show({ status: "loading" });
       return;
     }
@@ -93,6 +114,7 @@ export class AiAnalysisController {
     if (key === this.latestKey) return;
 
     const subject = analysisSubjectKey(goal, body);
+    const person = personKey ? `${personKey}|${analysisSubjectKey(goal, { ...body, profile: { ...body.profile, identity: "" } })}` : null;
     if (subject !== this.subject) {
       this.cancelPending();
       this.showingResult = false;
@@ -103,24 +125,27 @@ export class AiAnalysisController {
     const cached = getCachedAnalysis(key);
     if (cached) {
       this.queued = null;
+      if (person) setLatestAnalysis(person, { key, evidence: evidenceHashes(body) });
       this.show({ status: "ready", outcome: cached });
       return;
     }
 
+    const previous = person ? previousAnalysis(getLatestAnalysis(person), key, body) : undefined;
+    const job: Job = { key, body: previous ? { ...body, previous } : body, person };
     if (this.pending) {
-      this.queued = { key, body };
+      this.queued = job;
       this.markUpdating();
       return;
     }
     if (this.showingResult) this.markUpdating();
     else this.show({ status: "loading" });
-    this.schedule({ key, body });
+    this.schedule(job);
   }
 
   /** Forgets the current result and asks again, e.g. after a timeout. */
-  retry(goal: Goal, profile: LinkedInProfile, localResult: MatchResult, onStateChange: (state: AiAnalysisState) => void): void {
+  retry(goal: Goal, profile: LinkedInProfile, localResult: MatchResult, onStateChange: (state: AiAnalysisState) => void, personKey: string | null = null): void {
     this.reset();
-    this.request(goal, profile, localResult, onStateChange);
+    this.request(goal, profile, localResult, onStateChange, personKey);
   }
 
   private schedule(job: Job): void {
@@ -154,6 +179,7 @@ export class AiAnalysisController {
         const refreshing = this.queued !== null && this.queued.key === this.latestKey;
         if (outcome.status === "ok") {
           setCachedAnalysis(job.key, outcome);
+          if (job.person) setLatestAnalysis(job.person, { key: job.key, evidence: evidenceHashes(job.body) });
           if (job.key === this.latestKey || !this.showingResult) this.show({ status: "ready", outcome, updating: refreshing });
         } else if (this.showingResult && this.current) {
           this.show({ status: "ready", outcome: this.current, updating: refreshing, updateError: refreshing ? undefined : outcome.reason });
