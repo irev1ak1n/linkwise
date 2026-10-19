@@ -75,6 +75,8 @@ export const evidenceFactSchema = z.object({
   specificity: z.number(),
   distinctiveness: z.number(),
   goalRelevance: z.number(),
+  /** How much highlighting this exact phrase helps someone skim its item, apart from importance. */
+  readingValue: z.number(),
   genericness: z.number(),
   confidence: z.number(),
 });

@@ -23,7 +23,7 @@ const empty: SignalClassification = { careerStage: "student", items: [] };
 function grade(quote: string, overrides: Partial<EvidenceFact> = {}): EvidenceFact {
   return {
     quote, fact: quote, type: "measurable_impact", claim: "main", group: 0, labels: ["impact"], impact: 2, ownership: 1, result: 2, scale: 2, selectivity: 0, leadership: 0,
-    technicalDepth: 0, sustainedDepth: 0, specificity: 2, distinctiveness: 1, goalRelevance: 1, genericness: 0, confidence: 0.9, ...overrides,
+    technicalDepth: 0, sustainedDepth: 0, specificity: 2, distinctiveness: 1, goalRelevance: 1, readingValue: 2, genericness: 0, confidence: 0.9, ...overrides,
   };
 }
 
@@ -77,7 +77,7 @@ describe("POST /api/analyze-signals", () => {
     });
     const res = await request(appWith(client)).post("/api/analyze-signals").send(body);
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ status: "signals", version: 3, careerStage: "student", classified: ["experience:0", "about:0"] });
+    expect(res.body).toMatchObject({ status: "signals", version: 3, careerStage: "student", classified: ["experience:0"] });
     expect(res.body.candidates).toHaveLength(1);
     expect(res.body.candidates[0]).toMatchObject({ evidenceId: "experience:0", quote: "reached 300+ visitors", metrics: ["300+ visitors"], goalRelevance: 1 });
   });

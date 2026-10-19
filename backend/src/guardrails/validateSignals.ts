@@ -45,6 +45,8 @@ export interface ValidatedCandidate {
   type: SignalFactType;
   grades: Grades;
   goalRelevance: number;
+  /** 0-3: how much highlighting the phrase helps a reader skim its item. */
+  readingValue: number;
   confidence: number;
   metrics: string[];
   claim: "main" | "support";
@@ -55,7 +57,8 @@ export interface ValidatedCandidate {
 export interface ValidatedClassification {
   careerStage: CareerStage;
   candidates: ValidatedCandidate[];
-  /** Every submitted item counts as graded, including those the model found nothing in. */
+  /** The submitted items the model answered for, including those it found nothing in. An item it
+   * skipped is not graded: calling it graded would cache it as empty and hide it for good. */
   classified: string[];
 }
 
@@ -171,12 +174,17 @@ function isBareNumber(quote: string): boolean {
 
 // Titles, organizations, and names belong to the entry's heading, not its evidence: never any part
 // of the title, nor the whole organization.
+// An award's title is its achievement ("Regional Piano Competition - 2nd Place"), so in Honors it
+// may be quoted; everywhere else a title or organization is only the entry's heading.
 function isEntryHeading(quote: string, source: EvidenceText): boolean {
   const parts = source.text.split(" — ");
   if (parts.length < 2) return false;
   const target = normalizeText(quote);
-  return normalizeText(parts[0]!).includes(target) || normalizeText(parts[1]!) === target;
+  return (source.section !== "honors" && normalizeText(parts[0]!).includes(target)) || normalizeText(parts[1]!) === target || EMPLOYMENT_TYPE.test(quote.trim());
 }
+
+// LinkedIn's employment-type label is never evidence.
+const EMPLOYMENT_TYPE = /^(?:self-employed|full-time|part-time|internship|freelance|contract|seasonal|apprenticeship|volunteer)$/i;
 
 const wordCount = (text: string) => text.trim().split(/\s+/).length;
 
@@ -222,18 +230,36 @@ function clampGrade(value: number): number {
 
 // A phrase like "for a 4,000+ student school" only describes the setting of the real fact. A
 // clause that merely opens with its setting ("At age 13, I was admitted ...", "In 2025, I
-// graduated ...") is a claim, not a fragment.
+// graduated ...") is a claim, not a fragment. A supporting clause that states a number is the
+// exception: it is only ever shown beside its main claim, and its number is that claim's scale.
 const SETTING_OPENER = /^(?:for|at|of|in|on|from|with|within|across)\s+(?:a|an|the|my|our|their|~|\d)\b/i;
-function isContextFragment(text: string): boolean {
+function isContextFragment(text: string, claim: EvidenceFact["claim"]): boolean {
+  if (claim === "support" && /\d/.test(text)) return false;
+  // Two words without a number ("to attend") explain nothing, even beside their main claim.
+  if (claim === "support" && wordCount(text) < 3) return true;
   return SETTING_OPENER.test(text) && !/,\s/.test(text) && wordCount(text) <= 8;
 }
 
-function groundedQuote(quote: string, source: EvidenceText): { text: string; start: number } | null {
+function groundedQuote(quote: string, source: EvidenceText, claim: EvidenceFact["claim"]): { text: string; start: number } | null {
   const found = groundedSpan(source.text, quote);
   const text = found && shortenList(found.text);
   if (!found || !text || text.length < MIN_QUOTE_LENGTH || text.length > MAX_HIGHLIGHT_LENGTH || text.includes(" — ")) return null;
-  if (isEntryHeading(text, source) || isBareNumber(text) || isContextFragment(text)) return null;
+  if (isEntryHeading(text, source) || isBareNumber(text) || isContextFragment(text, claim) || isRecordMetadata(source.text, found.start)) return null;
   return { text, start: found.start };
+}
+
+// LinkedIn's own record line ("Northfield Academy · Issued May 2025 · Credential ID ... · Skills: ...")
+// is never evidence, even when a word in it ("Diploma") looks like one.
+const RECORD_METADATA = /\bCredential ID\b|\bIssued (?:\p{L}{3,9} )?\d{4}\b|^\s*Issued by\b|\bSkills:/u;
+// Judged per " · " segment: the record line often ends with the real description in its own
+// segment ("Issued by Northfield High · May 2025 · Awarded to 2 students ...").
+function isRecordMetadata(text: string, start: number): boolean {
+  // Everything after "Skills:" in the same part is LinkedIn's skill list ("· Diploma · Transcript").
+  const partStart = text.lastIndexOf(" — ", start);
+  if (text.slice(partStart === -1 ? 0 : partStart, start).includes("Skills:")) return true;
+  const before = Math.max(text.lastIndexOf(" — ", start), text.lastIndexOf(" · ", start));
+  const ends = [text.indexOf(" — ", start), text.indexOf(" · ", start)].filter((i) => i !== -1);
+  return RECORD_METADATA.test(text.slice(before === -1 ? 0 : before + 3, ends.length > 0 ? Math.min(...ends) : undefined));
 }
 
 // The short fact line must only use numbers and names its own item states.
@@ -256,7 +282,7 @@ const STATED_SIZE = /\d|\b(?:dozens|hundreds|thousands|millions|school-?wide|sta
 const STATED_DURATION = /\d+\s*\+?\s*(?:years?|yrs?|months?|mos?|weeks?|hours?|hrs?|seasons?|semesters?)\b|\bsince\s+\d{4}\b/i;
 
 function toCandidate(raw: EvidenceFact, source: EvidenceText): (ValidatedCandidate & { start: number }) | null {
-  const quote = groundedQuote(raw.quote, source);
+  const quote = groundedQuote(raw.quote, source, raw.claim);
   if (!quote) return null;
   const grades = Object.fromEntries(GRADE_KEYS.map((key) => [key, clampGrade(raw[key])])) as Grades;
   // Scale and sustained depth must be stated in the phrase itself, never assumed.
@@ -271,6 +297,7 @@ function toCandidate(raw: EvidenceFact, source: EvidenceText): (ValidatedCandida
     type: raw.type,
     grades,
     goalRelevance: clampGrade(raw.goalRelevance),
+    readingValue: clampGrade(raw.readingValue),
     confidence,
     metrics: extractMetrics(quote.text),
     claim: raw.claim === "support" ? "support" : "main",
@@ -307,5 +334,6 @@ export function validateClassification(response: SignalClassification, submitted
       .sort((a, b) => a.start - b.start);
     candidates.push(...anchorSupports(kept).map(({ start: _start, ...candidate }) => candidate));
   }
-  return { careerStage: response.careerStage, candidates, classified: submitted.map((item) => item.id) };
+  const answered = new Set(response.items.map((item) => item.evidenceId));
+  return { careerStage: response.careerStage, candidates, classified: submitted.filter((item) => answered.has(item.id)).map((item) => item.id) };
 }

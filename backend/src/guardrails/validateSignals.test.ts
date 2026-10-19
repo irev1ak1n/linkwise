@@ -40,6 +40,7 @@ function grade(quote: string, overrides: Partial<EvidenceFact> = {}): EvidenceFa
     specificity: 1,
     distinctiveness: 1,
     goalRelevance: 0,
+    readingValue: 1,
     genericness: 0,
     confidence: 0.9,
     ...overrides,
@@ -187,9 +188,40 @@ describe("validateClassification", () => {
     expect(facts["reached 300+ visitors"]).toBeNull();
   });
 
+  it("never quotes LinkedIn's record metadata, even a word in it that looks like evidence", () => {
+    const certificate: EvidenceText = { id: "certifications:0", section: "certifications", text: "Software Certificate — Northfield Academy · Issued May 2025 · Credential ID NA-1234 · Skills: Higher Education · Diploma · Transcript" };
+    expect(run([{ evidenceId: "certifications:0", facts: [grade("Diploma"), grade("Higher Education · Diploma")] }], [certificate]).candidates).toEqual([]);
+  });
+
   it("rejects a phrase that only describes the setting of a fact", () => {
     const result = run([{ evidenceId: "experience:0", facts: [grade("at the State Conference"), grade("earn 3rd place at the State Conference")] }]);
     expect(result.candidates.map((c) => c.quote)).toEqual(["earn 3rd place at the State Conference"]);
+  });
+
+  it("keeps a setting phrase that states its main claim's scale, as a support", () => {
+    const item: EvidenceText = { id: "experience:1", section: "experience", text: "Web Developer — Northfield High — Built a yearbook website for a 4,000+ student school." };
+    const facts = [grade("Built a yearbook website", { group: 1 }), grade("for a 4,000+ student school", { claim: "support", group: 1, fact: "" })];
+    expect(run([{ evidenceId: "experience:1", facts }], [item]).candidates.map((c) => [c.quote, c.claim])).toEqual([
+      ["Built a yearbook website", "main"],
+      ["for a 4,000+ student school", "support"],
+    ]);
+    expect(run([{ evidenceId: "experience:1", facts: [grade("for a 4,000+ student school")] }], [item]).candidates).toEqual([]);
+  });
+
+  it("lets an award's title be quoted, since it is the achievement, but never an employment type", () => {
+    const award: EvidenceText = { id: "honors:2", section: "honors", text: "Regional Piano Competition - 2nd Place — Issued by Northfield Music Clubs · Mar 2025" };
+    expect(run([{ evidenceId: "honors:2", facts: [grade("Regional Piano Competition - 2nd Place")] }], [award]).candidates.map((c) => c.quote)).toEqual(["Regional Piano Competition - 2nd Place"]);
+    const job: EvidenceText = { id: "experience:2", section: "experience", text: "Photographer — Instagram · Self-employed — Took landscape photos for 4,500+ followers" };
+    expect(run([{ evidenceId: "experience:2", facts: [grade("Self-employed")] }], [job]).candidates).toEqual([]);
+  });
+
+  it("drops a two-word supporting fragment and an 'Issued by' record line", () => {
+    const item: EvidenceText = { id: "honors:0", section: "honors", text: "Upperclassman Award — Issued by Northfield High School · May 2025 — Selected to attend the State Honors Program." };
+    const facts = [grade("Selected to attend the State Honors Program", { group: 1 }), grade("to attend", { claim: "support", group: 1, fact: "" }), grade("Issued by Northfield High School")];
+    expect(run([{ evidenceId: "honors:0", facts }], [item]).candidates.map((c) => c.quote)).toEqual(["Selected to attend the State Honors Program"]);
+    // A description in the record line's last segment is still evidence.
+    const award: EvidenceText = { id: "honors:1", section: "honors", text: "Band Award — Issued by Northfield High School · May 2025 · Awarded to 2 students in recognition of musical excellence." };
+    expect(run([{ evidenceId: "honors:1", facts: [grade("Awarded to 2 students in recognition of musical excellence")] }], [award]).candidates.map((c) => c.quote)).toEqual(["Awarded to 2 students in recognition of musical excellence"]);
   });
 
   it("drops a fact line that names numbers or names its item never states, but keeps the quote", () => {
@@ -214,7 +246,16 @@ describe("validateClassification", () => {
     expect(new Set(result.candidates.map((c) => c.quote)).size).toBe(result.candidates.length);
   });
 
-  it("counts every submitted item as graded, even when nothing in it was worth a fact", () => {
-    expect(run([]).classified).toEqual(evidence.map((item) => item.id));
+  it("counts an item as graded when the model answered for it, even with nothing worth a fact", () => {
+    expect(run(evidence.map((item) => ({ evidenceId: item.id, facts: [] }))).classified).toEqual(evidence.map((item) => item.id));
+  });
+
+  it("never counts an item the model skipped as graded, so it is not cached as empty", () => {
+    expect(run([{ evidenceId: "about:0", facts: [] }]).classified).toEqual(["about:0"]);
+  });
+
+  it("keeps the reading value, clamped to a grade", () => {
+    const [candidate] = run([{ evidenceId: "volunteering:0", facts: [grade("Completed 60+ hours of tutoring in Java", { readingValue: 7 })] }]).candidates;
+    expect(candidate!.readingValue).toBe(3);
   });
 });

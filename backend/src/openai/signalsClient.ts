@@ -3,7 +3,8 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { signalClassificationSchema, type SignalClassification } from "./signalsSchema";
 import type { BackendConfig } from "../config";
 
-const DEFAULT_TIMEOUT_MS = 30000;
+// Two attempts must fit inside the extension's 75 s limit (SIGNAL_TIMEOUT_MS), with room for the network.
+const DEFAULT_TIMEOUT_MS = 35000;
 const DEFAULT_TIMEOUT_RETRIES = 1;
 
 export interface SignalAnalysisClient {
