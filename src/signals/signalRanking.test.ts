@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bandFor, rankSignals, scoreCandidate, type RankCandidate } from "./signalRanking";
-import { heuristicGrades } from "./heuristicGrades";
+import { fallbackEvidence, heuristicGrades } from "./heuristicGrades";
 import type { Grades, SignalFactType, SignalSection } from "../ai/signalTypes";
 
 const NONE: Grades = { impact: 0, ownership: 0, result: 0, scale: 0, selectivity: 0, leadership: 0, technicalDepth: 0, sustainedDepth: 0, specificity: 1, distinctiveness: 0, genericness: 0 };
@@ -311,5 +311,41 @@ describe("cross-section training duplicates", () => {
     const reasons = ranking.debug.filter((r) => r.reason === "DUPLICATE_FACT").map((r) => r.quote);
     expect(reasons).toHaveLength(1);
     expect(reasons[0]).toMatch(/9 years/);
+  });
+});
+
+describe("Key Evidence lines", () => {
+  it("keeps one line per entry, so one experience cannot fill the list", () => {
+    const scholarship = ["Selected for the Brightway Merit Scholarship, awarded to 12 incoming students each year", "Brightway Merit Scholarship covers full tuition for four years"].map(
+      (fact, i) => candidate("selective", `quote ${i} about the scholarship`, { itemKey: "award", section: "honors", position: i * 40, fact }),
+    );
+    const other = candidate("shipped", "Shipped an app used by 2,000 students", { itemKey: "app", fact: "Shipped a study-planner app used by 2,000 students at Northfield High" });
+    const facts = rankSignals([...scholarship, other], { goalActive: false }).facts.map((f) => f.text);
+    expect(facts.filter((f) => f.includes("Brightway"))).toHaveLength(1);
+    expect(facts).toContain("Shipped a study-planner app used by 2,000 students at Northfield High");
+  });
+
+  it("lets About, which can tell several experiences, keep two lines", () => {
+    const about = ["Founded Northwind Labs to build and launch original mobile apps", "Tutored 15 students in algebra every week at the Math Center", "Volunteered 80 hours at the Riverside food bank"].map(
+      (fact, i) => candidate("shipped", `about quote ${i}`, { itemKey: "about", section: "about", position: i * 60, fact }),
+    );
+    expect(rankSignals(about, { goalActive: false }).facts).toHaveLength(2);
+  });
+
+  it("never lists a supporting clause as its own line", () => {
+    const main = candidate("selective", "admitted into the Advanced track", { itemKey: "e", group: 1, claim: "main", fact: "Admitted at age 12 into the Advanced Engineering track meant for students 17 and older" });
+    const support = candidate("selective", "a track meant for students 17 and older", { itemKey: "e", group: 1, claim: "support", position: 40, fact: "Track meant for students 17 and older" });
+    expect(rankSignals([main, support], { goalActive: false }).facts.map((f) => f.text)).toEqual(["Admitted at age 12 into the Advanced Engineering track meant for students 17 and older"]);
+  });
+});
+
+describe("fallback Key Evidence wording", () => {
+  it("turns a complete first-person action into a line, and nothing else", () => {
+    expect(fallbackEvidence("I built a booking dashboard used by 40 teachers")).toBe("Built a booking dashboard used by 40 teachers");
+    expect(fallbackEvidence("Completed 60+ hours of tutoring in Java")).toBe("Completed 60+ hours of tutoring in Java");
+    // Fragments without their subject or action get no line at all.
+    expect(fallbackEvidence("awarded to 12 students annually")).toBeNull();
+    expect(fallbackEvidence("for a 4,000+ student school")).toBeNull();
+    expect(fallbackEvidence("Built my site")).toBeNull();
   });
 });

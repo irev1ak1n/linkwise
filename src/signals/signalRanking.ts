@@ -54,6 +54,8 @@ export interface RankingDebugRecord {
   id: string;
   section: SignalSection;
   quote: string;
+  /** The Key Evidence line written for it, if any. */
+  fact: string | null;
   type: SignalFactType;
   band: Band;
   score: number;
@@ -159,6 +161,8 @@ const DUPLICATE_SIMILARITY = 0.6;
 const MAX_HIGHLIGHTS = 22;
 const CORE_SHARE = 0.8;
 const MAX_FACTS = 12;
+// An entry is one experience, so it gets one line; About is free prose that can hold several.
+const factsPerItem = (section: SignalSection) => (section === "about" ? 2 : 1);
 const DENSITY_SHARE = 0.25;
 const MIN_DENSITY_ALLOWANCE = 400;
 const ITEM_SHARE = 0.55;
@@ -435,8 +439,17 @@ export function rankSignals(candidates: RankCandidate[], options: RankingOptions
   for (const c of pool) if (!status.has(c.id)) status.set(c.id, { status: "pool" });
   for (const c of kept) if (!status.has(c.id)) status.set(c.id, { status: "rejected", reason: atLeast(c.band, "useful") ? "REDUNDANT" : "LOST_TO_STRONGER_EVIDENCE" });
 
+  // Key Evidence: the same ranking, one line per main claim, and one line per experience so the
+  // list describes the person rather than one experience told four ways.
+  const perItem = new Map<string, number>();
   const facts = kept
     .filter((c) => c.fact && atLeast(c.band, "useful") && !isSupport(c))
+    .filter((c) => {
+      const used = perItem.get(c.itemKey) ?? 0;
+      if (used >= factsPerItem(c.section)) return false;
+      perItem.set(c.itemKey, used + 1);
+      return true;
+    })
     .slice(0, MAX_FACTS)
     .map((c) => ({ text: c.fact!, evidenceId: c.evidenceId }));
 
@@ -444,6 +457,7 @@ export function rankSignals(candidates: RankCandidate[], options: RankingOptions
     id: c.id,
     section: c.section,
     quote: c.quote,
+    fact: c.fact,
     type: c.type,
     band: c.band,
     score: c.score,

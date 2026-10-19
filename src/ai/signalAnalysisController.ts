@@ -77,7 +77,9 @@ export function signalsCacheKey(body: AnalyzeSignalsRequestBody): string {
   return `${SIGNAL_ANALYSIS_VERSION}:${body.profile.identity}:${hashString(JSON.stringify(body.profile.evidence))}:${goalHash(body.goal?.text)}`;
 }
 
-const gradeKey = (identity: string, goal: string, item: EvidencePayloadItem) => `${SIGNAL_RANKING_VERSION}:${identity}:${goal}:${itemHash(item)}`;
+// Key Evidence lines are written alongside each item's grades, so new wording rules must regrade.
+export const KEY_EVIDENCE_WORDING_VERSION = 4;
+const gradeKey = (identity: string, goal: string, item: EvidencePayloadItem) => `${SIGNAL_RANKING_VERSION}.${KEY_EVIDENCE_WORDING_VERSION}:${identity}:${goal}:${itemHash(item)}`;
 
 export interface SignalAnalysisControllerOptions {
   onChange: (state: SignalAnalysisState) => void;
@@ -105,7 +107,7 @@ function debugEnabled(): boolean {
 
 function logRanking(ranking: RankingResult, profileKey: string): void {
   if (!debugEnabled()) return;
-  const rows = ranking.debug.map((r) => ({ status: r.status, reason: r.reason ?? "", band: r.band, score: r.score, intrinsic: r.intrinsic, goal: r.goalPart, type: r.type, section: r.section, quote: r.quote, sentence: r.sentence, claim: r.claim, group: r.group, labels: r.labels.join(" "), category: phraseCategory(r), confidence: r.confidence, grades: Object.entries(r.grades).filter(([, v]) => v > 0).map(([k, v]) => `${k}${v}`).join(" "), goalRelevance: r.goalRelevance }));
+  const rows = ranking.debug.map((r) => ({ status: r.status, reason: r.reason ?? "", band: r.band, score: r.score, intrinsic: r.intrinsic, goal: r.goalPart, type: r.type, section: r.section, quote: r.quote, fact: r.fact ?? "", sentence: r.sentence, claim: r.claim, group: r.group, labels: r.labels.join(" "), category: phraseCategory(r), confidence: r.confidence, grades: Object.entries(r.grades).filter(([, v]) => v > 0).map(([k, v]) => `${k}${v}`).join(" "), goalRelevance: r.goalRelevance }));
   console.groupCollapsed(`[LinkWise signals] ${profileKey}: ${ranking.core.length} core, ${ranking.discovery.length} discovery, ${ranking.debug.length} candidates`);
   console.table(rows);
   console.groupEnd();

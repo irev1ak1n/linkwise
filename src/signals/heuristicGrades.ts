@@ -107,6 +107,19 @@ function descriptiveParts(text: string, section: SignalSection): { text: string;
   return parts;
 }
 
+const ACTION_START = /^(?:\p{Lu}\p{Ll}+ed|Built|Won|Led|Taught|Ran|Made|Wrote|Grew|Began|Sold|Took|Gave|Spent|Became|Brought|Drove)\b/u;
+
+// Key Evidence wording without AI: only a clause that already reads as a complete action ("I built
+// a dashboard for 40 teachers" becomes "Built a dashboard for 40 teachers"). Anything else gets no
+// line rather than a broken one.
+export function fallbackEvidence(clause: string): string | null {
+  const text = clause.replace(/^I(?:'ve| have| had| was)?\s+/, "").replace(/[.;,]+$/, "").trim();
+  const line = text.charAt(0).toUpperCase() + text.slice(1);
+  const words = line.split(/\s+/).length;
+  if (words < 6 || words > 28 || !ACTION_START.test(line) || /\b(?:I|my|me|I'm)\b/.test(line)) return null;
+  return line;
+}
+
 export function heuristicGrades(item: { id: string; section: SignalSection; text: string }): GradedCandidateDTO[] {
   if (item.section === "headline" || item.section === "location" || item.section === "skills") return [];
   const candidates: GradedCandidateDTO[] = [];
@@ -118,7 +131,7 @@ export function heuristicGrades(item: { id: string; section: SignalSection; text
         evidenceId: item.id,
         section: item.section,
         quote: clause.text,
-        fact: null,
+        fact: fallbackEvidence(clause.text),
         type,
         grades,
         goalRelevance: 0,
