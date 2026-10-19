@@ -1,13 +1,18 @@
 // Skills & Tools only ever mark words inside evidence Signal Mode already chose, so a technical
 // noun elsewhere on the page is never highlighted. The terms are the person's own listed skills
 // plus a short list of well-known tools, which covers the skills LinkedIn hides behind "Show all".
-const KNOWN_TOOLS = [
+export const KNOWN_TOOLS = [
   "Python", "Java", "JavaScript", "TypeScript", "C++", "C#", "C", "Go", "Rust", "Swift", "Kotlin", "Ruby", "PHP", "SQL", "R", "MATLAB",
   "HTML", "CSS", "React", "Next.js", "Node.js", "Vue", "Angular", "Svelte", "Express", "Django", "Flask", "Spring", "Tailwind",
   "AWS", "Azure", "GCP", "Google Cloud", "Firebase", "Supabase", "Docker", "Kubernetes", "Git", "GitHub", "Linux",
   "PostgreSQL", "MySQL", "MongoDB", "Redis", "GraphQL", "TensorFlow", "PyTorch", "Pandas", "NumPy", "Tableau", "Power BI",
   "Excel", "Figma", "Photoshop", "Illustrator", "Premiere Pro", "After Effects", "Canva", "AutoCAD", "SolidWorks", "Fusion 360",
   "Unity", "Unreal Engine", "Arduino", "Raspberry Pi", "Salesforce", "Jira",
+  ".NET", "ASP.NET", "ASP.NET Core", "WPF", "Laravel", "Rails", "Ruby on Rails", "jQuery", "Bootstrap", "Sass", "Vite", "Webpack",
+  "Blender", "Maya", "Cinema 4D", "Lightroom", "InDesign", "DaVinci Resolve", "Final Cut Pro", "CapCut", "Procreate", "Sketch",
+  "Scratch", "LabVIEW", "Simulink", "Verilog", "VHDL", "Assembly", "Bash", "PowerShell", "Dart", "Flutter", "React Native", "Xcode",
+  "Android Studio", "Visual Studio", "VS Code", "Postman", "Vercel", "Netlify", "Heroku", "Snowflake", "BigQuery", "Spark", "Hadoop",
+  "scikit-learn", "Keras", "OpenCV", "Jupyter", "SPSS", "Stata", "Notion", "Trello", "WordPress", "Shopify", "Webflow",
 ];
 
 // Single letters and very common words are too ambiguous to find inside free text.

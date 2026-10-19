@@ -7,6 +7,10 @@ import { profileIdentityKey } from "./profileAdapter";
 import type { PanelProfileData } from "./panel/panelStore";
 import { DEFAULT_HIGHLIGHT_PREFERENCES, isMeaningfulMetric, type PhraseCategory, type HighlightCategory, type HighlightPreferences } from "../signals/highlightCategories";
 import { skillTerms, skillsIn } from "../signals/skillTerms";
+import { skillGroups, type SkillGroup } from "../signals/skillLists";
+import { buildEvidencePayload } from "../ai/evidencePayload";
+import { sentenceIndex } from "../signals/signalPlan";
+import type { RankingResult } from "../signals/signalRanking";
 
 export const INLINE_MIN_IMPORTANCE = 0.5;
 
@@ -52,7 +56,7 @@ export function signalTickInput(enabled: boolean, href: string, data: PanelProfi
 //   every category off still leaves Signal Mode's highlights. Nothing here ever needs a request.
 // - Numbers and skills mark words inside a claim, only while their category is on; at most three
 //   colors share one sentence.
-export function signalTargets(highlights: InlineHighlightDTO[], prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES, skills: string[] = []): SignalTarget[] {
+export function signalTargets(highlights: InlineHighlightDTO[], prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES, skills: string[] = [], coverage?: SkillCoverage): SignalTarget[] {
   const { categories } = prefs;
   const terms = categories.skills.enabled ? skillTerms(skills) : [];
   const layerOf = (category: PhraseCategory): PhraseCategory => (category === "general" || categories[category].enabled ? category : "general");
@@ -65,7 +69,68 @@ export function signalTargets(highlights: InlineHighlightDTO[], prefs: Highlight
     const marked = skillsIn(s.quote, terms).filter((skill) => !metrics.some((m) => m.includes(skill) || skill.includes(m)));
     targets.push({ key, section: s.section, quote: s.quote, metrics, skills: marked, layer: category, sentence: s.sentence, counted: s.claim !== "support" });
   });
-  return limitColors(targets);
+  const limited = limitColors(targets);
+  return categories.skills.enabled && coverage ? withSkillCoverage(limited, visible, coverage) : limited;
+}
+
+// The skill lists of a profile, found in its own text (see skillLists). Category coverage: a list
+// of skills shows all of them while Skills & Tools is on, whatever Smart highlighting chose.
+export interface SkillCoverage {
+  groups: SkillGroup[];
+  itemTexts: ReadonlyMap<string, string>;
+}
+
+const GROUP_EDGE = /^[\s,/&]+|[\s,/&]+$/g;
+const trimEdges = (text: string) => text.replace(GROUP_EDGE, "").replace(/^(?:and|or)\s+/i, "").replace(/\s+(?:and|or)$/i, "");
+
+// A group inside a chosen claim becomes skill marks in it, so nothing is ever drawn twice or nested;
+// what lies outside every chosen claim is drawn on its own in the Skills style. Coverage comes after
+// the color limit, so an announced list is never cut, and it does not count as a signal of its own.
+function withSkillCoverage(targets: SignalTarget[], visible: InlineHighlightDTO[], coverage: SkillCoverage): SignalTarget[] {
+  // Targets line up with visible: one per chosen claim, in the same order.
+  const result: SignalTarget[] = targets.map((t) => ({ ...t, skills: [...(t.skills ?? [])] }));
+  for (const group of coverage.groups) {
+    const text = coverage.itemTexts.get(group.evidenceId);
+    if (!text) continue;
+    const start = group.start;
+    const end = start + group.text.length;
+    const inside: [number, number][] = [];
+    visible.forEach((h, i) => {
+      if (h.evidenceId !== group.evidenceId) return;
+      const at = text.indexOf(h.quote);
+      if (at === -1 || at >= end || at + h.quote.length <= start) return;
+      const from = Math.max(start, at);
+      const to = Math.min(end, at + h.quote.length);
+      const mark = trimEdges(text.slice(from, to));
+      const target = result[i];
+      if (!mark || !target) return;
+      target.skills = [...(target.skills ?? []).filter((s) => !mark.includes(s)), mark];
+      target.metrics = target.metrics.filter((m) => !mark.includes(m));
+      inside.push([from, to]);
+    });
+    // The parts no chosen claim covers.
+    let cursor = start;
+    for (const [from, to] of [...inside].sort((a, b) => a[0] - b[0])) {
+      if (from > cursor) result.push(standalone(group, text, cursor, from));
+      cursor = Math.max(cursor, to);
+    }
+    if (cursor < end) result.push(standalone(group, text, cursor, end));
+  }
+  return result.filter((t) => t.quote.length > 0);
+}
+
+function standalone(group: SkillGroup, text: string, from: number, to: number): SignalTarget {
+  const raw = text.slice(from, to);
+  const quote = trimEdges(raw);
+  return { key: `skills:${group.evidenceId}:${from}`, section: group.section, quote, metrics: [], layer: "skills", sentence: `${group.evidenceId}:${sentenceIndex(text, from)}`, counted: false };
+}
+
+// Skill lists come from the profile's own text, plus the skills the semantic analysis classified.
+export function skillCoverage(profile: LinkedInProfile | null, ranking?: Pick<RankingResult, "debug">): SkillCoverage | undefined {
+  if (!profile) return undefined;
+  const items = buildEvidencePayload(profile).filter((item) => !["headline", "location", "skills", "languages"].includes(item.section));
+  const classified = (ranking?.debug ?? []).filter((r) => r.type === "skill").flatMap((r) => r.quote.split(/\s*,\s*(?:and\s+)?|\s+and\s+/));
+  return { groups: skillGroups(items, [...profile.skills, ...classified]), itemTexts: new Map(items.map((item) => [item.id, item.text])) };
 }
 
 const MAX_COLORS_PER_SENTENCE = 3;
@@ -128,7 +193,8 @@ export function createSignalRuntime(options: SignalRuntimeOptions) {
     const state = controller.getState();
     const prefs = preferences();
     const ready = state.status === "ready" && state.profileKey === activeProfileKey;
-    const targets = highlightOn && activeProfileKey ? [...structuralTargets(activeProfile, prefs), ...(ready ? signalTargets(state.highlights, prefs, activeProfile?.skills) : [])] : [];
+    const coverage = ready && prefs.categories.skills.enabled ? skillCoverage(activeProfile, state.ranking) : undefined;
+    const targets = highlightOn && activeProfileKey ? [...structuralTargets(activeProfile, prefs), ...(ready ? signalTargets(state.highlights, prefs, activeProfile?.skills, coverage) : [])] : [];
     const count = targets.length > 0 ? highlighter.render(targets) : 0;
     if (targets.length === 0) highlighter.clear();
     publish(activeProfileKey ? state : { status: "idle" }, count);

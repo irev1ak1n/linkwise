@@ -8,6 +8,7 @@ import { SignalHighlighter, highlightName, type HighlightRegistryLike } from "./
 import { DEFAULT_HIGHLIGHT_PREFERENCES, type HighlightPreferences } from "../signals/highlightCategories";
 const QUOTE_HIGHLIGHT = highlightName("leadership");
 import { createSignalRuntime, isMainProfilePage, isProfileSessionPage, signalTargets, signalTickInput, structuralTargets } from "./signalRuntime";
+import { skillGroups } from "../signals/skillLists";
 
 const entries = new Map<string, { ranges: Range[] }>();
 const registry: HighlightRegistryLike = { set: (n, h) => entries.set(n, h as unknown as { ranges: Range[] }), delete: (n) => entries.delete(n) };
@@ -310,5 +311,40 @@ describe("createSignalRuntime", () => {
     await vi.advanceTimersByTimeAsync(50);
     runtime.dispose();
     expect(entries.size).toBe(0);
+  });
+});
+
+describe("signalTargets - Skills & Tools list coverage", () => {
+  const text = "Northfield Academy — Over 6 years, I acquired skills in Python, C++, C#, .NET, WPF, SQL, Laravel, web development, robotics, and game design.";
+  const coverage = { groups: skillGroups([{ id: "education:0", section: "education", text }]), itemTexts: new Map([["education:0", text]]) };
+  const claim = { evidenceId: "education:0", section: "education" as const, quote: "Over 6 years, I acquired skills in Python, C++, C#", type: "core" as const, importance: 1, metrics: ["6 years"], category: "general" as const, sentence: "education:1" };
+
+  it("shows the whole announced list: inside the chosen claim as marks, the rest on its own", () => {
+    const targets = signalTargets([claim], DEFAULT_HIGHLIGHT_PREFERENCES, [], coverage);
+    expect(targets[0]!.skills).toEqual(["Python, C++, C#"]);
+    expect(targets.slice(1).map((t) => [t.quote, t.layer, t.counted])).toEqual([
+      [".NET, WPF, SQL, Laravel", "skills", false],
+      ["web development, robotics, and game design", "skills", false],
+    ]);
+  });
+
+  it("never draws two ranges over the same text", () => {
+    const targets = signalTargets([claim], DEFAULT_HIGHLIGHT_PREFERENCES, [], coverage);
+    const spans = targets.map((t) => [text.indexOf(t.quote), text.indexOf(t.quote) + t.quote.length] as const).sort((a, b) => a[0] - b[0]);
+    for (let i = 1; i < spans.length; i++) expect(spans[i]![0]).toBeGreaterThanOrEqual(spans[i - 1]![1]);
+  });
+
+  it("leaves list coverage out entirely while Skills & Tools is off, and brings back the same on", () => {
+    expect(signalTargets([claim], off("skills"), [], coverage).map((t) => t.quote)).toEqual([claim.quote]);
+    expect(signalTargets([claim], DEFAULT_HIGHLIGHT_PREFERENCES, [], coverage)).toEqual(signalTargets([claim], DEFAULT_HIGHLIGHT_PREFERENCES, [], coverage));
+  });
+
+  it("marks a number and the skills of one claim side by side, never nested", () => {
+    const tutoring = "Tutor — Completed 150+ hours of tutoring in Python and C++, supporting 15+ students.";
+    const cov = { groups: skillGroups([{ id: "experience:0", section: "experience", text: tutoring }]), itemTexts: new Map([["experience:0", tutoring]]) };
+    const h = { evidenceId: "experience:0", section: "experience" as const, quote: "Completed 150+ hours of tutoring in Python and C++", type: "core" as const, importance: 1, metrics: ["150+ hours"], category: "leadership" as const };
+    const [target] = signalTargets([h], DEFAULT_HIGHLIGHT_PREFERENCES, [], cov);
+    expect(target!.metrics).toEqual(["150+ hours"]);
+    expect(target!.skills).toEqual(["Python and C++"]);
   });
 });
