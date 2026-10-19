@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { parseKeywords } from "../keywordHighlights";
-import { editableColor, HIGHLIGHT_SHADES, highlightDeclarations, PROFILE_HIGHLIGHT_COLORS, shadeFor, type HighlightColor } from "../highlightPalette";
+import { editableColor, HIGHLIGHT_SHADES, PROFILE_HIGHLIGHT_COLORS, shadeFor, type HighlightColor } from "../highlightPalette";
 import {
   CATEGORY_INFO,
   HIGHLIGHT_CATEGORIES,
@@ -10,7 +10,7 @@ import {
 } from "../../signals/highlightCategories";
 import { highlightPreferences, MAX_RECENT_COLORS, recentHighlightColors, rememberRecentColor } from "./highlightPreferences";
 import { HighlightColorEditor } from "./HighlightColorEditor";
-import { exampleSegments, HIGHLIGHT_EXAMPLES } from "./highlightExamples";
+import { HighlightPreviewCards } from "./HighlightPreviewCards";
 import { closeHighlightRule, getHighlightRule, openHighlightRule, subscribeHighlightRule, takeListScroll, type HighlightRuleId } from "./settingsNav";
 
 export const HIGHLIGHT_TEXT_MAX_LENGTH = 500;
@@ -166,30 +166,6 @@ function RuleRow({
   );
 }
 
-// Generic sentences drawn with the same declarations as the ::highlight() rules on LinkedIn, so
-// what the preview shows is what the profile shows.
-function LivePreview({ id, rule }: { id: RuleId; rule: HighlightStyle }) {
-  const marked = highlightDeclarations(rule, id === "keywords");
-  return (
-    <section className="lw-live" aria-label="Live preview">
-      <h4 className="lw-live__heading">Live Preview</h4>
-      {HIGHLIGHT_EXAMPLES[id].map((sentence) => (
-        <p key={sentence} className="lw-live__example">
-          {exampleSegments(sentence).map((part, i) =>
-            part.marked ? (
-              <span key={i} className="lw-live__mark" style={marked}>
-                {part.text}
-              </span>
-            ) : (
-              part.text
-            ),
-          )}
-        </p>
-      ))}
-    </section>
-  );
-}
-
 function KeywordsEditor({ keywords, onSave, onCancel }: { keywords: string; onSave: (keywords: string) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(keywords);
   useEffect(() => setDraft(keywords), [keywords]);
@@ -274,7 +250,7 @@ function RuleDetail({
         recent={recent.length > 0 ? recent : QUICK_COLORS}
         onSettle={rememberRecentColor}
       />
-      <LivePreview id={id} rule={rule} />
+      <HighlightPreviewCards id={id} rule={rule} keywords={parseKeywords(keywords)} />
     </section>
   );
 }

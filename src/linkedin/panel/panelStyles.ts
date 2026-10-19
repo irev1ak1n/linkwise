@@ -2196,8 +2196,7 @@ export function getPanelStyles(widthPx: number): string {
   }
 
   /* Color editor: square + hue slider + values, sized for the 360px sidebar. */
-  .lw-ce,
-  .lw-live {
+  .lw-ce {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -2387,21 +2386,192 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a949c;
   }
 
-  /* Live Preview: generic sentences, one under another, drawn like the profile. */
+  /* Live Preview: miniature LinkedIn pieces, one under another, drawn like the profile. */
   .lw-live {
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
-  .lw-live__example {
-    margin: 0;
-    padding: 0 0 10px;
-    border-bottom: 1px solid #eef1f4;
+  .lw-pv {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 13px;
+    border: 1px solid #e0e6ef;
+    border-radius: 13px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    color: #1d2226;
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.45;
+  }
+  .lw-pv__icon {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    color: #56687a;
+  }
+  .lw-pv__label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
     color: #1d2226;
   }
-  .lw-live__example:last-child {
-    padding-bottom: 0;
-    border-bottom: 0;
+  .lw-pv__author {
+    display: flex;
+    gap: 9px;
+  }
+  .lw-pv__avatar {
+    flex: none;
+    display: grid;
+    place-items: end center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #dfe4ea;
+    overflow: hidden;
+  }
+  .lw-pv__avatar-icon {
+    width: 34px;
+    height: 34px;
+    margin-bottom: -6px;
+    color: #9aa6b2;
+    fill: #b5bfca;
+    stroke: none;
+  }
+  .lw-pv__who,
+  .lw-pv__entry-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .lw-pv__name,
+  .lw-pv__title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1d2226;
+  }
+  .lw-pv__degree {
+    font-weight: 400;
+    color: #6b7785;
+  }
+  .lw-pv__headline {
+    font-size: 12px;
+    color: #44505c;
+  }
+  .lw-pv__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11.5px;
+    color: #6b7785;
+  }
+  .lw-pv__globe {
+    width: 12px;
+    height: 12px;
+    color: #6b7785;
+  }
+  .lw-pv__body,
+  .lw-pv__line {
+    margin: 0;
+  }
+  .lw-pv__line {
+    margin-top: 6px;
+    font-size: 12.5px;
+    color: #2d3740;
+  }
+  .lw-pv__social {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #eef1f4;
+    font-size: 11.5px;
+    color: #6b7785;
+  }
+  .lw-pv__reactions {
+    display: inline-flex;
+    align-items: center;
+  }
+  .lw-pv__reaction {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    margin-right: -3px;
+    border: 1.5px solid #fff;
+    border-radius: 50%;
+  }
+  .lw-pv__reaction:last-of-type {
+    margin-right: 5px;
+  }
+  .lw-pv__reaction--like {
+    background: #378fe9;
+  }
+  .lw-pv__reaction--celebrate {
+    background: #44a14a;
+  }
+  .lw-pv__reaction--love {
+    background: #df704d;
+  }
+  .lw-pv__reaction-icon {
+    width: 9px;
+    height: 9px;
+    color: #fff;
+    stroke-width: 2.6;
+  }
+  .lw-pv__entry {
+    display: flex;
+    gap: 10px;
+  }
+  .lw-pv__logo {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: #eef3f8;
+  }
+  .lw-pv__logo-icon {
+    width: 20px;
+    height: 20px;
+    color: #56687a;
+  }
+  .lw-pv__bullets {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0 0;
+    padding-left: 15px;
+    font-size: 12.5px;
+    color: #2d3740;
+  }
+  .lw-pv__bullets li::marker {
+    color: #8a949c;
+  }
+  .lw-pv__pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lw-pv__pill {
+    padding: 4px 11px;
+    border-radius: 999px;
+    background: #eef1f4;
+    font-size: 12px;
+    font-weight: 500;
+    color: #44505c;
+  }
+  .lw-pv__pill--marked {
+    color: #1d2226;
   }
 `;
 }

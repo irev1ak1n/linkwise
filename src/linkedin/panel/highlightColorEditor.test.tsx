@@ -70,7 +70,8 @@ const hex = () => q<HTMLInputElement>("#lw-ce-hex");
 const channel = (name: "Red" | "Green" | "Blue") => q<HTMLInputElement>(`input[aria-label="${name}"]`);
 const rgb = () => [channel("Red").value, channel("Green").value, channel("Blue").value].map(Number);
 const roles = () => highlightPreferences.getState().value.categories.roles;
-const previewMarks = () => [...container.querySelectorAll<HTMLElement>(".lw-live__mark")];
+const previewMarks = () => [...container.querySelectorAll<HTMLElement>(".lw-pv__mark, .lw-pv__pill--marked")];
+const marksIn = (card: string) => [...container.querySelectorAll<HTMLElement>(`[aria-label="${card}"] .lw-pv__mark, [aria-label="${card}"] .lw-pv__pill--marked`)].map((m) => m.textContent);
 
 async function openCategory(label: string) {
   await act(async () => rowButton(label).click());
@@ -125,7 +126,8 @@ describe("highlight category page", () => {
     expect(q(".lw-ce__rgb").querySelectorAll("input")).toHaveLength(3);
     const sections = [...container.querySelectorAll(".lw-rule-detail > section")].map((el) => el.getAttribute("aria-label"));
     expect(sections).toEqual(["Roles color", "Live preview"]);
-    expect(container.querySelectorAll(".lw-live__example").length).toBeGreaterThanOrEqual(4);
+    const cards = [...container.querySelectorAll(".lw-live > article")].map((el) => el.getAttribute("aria-label"));
+    expect(cards).toEqual(["Post example", "Experience example", "Skills example", "Education example"]);
   });
 
   it("opens with the preset's own color and opacity", async () => {
@@ -243,16 +245,68 @@ describe("highlight category page", () => {
     expect(hex().value).toBe("#0A66C2");
   });
 
-  it("shows examples of the open category only", async () => {
+  async function marksFor(label: string) {
+    if (getHighlightRule()) await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
+    await openCategory(label);
+    return { post: marksIn("Post example"), experience: marksIn("Experience example"), skills: marksIn("Skills example"), education: marksIn("Education example") };
+  }
+
+  it("shows the same four cards on every page, highlighting only the open category's phrases", async () => {
     await mountPanel();
-    await openCategory("Meaningful Numbers");
-    expect(previewMarks().map((m) => m.textContent)).toContain("4,000+ students");
-    // Numbers keep their underline in the preview, like on the profile.
+    expect(await marksFor("Roles")).toEqual({ post: ["Software Engineer"], experience: ["Software Developer Intern"], skills: [], education: [] });
+    expect(await marksFor("Meaningful Numbers")).toEqual({
+      post: ["10,000+", "40%", "team of 5", "1st place"],
+      experience: ["500+", "30%", "team of 4", "2 product teams"],
+      skills: [],
+      // Years are dates, not meaningful numbers.
+      education: [],
+    });
+    expect(await marksFor("Skills & Tools")).toEqual({
+      post: ["React, Python, and AWS"],
+      experience: ["TypeScript, React, and Azure"],
+      skills: ["Python", "React", "AWS"],
+      education: ["AI, Machine Learning, Database Systems, Computer Vision"],
+    });
+    expect(await marksFor("Achievements")).toEqual({ post: ["1st place at our regional hackathon"], experience: [], skills: [], education: [] });
+    expect((await marksFor("Impact")).post).toEqual(["used by 10,000+ students", "improving engagement by 40%"]);
+    // Skill pills that do not apply stay neutral.
+    expect(container.querySelectorAll(".lw-pv__pill:not(.lw-pv__pill--marked)")).toHaveLength(8);
+  });
+
+  it("adds a languages line only on the Languages page", async () => {
+    await mountPanel();
+    expect((await marksFor("Roles")).education).toEqual([]);
+    expect(container.textContent).not.toContain("Languages: English");
+    expect((await marksFor("Languages")).education).toEqual(["English", "Spanish", "Arabic"]);
+  });
+
+  it("draws Numbers with their underline, like on the profile, and Keywords from the user's own list", async () => {
+    await mountPanel();
+    await marksFor("Meaningful Numbers");
     expect(previewMarks()[0]!.style.textDecoration).toContain("underline");
-    await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
-    await openCategory("Skills & Tools");
-    expect(previewMarks().map((m) => m.textContent)).toContain("PostgreSQL");
-    expect(container.textContent).not.toContain("4,000+ students");
+    const { highlightKeywordsPreference } = await import("./keywordPreference");
+    highlightKeywordsPreference.set("react, AI");
+    const marks = await marksFor("Keywords");
+    expect(marks.post).toEqual(["React"]);
+    expect(marks.skills).toEqual(["React"]);
+    // Whole words only: "AI" is not found inside "maintained".
+    expect(marks.experience).toEqual(["React"]);
+    expect(marks.education).toEqual(["AI"]);
+    highlightKeywordsPreference.set("");
+  });
+
+  it("updates every card at once when the color or opacity changes", async () => {
+    await mountPanel();
+    await marksFor("Skills & Tools");
+    await typeInto(hex(), "#8BC7FF");
+    const slider = q<HTMLInputElement>("#lw-ce-opacity");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(slider, "45");
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const colors = new Set(previewMarks().map((m) => m.style.backgroundColor));
+    expect([...colors]).toEqual(["rgba(139, 199, 255, 0.45)"]);
+    expect(previewMarks()).toHaveLength(6);
   });
 
   it("never asks for AI while colors change", async () => {
