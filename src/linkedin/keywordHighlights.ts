@@ -6,13 +6,14 @@ import { DEFAULT_KEYWORD_HIGHLIGHT_COLOR, HIGHLIGHT_SHADES, type HighlightColor 
 
 export const KEYWORD_HIGHLIGHT = "linkwise-keyword";
 const STYLE_ID = "lw-keyword-style";
-// The dotted underline keeps keywords distinct from Signal highlights even in the same color.
-function stylesFor(color: HighlightColor): string {
+// The underline is dotted, so keywords stay distinct from Signal highlights even in the same color.
+function stylesFor(color: HighlightColor, underline: boolean): string {
   const { fill, mark } = HIGHLIGHT_SHADES[color];
+  const line = underline ? `text-decoration: underline dotted 2px ${mark};
+  text-underline-offset: 3px;` : "text-decoration: none;";
   return `::highlight(${KEYWORD_HIGHLIGHT}) {
   background-color: ${fill};
-  text-decoration: underline dotted 2px ${mark};
-  text-underline-offset: 3px;
+  ${line}
 }`;
 }
 const SKIPPED_ANCESTORS = "button, svg, script, style, nav, header, aside, footer, .visually-hidden, [data-lw-ignore]";
@@ -114,6 +115,7 @@ function defaultFactory(ranges: Range[]): Highlight {
 // text without wrapping or changing any of LinkedIn's markup.
 export class KeywordHighlighter {
   private color: HighlightColor = DEFAULT_KEYWORD_HIGHLIGHT_COLOR;
+  private underline = true;
 
   constructor(
     private readonly doc: Document,
@@ -138,18 +140,19 @@ export class KeywordHighlighter {
   }
 
   // Restyles existing matches in place; nothing is located again.
-  setColor(color: HighlightColor): void {
-    if (color === this.color) return;
+  setStyle(color: HighlightColor, underline: boolean): void {
+    if (color === this.color && underline === this.underline) return;
     this.color = color;
+    this.underline = underline;
     const style = this.doc.getElementById(STYLE_ID);
-    if (style) style.textContent = stylesFor(color);
+    if (style) style.textContent = stylesFor(color, underline);
   }
 
   private ensureStyles(): void {
     if (this.doc.getElementById(STYLE_ID)) return;
     const style = this.doc.createElement("style");
     style.id = STYLE_ID;
-    style.textContent = stylesFor(this.color);
+    style.textContent = stylesFor(this.color, this.underline);
     this.doc.head.appendChild(style);
   }
 }

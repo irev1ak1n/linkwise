@@ -139,6 +139,10 @@ export function extractMetrics(quote: string): string[] {
   for (const match of quote.matchAll(METRIC_PATTERN)) {
     const value = match[0].trim();
     if (isBareYear(value) || /^\d[\d,.]*$/.test(value)) continue;
+    // "'26 school" is a year and "11th grade" a grade level, not something measured.
+    const before = quote.slice(0, match.index ?? 0);
+    const after = quote.slice((match.index ?? 0) + match[0].length);
+    if (/['‘’]$/.test(before) || (/^\d+(?:st|nd|rd|th)$/i.test(value) && /^\s*(?:grade|grader|year|semester)\b/i.test(after))) continue;
     if (/^(19|20)\d{2}\b/.test(value) && !/[%$+]/.test(value)) continue;
     if (!metrics.includes(value)) metrics.push(value);
   }

@@ -1,21 +1,25 @@
 import { compactText, locateSignals, type SignalTarget } from "./signalRanges";
-import { DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_SHADES, type HighlightColor } from "./highlightPalette";
+import { HIGHLIGHT_SHADES } from "./highlightPalette";
+import { DEFAULT_HIGHLIGHT_PREFERENCES, HIGHLIGHT_CATEGORIES, type HighlightCategory, type HighlightPreferences } from "../signals/highlightCategories";
 
 export const QUOTE_HIGHLIGHT = "linkwise-signal";
-export const METRIC_HIGHLIGHT = "linkwise-signal-metric";
 const STYLE_ID = "lw-signal-style";
+const DEFAULT_LAYER: HighlightCategory = "impact";
 
-// The metric layer sits on top of its phrase, so the same fill twice reads as a deeper shade.
-function stylesFor(color: HighlightColor): string {
-  const { fill, mark } = HIGHLIGHT_SHADES[color];
-  return `
-  ::highlight(${QUOTE_HIGHLIGHT}) { background-color: ${fill}; }
-  ::highlight(${METRIC_HIGHLIGHT}) {
-    background-color: ${fill};
-    text-decoration: underline 2px ${mark};
-    text-underline-offset: 3px;
-  }
-`;
+/** One CSS highlight per category, so each can be restyled alone and nothing is ever nested. */
+export function highlightName(category: HighlightCategory): string {
+  return `${QUOTE_HIGHLIGHT}-${category}`;
+}
+
+// Numbers and skills mark words inside a phrase, so they sit on top of it: their own fill over the
+// phrase's reads as their color, and an underline (when on) keeps them legible either way.
+export function signalStyles(prefs: HighlightPreferences): string {
+  return HIGHLIGHT_CATEGORIES.map((category) => {
+    const { color, underline } = prefs.categories[category];
+    const { fill, mark } = HIGHLIGHT_SHADES[color];
+    const line = underline ? ` text-decoration: underline 2px ${mark}; text-underline-offset: 3px;` : " text-decoration: none;";
+    return `::highlight(${highlightName(category)}) { background-color: ${fill};${line} }`;
+  }).join("\n");
 }
 
 export interface HighlightRegistryLike {
@@ -42,9 +46,13 @@ interface Applied {
   count: number;
 }
 
+const toCategory = (layer: string | undefined): HighlightCategory =>
+  HIGHLIGHT_CATEGORIES.find((c) => c === layer) ?? DEFAULT_LAYER;
+
 export class SignalHighlighter {
   private applied: Applied | null = null;
-  private color: HighlightColor = DEFAULT_HIGHLIGHT_COLOR;
+  private prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES;
+  private readonly registered = new Set<string>();
 
   constructor(
     private readonly doc: Document,
@@ -63,15 +71,29 @@ export class SignalHighlighter {
     if (this.applied?.fingerprint === fingerprint && this.applied.complete && this.stillValid(this.applied)) return this.applied.count;
 
     const located = locateSignals(this.doc, targets);
-    const quoteRanges = [...located.values()].map((l) => l.quote);
-    const metricRanges = [...located.values()].flatMap((l) => l.metrics);
+    const layers = new Map<HighlightCategory, Range[]>();
+    const add = (category: HighlightCategory, ranges: Range[]) => {
+      if (ranges.length > 0) layers.set(category, [...(layers.get(category) ?? []), ...ranges]);
+    };
+    for (const target of targets) {
+      const found = located.get(target.key);
+      if (!found) continue;
+      add(toCategory(target.layer), [found.quote]);
+      add("numbers", found.metrics);
+      add("skills", found.skills);
+    }
     this.ensureStyles();
-    this.registry.set(QUOTE_HIGHLIGHT, this.createHighlight(quoteRanges, 0));
-    this.registry.set(METRIC_HIGHLIGHT, this.createHighlight(metricRanges, 1));
+    for (const name of this.registered) if (![...layers.keys()].some((c) => highlightName(c) === name)) this.registry.delete(name);
+    this.registered.clear();
+    for (const [category, ranges] of layers) {
+      const mark = category === "numbers" || category === "skills";
+      this.registry.set(highlightName(category), this.createHighlight(ranges, mark ? 1 : 0));
+      this.registered.add(highlightName(category));
+    }
 
     this.applied = {
       fingerprint,
-      ranges: [...quoteRanges, ...metricRanges].map((range) => ({ range, expected: compactText(range.toString()) })),
+      ranges: [...layers.values()].flat().map((range) => ({ range, expected: compactText(range.toString()) })),
       complete: located.size === targets.length,
       count: located.size,
     };
@@ -79,16 +101,15 @@ export class SignalHighlighter {
   }
 
   // Only restyles the existing highlights: nothing is located, requested, or re-rendered.
-  setColor(color: HighlightColor): void {
-    if (color === this.color) return;
-    this.color = color;
+  setPreferences(prefs: HighlightPreferences): void {
+    this.prefs = prefs;
     const style = this.doc.getElementById(STYLE_ID);
-    if (style) style.textContent = stylesFor(color);
+    if (style) style.textContent = signalStyles(prefs);
   }
 
   clear(): void {
-    this.registry?.delete(QUOTE_HIGHLIGHT);
-    this.registry?.delete(METRIC_HIGHLIGHT);
+    for (const name of this.registered) this.registry?.delete(name);
+    this.registered.clear();
     this.applied = null;
   }
 
@@ -102,7 +123,7 @@ export class SignalHighlighter {
     if (this.doc.getElementById(STYLE_ID)) return;
     const style = this.doc.createElement("style");
     style.id = STYLE_ID;
-    style.textContent = stylesFor(this.color);
+    style.textContent = signalStyles(this.prefs);
     this.doc.head.appendChild(style);
   }
 }

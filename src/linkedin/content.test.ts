@@ -1898,16 +1898,17 @@ describe("content.ts bootstrap - keyword highlights", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("recolors Signal highlights right away with no request, keeping keyword highlights and the color across pages", async () => {
-    const { nav, main, sendMessage } = await openProfile({ "finder.highlightKeywords.v1": "Python", "finder.signalHighlightColor.v1": "green" });
+  it("restyles every category right away with no request, keeping keyword highlights and styles across pages", async () => {
+    const { nav, main, sendMessage } = await openProfile({ "finder.highlightKeywords.v1": "Python", "finder.signalHighlightColor.v1": "coral" });
     const { HIGHLIGHT_SHADES } = await import("./highlightPalette");
-    const { highlightColorPreference } = await import("./panel/highlightColorPreference");
-    await vi.waitFor(() => expect(highlightColorPreference.getState().value).toBe("green"));
+    const { highlightPreferences } = await import("./panel/highlightPreferences");
+    // The old single Signal color carries over to Impact.
+    await vi.waitFor(() => expect(highlightPreferences.getState().value.categories.impact.color).toBe("coral"));
     document.head.insertAdjacentHTML("beforeend", '<style id="lw-signal-style"></style>');
-    highlightColorPreference.set("yellow");
-    highlightColorPreference.set("purple");
+    highlightPreferences.setCategory("roles", { color: "pink", underline: true });
+    highlightPreferences.setCategory("roles", { color: "purple" });
     const style = () => document.getElementById("lw-signal-style")!.textContent!;
-    expect(style()).toContain(HIGHLIGHT_SHADES.purple.fill);
+    expect(style()).toContain(`::highlight(linkwise-signal-roles) { background-color: ${HIGHLIGHT_SHADES.purple.fill}; text-decoration: underline 2px`);
     expect(keywordRanges()).toEqual(["Python"]);
     expect(sendMessage).not.toHaveBeenCalled();
 
@@ -1919,15 +1920,23 @@ describe("content.ts bootstrap - keyword highlights", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("uses the saved keyword color and recolors when it changes, with no request", async () => {
+  it("uses the saved keyword style, restyles it, and hides keywords when switched off, with no request", async () => {
     const { sendMessage } = await openProfile({ "finder.highlightKeywords.v1": "Python", "finder.keywordHighlightColor.v1": "coral" });
     const { HIGHLIGHT_SHADES } = await import("./highlightPalette");
     const style = () => document.getElementById("lw-keyword-style")?.textContent ?? "";
     await vi.advanceTimersByTimeAsync(200);
     expect(style()).toContain(HIGHLIGHT_SHADES.coral.fill);
-    const { keywordColorPreference } = await import("./panel/keywordColorPreference");
-    keywordColorPreference.set("mint");
+    expect(style()).toContain("dotted");
+    const { highlightPreferences } = await import("./panel/highlightPreferences");
+    highlightPreferences.setKeywords({ color: "mint", underline: false });
     expect(style()).toContain(HIGHLIGHT_SHADES.mint.fill);
+    expect(style()).not.toContain("dotted");
+    expect(keywordRanges()).toEqual(["Python"]);
+    highlightPreferences.setKeywords({ enabled: false });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(registry.has("linkwise-keyword")).toBe(false);
+    highlightPreferences.setKeywords({ enabled: true });
+    await vi.advanceTimersByTimeAsync(100);
     expect(keywordRanges()).toEqual(["Python"]);
     expect(sendMessage).not.toHaveBeenCalled();
   });

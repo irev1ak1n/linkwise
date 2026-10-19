@@ -1,3 +1,4 @@
+import type { PhraseCategory } from "../signals/highlightCategories";
 import type { ProfileSectionName } from "../models/profile";
 
 export type SignalSection = ProfileSectionName | "headline" | "location";
@@ -65,6 +66,8 @@ export interface InlineHighlightDTO {
   type: "core" | "discovery";
   importance: number;
   metrics: string[];
+  /** The kind of evidence, which decides only how the phrase is colored. */
+  category: PhraseCategory;
 }
 
 export interface SignalFactDTO {

@@ -4,8 +4,10 @@ import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 import { SignalAnalysisController, clearSignalCache, type SignalAnalysisState } from "../ai/signalAnalysisController";
 import type { AnalyzeSignalsRequestBody } from "../ai/signalsClient";
 import type { GradedCandidateDTO, SignalClassificationOutcome } from "../ai/signalTypes";
-import { QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
-import { createSignalRuntime, isMainProfilePage, isProfileSessionPage, signalTargets, signalTickInput } from "./signalRuntime";
+import { SignalHighlighter, highlightName, type HighlightRegistryLike } from "./signalHighlighter";
+import { DEFAULT_HIGHLIGHT_PREFERENCES, type HighlightPreferences } from "../signals/highlightCategories";
+const QUOTE_HIGHLIGHT = highlightName("leadership");
+import { createSignalRuntime, isMainProfilePage, isProfileSessionPage, signalTargets, signalTickInput, structuralTargets } from "./signalRuntime";
 
 const entries = new Map<string, { ranges: Range[] }>();
 const registry: HighlightRegistryLike = { set: (n, h) => entries.set(n, h as unknown as { ranges: Range[] }), delete: (n) => entries.delete(n) };
@@ -39,6 +41,8 @@ function setPage(description: string): void {
   document.body.innerHTML = `<main role="main"><section><h1>Jordan</h1></section><section><h2>Experience</h2><p>Web Lead</p><p>${description}</p></section></main>`;
 }
 
+let prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES;
+
 function harness(outcome: (body: AnalyzeSignalsRequestBody) => SignalClassificationOutcome = outcomeFor) {
   const published: SignalAnalysisState[] = [];
   const request = vi.fn((body: AnalyzeSignalsRequestBody) => ({ requestId: "r", promise: Promise.resolve(outcome(body)), cancel: vi.fn() }));
@@ -46,6 +50,7 @@ function harness(outcome: (body: AnalyzeSignalsRequestBody) => SignalClassificat
     highlighter: new SignalHighlighter(document, registry, factory),
     publish: (state) => published.push(state),
     createController: (onChange) => new SignalAnalysisController({ onChange, request, debounceMs: 10 }),
+    getPreferences: () => prefs,
   });
   return { runtime, request, published };
 }
@@ -80,10 +85,65 @@ describe("isProfileSessionPage", () => {
   });
 });
 
+const off = (...names: (keyof HighlightPreferences["categories"])[]): HighlightPreferences => ({
+  ...DEFAULT_HIGHLIGHT_PREFERENCES,
+  categories: Object.fromEntries(Object.entries(DEFAULT_HIGHLIGHT_PREFERENCES.categories).map(([k, v]) => [k, { ...v, enabled: !names.includes(k as never) }])) as HighlightPreferences["categories"],
+});
+
 describe("signalTargets", () => {
+  const base = { evidenceId: "about:0", section: "about" as const, type: "core" as const, metrics: [], category: "impact" as const };
+
   it("keeps only highlights above the inline threshold", () => {
-    const base = { evidenceId: "about:0", section: "about" as const, type: "core" as const, metrics: [] };
     expect(signalTargets([{ ...base, quote: "a", importance: 0.4 }, { ...base, quote: "b", importance: 0.55 }]).map((t) => t.quote)).toEqual(["b"]);
+  });
+
+  it("styles each phrase by its kind and leaves out kinds that are switched off", () => {
+    const highlights = [
+      { ...base, quote: "Led a 5-person team", importance: 1, category: "leadership" as const, metrics: ["5-person"] },
+      { ...base, quote: "Won 2nd place at States", importance: 1, category: "achievements" as const, metrics: ["2nd place"] },
+    ];
+    expect(signalTargets(highlights).map((t) => [t.layer, t.metrics])).toEqual([
+      ["leadership", ["5-person"]],
+      ["achievements", ["2nd place"]],
+    ]);
+    expect(signalTargets(highlights, off("leadership")).map((t) => t.quote)).toEqual(["Won 2nd place at States"]);
+    // Numbers off: the phrases stay, their numbers are simply not marked.
+    expect(signalTargets(highlights, off("numbers")).map((t) => t.metrics)).toEqual([[], []]);
+  });
+
+  it("marks the person's skills only inside chosen phrases, never over a number", () => {
+    const highlights = [{ ...base, quote: "Built 3 apps in React and Python (Django)", importance: 1, metrics: ["3 apps"] }];
+    expect(signalTargets(highlights, DEFAULT_HIGHLIGHT_PREFERENCES, ["React.js", "Python (Programming Language)"])[0]!.skills).toEqual(["React", "Python", "Django"]);
+    expect(signalTargets(highlights, off("skills"), ["React"])[0]!.skills).toEqual([]);
+  });
+});
+
+describe("structuralTargets", () => {
+  const person: LinkedInProfile = {
+    ...EMPTY_PROFILE,
+    experience: [{ title: "Founder & CEO", company: "Donish AI" }],
+    volunteering: [{ name: "Tutor", description: "Math Center" }],
+    projects: [{ name: "LinkWise" }],
+    languages: [{ name: "Russian", description: "Native or bilingual proficiency" }],
+    skills: ["Python"],
+  };
+
+  it("reads roles from position titles, never organizations, plus project names and spoken languages", () => {
+    const targets = structuralTargets(person);
+    expect(targets.map((t) => [t.layer, t.quote, t.titles])).toEqual([
+      ["roles", "Founder & CEO", "only"],
+      ["roles", "Tutor", "only"],
+      ["projects", "LinkWise", "only"],
+      ["languages", "Russian", "any"],
+      ["languages", "Native or bilingual proficiency", "any"],
+    ]);
+    expect(targets.map((t) => t.quote)).not.toContain("Donish AI");
+    // Programming languages are skills, never spoken languages.
+    expect(targets.some((t) => t.layer === "languages" && t.quote === "Python")).toBe(false);
+  });
+
+  it("leaves out switched-off kinds", () => {
+    expect(structuralTargets(person, off("roles", "languages")).map((t) => t.layer)).toEqual(["projects"]);
   });
 });
 
@@ -192,7 +252,7 @@ describe("createSignalRuntime", () => {
     expect(entries.get(QUOTE_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team"]);
   });
 
-  it("never highlights an entry title even when it is graded", async () => {
+  it("draws an entry title only as a Role, never as graded evidence", async () => {
     document.body.innerHTML = `<main role="main"><section><h1>Jordan</h1></section><section><h2>Experience</h2><p style="font-weight: 600">Web Lead</p><p>Led a 4-person web team</p></section></main>`;
     const { runtime, published } = harness((body) => {
       const item = body.profile.evidence.find((e) => e.section === "experience")!;
@@ -206,7 +266,24 @@ describe("createSignalRuntime", () => {
     runtime.tick({ enabled: true, href: JORDAN, profileKey: "jordan", profile: profile("Led a 4-person web team"), ready: true });
     await vi.advanceTimersByTimeAsync(50);
     expect(entries.get(QUOTE_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team"]);
+    expect(entries.get(highlightName("roles"))!.ranges.map((r) => r.toString())).toEqual(["Web Lead"]);
     expect(published.at(-1)).toMatchObject({ status: "ready" });
+  });
+
+  it("hides a switched-off kind and brings it back from the same evidence, with no new request", async () => {
+    prefs = DEFAULT_HIGHLIGHT_PREFERENCES;
+    setPage("Led a 4-person web team");
+    const { runtime, request } = harness();
+    runtime.tick({ enabled: true, href: JORDAN, profileKey: "jordan", profile: profile("Led a 4-person web team"), ready: true });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges).toHaveLength(1);
+    prefs = off("leadership");
+    runtime.repaint();
+    expect(entries.has(QUOTE_HIGHLIGHT)).toBe(false);
+    prefs = DEFAULT_HIGHLIGHT_PREFERENCES;
+    runtime.repaint();
+    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team"]);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it("clears highlights on dispose", async () => {

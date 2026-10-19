@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KEYWORD_HIGHLIGHT, KeywordHighlighter, locateKeywords, parseKeywords } from "./keywordHighlights";
-import { QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
+import { highlightName, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
+const IMPACT_HIGHLIGHT = highlightName("impact");
 import { HIGHLIGHT_SHADES } from "./highlightPalette";
 
 function fakeRegistry() {
@@ -95,11 +96,11 @@ describe("KeywordHighlighter", () => {
     const keywords = new KeywordHighlighter(document, registry, factory);
     signals.render([{ key: "a", section: "about", quote: "tutored for 200+ hours of tutoring", metrics: [] }]);
     keywords.render(["tutoring"]);
-    expect([...entries.keys()]).toEqual(expect.arrayContaining([QUOTE_HIGHLIGHT, KEYWORD_HIGHLIGHT]));
+    expect([...entries.keys()]).toEqual(expect.arrayContaining([IMPACT_HIGHLIGHT, KEYWORD_HIGHLIGHT]));
 
     keywords.render([]);
     expect(entries.has(KEYWORD_HIGHLIGHT)).toBe(false);
-    expect(texts(entries.get(QUOTE_HIGHLIGHT)!.ranges)).toEqual(["tutored for 200+ hours of tutoring"]);
+    expect(texts(entries.get(IMPACT_HIGHLIGHT)!.ranges)).toEqual(["tutored for 200+ hours of tutoring"]);
   });
 
   it("layers over a Signal highlight on the same words without nesting or duplicating text", () => {
@@ -113,7 +114,7 @@ describe("KeywordHighlighter", () => {
       keywords.render(["200+ hours", "tutoring"]);
     }
     expect(texts(entries.get(KEYWORD_HIGHLIGHT)!.ranges)).toEqual(["200+ hours", "tutoring"]);
-    expect(texts(entries.get(QUOTE_HIGHLIGHT)!.ranges)).toEqual(["200+ hours of tutoring"]);
+    expect(texts(entries.get(IMPACT_HIGHLIGHT)!.ranges)).toEqual(["200+ hours of tutoring"]);
     expect(document.querySelectorAll("main section")[1]!.textContent).toBe(aboutText);
     expect(document.body.innerHTML).toBe(before);
     expect(document.head.querySelectorAll("style")).toHaveLength(2);
@@ -127,9 +128,11 @@ describe("KeywordHighlighter", () => {
     expect(style()).toContain("rgba(240, 180, 20, 0.32)");
     const ranges = entries.get(KEYWORD_HIGHLIGHT)!.ranges;
     const before = document.body.innerHTML;
-    keywords.setColor("green");
+    keywords.setStyle("green", true);
     expect(style()).toContain(HIGHLIGHT_SHADES.green.fill);
     expect(style()).toContain("dotted");
+    keywords.setStyle("green", false);
+    expect(style()).not.toContain("dotted");
     expect(entries.get(KEYWORD_HIGHLIGHT)!.ranges).toBe(ranges);
     expect(document.body.innerHTML).toBe(before);
   });

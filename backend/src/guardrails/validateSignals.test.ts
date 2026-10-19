@@ -68,6 +68,11 @@ describe("extractMetrics", () => {
     expect(extractMetrics("Over 6 years")).toEqual(["6 years"]);
   });
 
+  it("ignores a year written as '26 and a grade level like 11th grade", () => {
+    expect(extractMetrics("maintained the website for '26 school's prom")).toEqual([]);
+    expect(extractMetrics("TSA member since 11th grade, placed 2nd at States")).toEqual(["2nd"]);
+  });
+
   it("ignores years, date ranges, and bare numbers", () => {
     expect(extractMetrics("In 2024, I earned")).toEqual([]);
     expect(extractMetrics("Sep 2021 - Jun 2025")).toEqual([]);

@@ -134,6 +134,27 @@ describe("locateSignals - titles are never highlighted", () => {
   });
 });
 
+describe("locateSignals - roles and languages", () => {
+  it("finds a role only in title text, and a language in either", () => {
+    document.body.innerHTML = `<style>.t { font-weight: 600; }</style><main role="main"><section><h1>J</h1></section>
+      <section><h2>Experience</h2><p class="t">Team Captain</p><p>Was Team Captain twice</p></section>
+      <section><h2>Languages</h2><p class="t">Russian</p><p>Native or bilingual proficiency</p></section></main>`;
+    const role = locateSignals(document, [{ key: "r", section: "experience", quote: "Team Captain", metrics: [], titles: "only" }]).get("r")!;
+    expect(role.quote.startContainer.parentElement!.className).toBe("t");
+    const langs = locateSignals(document, [
+      { key: "a", section: "languages", quote: "Russian", metrics: [], titles: "any" },
+      { key: "b", section: "languages", quote: "Native or bilingual proficiency", metrics: [], titles: "any" },
+    ]);
+    expect(langs.size).toBe(2);
+  });
+
+  it("marks skills inside the quote", () => {
+    document.body.innerHTML = `<main role="main"><section><h1>J</h1></section><section><h2>About</h2><p>Built apps in React and Python</p></section></main>`;
+    const found = locateSignals(document, [{ key: "s", section: "about", quote: "Built apps in React and Python", metrics: [], skills: ["React", "Python", "Go"] }]).get("s")!;
+    expect(found.skills.map((r) => r.toString())).toEqual(["React", "Python"]);
+  });
+});
+
 describe("locateSignals - detail pages", () => {
   function setEducationDetails(): void {
     Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/education/", configurable: true });

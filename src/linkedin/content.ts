@@ -86,9 +86,9 @@ import { claimRuntime } from "./runtimeTakeover";
 import { createSignalRuntime, isProfileSessionPage, signalTickInput } from "./signalRuntime";
 import { KeywordHighlighter, parseKeywords } from "./keywordHighlights";
 import { highlightKeywordsPreference } from "./panel/keywordPreference";
-import { highlightColorPreference } from "./panel/highlightColorPreference";
-import { keywordColorPreference } from "./panel/keywordColorPreference";
+import { highlightPreferences } from "./panel/highlightPreferences";
 import { SignalHighlighter } from "./signalHighlighter";
+import { HIGHLIGHT_CATEGORIES } from "../signals/highlightCategories";
 import { getSignalModeState, initSignalModeStore, publishSignalAnalysis, subscribeSignalModeStore } from "./panel/signalModeStore";
 import { isPanelVisible, subscribePanelVisibility } from "./panel/panelVisibilityStore";
 import { panelToolPreference } from "../optimizer/optimizerPreferences";
@@ -633,7 +633,7 @@ function tickAutoScanCrawl(): void {
 }
 
 const signalHighlighter = new SignalHighlighter(document);
-const signalRuntime = createSignalRuntime({ highlighter: signalHighlighter, publish: publishSignalAnalysis });
+const signalRuntime = createSignalRuntime({ highlighter: signalHighlighter, publish: publishSignalAnalysis, getPreferences: () => highlightPreferences.getState().value });
 registerCleanup(() => signalRuntime.dispose());
 
 // Keyword highlights are local and cheap, so they follow every DOM change instead of the tick.
@@ -644,7 +644,8 @@ let keywordsShown = false;
 
 function paintKeywords(): void {
   keywordPaintHandle = null;
-  const keywords = isProfileSessionPage(location.href) ? parseKeywords(highlightKeywordsPreference.getState().value) : [];
+  const enabled = highlightPreferences.getState().value.keywords.enabled;
+  const keywords = enabled && isProfileSessionPage(location.href) ? parseKeywords(highlightKeywordsPreference.getState().value) : [];
   if (keywords.length === 0 && !keywordsShown) return;
   keywordsShown = keywords.length > 0;
   keywordHighlighter.render(keywords);
@@ -815,11 +816,19 @@ registerCleanup(subscribeJobsSettingsStore(tick));
 highlightKeywordsPreference.init();
 registerCleanup(highlightKeywordsPreference.subscribe(scheduleKeywordPaint));
 
-keywordColorPreference.init();
-registerCleanup(keywordColorPreference.subscribe(() => keywordHighlighter.setColor(keywordColorPreference.getState().value)));
-
-highlightColorPreference.init();
-registerCleanup(highlightColorPreference.subscribe(() => signalHighlighter.setColor(highlightColorPreference.getState().value)));
+// Colors, underlines, and on/off switches only redraw what is already found: never a request.
+let appliedHighlightPreferences = highlightPreferences.getState().value;
+function applyHighlightPreferences(): void {
+  const prefs = highlightPreferences.getState().value;
+  signalHighlighter.setPreferences(prefs);
+  keywordHighlighter.setStyle(prefs.keywords.color, prefs.keywords.underline);
+  const toggled = HIGHLIGHT_CATEGORIES.some((c) => prefs.categories[c].enabled !== appliedHighlightPreferences.categories[c].enabled);
+  if (prefs.keywords.enabled !== appliedHighlightPreferences.keywords.enabled) scheduleKeywordPaint();
+  appliedHighlightPreferences = prefs;
+  if (toggled && !torndown) signalRuntime.repaint();
+}
+highlightPreferences.init();
+registerCleanup(highlightPreferences.subscribe(applyHighlightPreferences));
 
 panelToolPreference.init();
 let signalAnalyzerOpen = analyzerOpen();

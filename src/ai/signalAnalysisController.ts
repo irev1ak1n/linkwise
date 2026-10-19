@@ -7,6 +7,7 @@ import { PROFILE_SESSION_RETENTION_MS } from "../storage/profileSessionRepositor
 import { createPersistentCache, type PersistentCache } from "./persistentCache";
 import { SIGNAL_RANKING_VERSION, rankSignals, type RankCandidate, type RankingResult } from "../signals/signalRanking";
 import { heuristicGrades } from "../signals/heuristicGrades";
+import { phraseCategory } from "../signals/highlightCategories";
 
 export const SIGNAL_ANALYSIS_VERSION = `signals-v${SIGNAL_RANKING_VERSION}`;
 export const SIGNAL_DEBOUNCE_MS = 1500;
@@ -227,8 +228,8 @@ export class SignalAnalysisController {
     const ranking = rankSignals(candidates, { goalActive: goal !== "none", incumbents: this.incumbents.get(sessionKey), discoverySeed: this.seeds.get(input.profileKey) });
     this.incumbents.set(sessionKey, new Set(ranking.core.map((c) => c.id)));
     const highlights: InlineHighlightDTO[] = [
-      ...ranking.core.map((c) => ({ evidenceId: c.evidenceId, section: c.section, quote: c.quote, type: "core" as const, importance: 1, metrics: c.metrics })),
-      ...ranking.discovery.map((c) => ({ evidenceId: c.evidenceId, section: c.section, quote: c.quote, type: "discovery" as const, importance: 0.75, metrics: c.metrics })),
+      ...ranking.core.map((c) => ({ evidenceId: c.evidenceId, section: c.section, quote: c.quote, type: "core" as const, importance: 1, metrics: c.metrics, category: phraseCategory(c) })),
+      ...ranking.discovery.map((c) => ({ evidenceId: c.evidenceId, section: c.section, quote: c.quote, type: "discovery" as const, importance: 0.75, metrics: c.metrics, category: phraseCategory(c) })),
     ];
     const source = fallback === 0 ? "ai" : graded === 0 ? "heuristic" : "mixed";
     this.debug(ranking, input.profileKey);

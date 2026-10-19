@@ -5,6 +5,8 @@ import { SignalHighlighter } from "./signalHighlighter";
 import type { SignalTarget } from "./signalRanges";
 import { profileIdentityKey } from "./profileAdapter";
 import type { PanelProfileData } from "./panel/panelStore";
+import { DEFAULT_HIGHLIGHT_PREFERENCES, isMeaningfulMetric, type HighlightCategory, type HighlightPreferences } from "../signals/highlightCategories";
+import { skillTerms, skillsIn } from "../signals/skillTerms";
 
 export const INLINE_MIN_IMPORTANCE = 0.5;
 
@@ -44,29 +46,67 @@ export function signalTickInput(enabled: boolean, href: string, data: PanelProfi
   };
 }
 
-export function signalTargets(highlights: InlineHighlightDTO[]): SignalTarget[] {
+// Chosen evidence, styled by its kind. A disabled kind is simply not drawn; its evidence and
+// grades stay, so turning it back on needs no new request.
+export function signalTargets(highlights: InlineHighlightDTO[], prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES, skills: string[] = []): SignalTarget[] {
+  const { categories } = prefs;
+  const terms = categories.skills.enabled ? skillTerms(skills) : [];
   return highlights
-    .filter((s) => s.importance >= INLINE_MIN_IMPORTANCE)
-    .map((s, i) => ({ key: `${s.evidenceId}#${i}`, section: s.section, quote: s.quote, metrics: s.metrics }));
+    .filter((s) => s.importance >= INLINE_MIN_IMPORTANCE && categories[s.category ?? "impact"].enabled)
+    .map((s, i) => {
+      const metrics = categories.numbers.enabled ? s.metrics.filter((m) => isMeaningfulMetric(s.quote, m)) : [];
+      const marked = skillsIn(s.quote, terms).filter((skill) => !metrics.some((m) => m.includes(skill) || skill.includes(m)));
+      return { key: `${s.evidenceId}#${i}`, section: s.section, quote: s.quote, metrics, skills: marked, layer: s.category ?? "impact" };
+    });
+}
+
+// Roles, project names, and languages are read from the profile's own structure: the title of
+// each position, each project's name, each language and its level. No AI is involved.
+export function structuralTargets(profile: LinkedInProfile | null, prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES): SignalTarget[] {
+  if (!profile) return [];
+  const { categories } = prefs;
+  const targets: SignalTarget[] = [];
+  const add = (layer: HighlightCategory, section: string, quote: string | undefined, titles: SignalTarget["titles"], i: number) => {
+    const text = quote?.trim();
+    if (text && text.length <= 120) targets.push({ key: `${layer}:${section}:${i}:${text}`, section, quote: text, metrics: [], layer, titles });
+  };
+  if (categories.roles.enabled) {
+    profile.experience.forEach((e, i) => add("roles", "experience", e.title, "only", i));
+    profile.volunteering.forEach((e, i) => add("roles", "volunteering", e.name, "only", i));
+  }
+  if (categories.projects.enabled) profile.projects.forEach((e, i) => add("projects", "projects", e.name, "only", i));
+  if (categories.languages.enabled) {
+    profile.languages.forEach((e, i) => {
+      add("languages", "languages", e.name, "any", i);
+      add("languages", "languages", e.description, "any", i);
+    });
+  }
+  return targets;
 }
 
 export interface SignalRuntimeOptions {
   highlighter: Pick<SignalHighlighter, "render" | "clear">;
   publish: (state: SignalAnalysisState, highlighted: number) => void;
   createController?: (onChange: () => void) => Pick<SignalAnalysisController, "update" | "reset" | "getState">;
+  /** How each kind of evidence is drawn; read at every paint, never sent anywhere. */
+  getPreferences?: () => HighlightPreferences;
 }
 
 export function createSignalRuntime(options: SignalRuntimeOptions) {
   const { highlighter, publish } = options;
   const controller = options.createController?.(() => paint()) ?? new SignalAnalysisController({ onChange: () => paint() });
+  const preferences = options.getPreferences ?? (() => DEFAULT_HIGHLIGHT_PREFERENCES);
   let activeProfileKey: string | null = null;
+  let activeProfile: LinkedInProfile | null = null;
   let highlightOn = false;
 
   function paint(): void {
     const state = controller.getState();
-    const current = state.status === "ready" && state.profileKey === activeProfileKey && highlightOn;
-    const count = current ? highlighter.render(signalTargets(state.highlights)) : 0;
-    if (!current) highlighter.clear();
+    const prefs = preferences();
+    const ready = state.status === "ready" && state.profileKey === activeProfileKey;
+    const targets = highlightOn && activeProfileKey ? [...structuralTargets(activeProfile, prefs), ...(ready ? signalTargets(state.highlights, prefs, activeProfile?.skills) : [])] : [];
+    const count = targets.length > 0 ? highlighter.render(targets) : 0;
+    if (targets.length === 0) highlighter.clear();
     publish(activeProfileKey ? state : { status: "idle" }, count);
   }
 
@@ -74,23 +114,28 @@ export function createSignalRuntime(options: SignalRuntimeOptions) {
     highlightOn = input.highlight ?? input.enabled;
     if (!input.enabled || !input.profileKey || !isProfileSessionPage(input.href)) {
       activeProfileKey = null;
+      activeProfile = null;
       controller.reset();
       paint();
       return;
     }
     if (input.profileKey !== activeProfileKey) {
       activeProfileKey = input.profileKey;
+      activeProfile = null;
       controller.reset();
     }
+    if (input.profile) activeProfile = input.profile;
     if (input.ready && input.profile) controller.update({ profileKey: input.profileKey, profile: input.profile, goalText: input.goalText ?? null });
     paint();
   }
 
   function dispose(): void {
     activeProfileKey = null;
+    activeProfile = null;
     controller.reset();
     highlighter.clear();
   }
 
-  return { tick, dispose };
+  // A style or category change: the same evidence, drawn again. Nothing is requested.
+  return { tick, dispose, repaint: paint };
 }

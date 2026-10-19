@@ -5,12 +5,20 @@ export interface SignalTarget {
   key: string;
   section: string;
   quote: string;
+  /** Meaningful numbers inside the quote, marked in their own style. */
   metrics: string[];
+  /** Skills and tools inside the quote, marked in their own style. */
+  skills?: string[];
+  /** The style the whole quote takes. */
+  layer?: string;
+  /** Evidence never sits in a title ("exclude"); a role is one ("only"); a language may be either. */
+  titles?: "exclude" | "only" | "any";
 }
 
 export interface LocatedSignal {
   quote: Range;
   metrics: Range[];
+  skills: Range[];
 }
 
 const SKIPPED_ANCESTORS = "button, svg, script, style, .visually-hidden, [data-lw-ignore]";
@@ -76,20 +84,26 @@ function rangeFor(index: TextIndex, start: number, length: number): Range {
 function locateInIndex(index: TextIndex, target: SignalTarget): LocatedSignal | null {
   const quote = compactText(target.quote);
   if (quote.length === 0) return null;
+  const titles = target.titles ?? "exclude";
+  const fits = (at: number) => {
+    const span = index.positions.slice(at, at + quote.length);
+    return titles === "any" || (titles === "only" ? span.every((p) => p.title) : !span.some((p) => p.title));
+  };
   let start = index.text.indexOf(quote);
-  while (start !== -1 && index.positions.slice(start, start + quote.length).some((p) => p.title)) {
-    start = index.text.indexOf(quote, start + 1);
-  }
+  while (start !== -1 && !fits(start)) start = index.text.indexOf(quote, start + 1);
   if (start === -1) return null;
 
   const scope = index.text.slice(start, start + quote.length);
-  const metrics: Range[] = [];
-  for (const metric of target.metrics) {
-    const needle = compactText(metric);
-    const offset = needle ? scope.indexOf(needle) : -1;
-    if (offset !== -1) metrics.push(rangeFor(index, start + offset, needle.length));
-  }
-  return { quote: rangeFor(index, start, quote.length), metrics };
+  const marks = (texts: string[] = []) => {
+    const ranges: Range[] = [];
+    for (const text of texts) {
+      const needle = compactText(text);
+      const offset = needle ? scope.indexOf(needle) : -1;
+      if (offset !== -1) ranges.push(rangeFor(index, start + offset, needle.length));
+    }
+    return ranges;
+  };
+  return { quote: rangeFor(index, start, quote.length), metrics: marks(target.metrics), skills: marks(target.skills) };
 }
 
 function indexFor(doc: Document, section: string): TextIndex | null {

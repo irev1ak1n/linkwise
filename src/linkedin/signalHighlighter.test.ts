@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { METRIC_HIGHLIGHT, QUOTE_HIGHLIGHT, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
+import { SignalHighlighter, highlightName, signalStyles, type HighlightRegistryLike } from "./signalHighlighter";
 import type { SignalTarget } from "./signalRanges";
 import { HIGHLIGHT_SHADES } from "./highlightPalette";
+import { DEFAULT_HIGHLIGHT_PREFERENCES, type HighlightPreferences } from "../signals/highlightCategories";
 
 interface FakeHighlight {
   ranges: Range[];
@@ -20,7 +21,7 @@ function fakeRegistry() {
 
 const factory = (ranges: Range[], priority: number) => ({ ranges, priority }) as unknown as Highlight;
 
-const EXPERIENCE = `<section><h2>Experience</h2><p><span>• Led a 4-person web team<br>• Reached 300+ visitors</span></p></section>`;
+const EXPERIENCE = `<section><h2>Experience</h2><p><span>• Led a 4-person web team in React<br>• Reached 300+ visitors</span></p></section>`;
 
 function setPage(experience = EXPERIENCE): void {
   document.head.innerHTML = "";
@@ -28,20 +29,25 @@ function setPage(experience = EXPERIENCE): void {
 }
 
 const targets: SignalTarget[] = [
-  { key: "a", section: "experience", quote: "Led a 4-person web team", metrics: ["4-person"] },
-  { key: "b", section: "experience", quote: "Reached 300+ visitors", metrics: ["300+"] },
+  { key: "a", section: "experience", quote: "Led a 4-person web team in React", metrics: ["4-person"], skills: ["React"], layer: "leadership" },
+  { key: "b", section: "experience", quote: "Reached 300+ visitors", metrics: ["300+"], layer: "impact" },
 ];
+const texts = (h: FakeHighlight | undefined) => (h?.ranges ?? []).map((r) => r.toString());
+const withStyle = (patch: Partial<HighlightPreferences["categories"]>): HighlightPreferences => ({ ...DEFAULT_HIGHLIGHT_PREFERENCES, categories: { ...DEFAULT_HIGHLIGHT_PREFERENCES.categories, ...patch } });
 
 describe("SignalHighlighter", () => {
   beforeEach(() => setPage());
 
-  it("registers quote and metric highlights without touching profile markup", () => {
+  it("registers one highlight per category, marks on top of phrases, without touching profile markup", () => {
     const { registry, entries } = fakeRegistry();
     const before = document.querySelector("main")!.innerHTML;
     expect(new SignalHighlighter(document, registry, factory).render(targets)).toBe(2);
-    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["Led a 4-person web team", "Reached 300+ visitors"]);
-    expect(entries.get(METRIC_HIGHLIGHT)!.ranges.map((r) => r.toString())).toEqual(["4-person", "300+"]);
-    expect(entries.get(METRIC_HIGHLIGHT)!.priority).toBeGreaterThan(entries.get(QUOTE_HIGHLIGHT)!.priority);
+    expect(texts(entries.get(highlightName("leadership")))).toEqual(["Led a 4-person web team in React"]);
+    expect(texts(entries.get(highlightName("impact")))).toEqual(["Reached 300+ visitors"]);
+    expect(texts(entries.get(highlightName("numbers")))).toEqual(["4-person", "300+"]);
+    expect(texts(entries.get(highlightName("skills")))).toEqual(["React"]);
+    expect(entries.get(highlightName("numbers"))!.priority).toBeGreaterThan(entries.get(highlightName("impact"))!.priority);
+    // Ranges, not wrapper elements: nothing is ever nested in LinkedIn's markup.
     expect(document.querySelector("main")!.innerHTML).toBe(before);
   });
 
@@ -49,15 +55,19 @@ describe("SignalHighlighter", () => {
     const { registry, entries } = fakeRegistry();
     const highlighter = new SignalHighlighter(document, registry, factory);
     for (let i = 0; i < 5; i++) highlighter.render(targets);
-    expect(registry.set).toHaveBeenCalledTimes(2);
-    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges).toHaveLength(2);
+    expect(registry.set).toHaveBeenCalledTimes(4);
+    expect(entries.get(highlightName("numbers"))!.ranges).toHaveLength(2);
     expect(document.querySelectorAll("#lw-signal-style")).toHaveLength(1);
   });
 
-  it("removes every highlight when cleared", () => {
+  it("drops a category's highlight when it no longer has targets, and everything when cleared", () => {
     const { registry, entries } = fakeRegistry();
     const highlighter = new SignalHighlighter(document, registry, factory);
     highlighter.render(targets);
+    highlighter.render([targets[1]!]);
+    expect(entries.has(highlightName("leadership"))).toBe(false);
+    expect(entries.has(highlightName("skills"))).toBe(false);
+    expect(texts(entries.get(highlightName("numbers")))).toEqual(["300+"]);
     highlighter.clear();
     expect(entries.size).toBe(0);
   });
@@ -68,9 +78,9 @@ describe("SignalHighlighter", () => {
     highlighter.render(targets);
     setPage();
     highlighter.render(targets);
-    const range = entries.get(QUOTE_HIGHLIGHT)!.ranges[0]!;
+    const range = entries.get(highlightName("leadership"))!.ranges[0]!;
     expect(range.startContainer.isConnected).toBe(true);
-    expect(range.toString()).toBe("Led a 4-person web team");
+    expect(range.toString()).toBe("Led a 4-person web team in React");
   });
 
   it("keeps looking for targets whose section has not rendered yet", () => {
@@ -82,30 +92,36 @@ describe("SignalHighlighter", () => {
     expect(highlighter.render(targets)).toBe(2);
   });
 
-  it("recolors existing highlights in place, without locating or registering them again", () => {
+  it("restyles colors and underlines in place, without locating or registering anything again", () => {
     const { registry, entries } = fakeRegistry();
     const highlighter = new SignalHighlighter(document, registry, factory);
     highlighter.render(targets);
-    const ranges = entries.get(QUOTE_HIGHLIGHT)!.ranges;
+    const ranges = entries.get(highlightName("leadership"))!.ranges;
     const before = document.querySelector("main")!.innerHTML;
     const style = () => document.getElementById("lw-signal-style")!.textContent!;
-    expect(style()).toContain(HIGHLIGHT_SHADES.blue.fill);
+    expect(style()).toContain(`::highlight(linkwise-signal-leadership) { background-color: ${HIGHLIGHT_SHADES.purple.fill}; text-decoration: none; }`);
 
-    highlighter.setColor("yellow");
-    expect(style()).toContain(HIGHLIGHT_SHADES.yellow.fill);
-    expect(style()).not.toContain(HIGHLIGHT_SHADES.blue.fill);
+    highlighter.setPreferences(withStyle({ leadership: { enabled: true, color: "yellow", underline: true } }));
+    expect(style()).toContain(`::highlight(linkwise-signal-leadership) { background-color: ${HIGHLIGHT_SHADES.yellow.fill}; text-decoration: underline 2px ${HIGHLIGHT_SHADES.yellow.mark};`);
     highlighter.render(targets);
-    expect(registry.set).toHaveBeenCalledTimes(2);
-    expect(entries.get(QUOTE_HIGHLIGHT)!.ranges).toBe(ranges);
+    expect(registry.set).toHaveBeenCalledTimes(4);
+    expect(entries.get(highlightName("leadership"))!.ranges).toBe(ranges);
     expect(document.querySelector("main")!.innerHTML).toBe(before);
   });
 
-  it("uses the chosen color for highlights drawn after a color change", () => {
+  it("uses the chosen styles for highlights drawn after a change", () => {
     const { registry } = fakeRegistry();
     const highlighter = new SignalHighlighter(document, registry, factory);
-    highlighter.setColor("green");
+    highlighter.setPreferences(withStyle({ impact: { enabled: true, color: "pink", underline: false } }));
     highlighter.render(targets);
-    expect(document.getElementById("lw-signal-style")!.textContent).toContain(HIGHLIGHT_SHADES.green.fill);
+    expect(document.getElementById("lw-signal-style")!.textContent).toContain(HIGHLIGHT_SHADES.pink.fill);
+  });
+
+  it("styles every category, underlined only where asked", () => {
+    const css = signalStyles(DEFAULT_HIGHLIGHT_PREFERENCES);
+    expect(css.match(/::highlight\(/g)).toHaveLength(8);
+    expect(css).toMatch(/linkwise-signal-numbers\) \{ background-color: [^;]+; text-decoration: underline/);
+    expect(css).toMatch(/linkwise-signal-roles\) \{ background-color: [^;]+; text-decoration: none/);
   });
 
   it("does nothing when the browser has no highlight registry", () => {
