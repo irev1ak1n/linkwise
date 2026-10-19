@@ -2,7 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignalHighlighter, highlightName, signalStyles, type HighlightRegistryLike } from "./signalHighlighter";
 import type { SignalTarget } from "./signalRanges";
-import { HIGHLIGHT_SHADES } from "./highlightPalette";
+import { HIGHLIGHT_LOOKS, HIGHLIGHT_SHADES, type HighlightLook } from "./highlightPalette";
+import type { RangeOutlines } from "./rangeOutlines";
 import { HIGHLIGHT_CATEGORIES, DEFAULT_HIGHLIGHT_PREFERENCES, type HighlightPreferences } from "../signals/highlightCategories";
 
 interface FakeHighlight {
@@ -92,7 +93,7 @@ describe("SignalHighlighter", () => {
     expect(highlighter.render(targets)).toBe(2);
   });
 
-  it("restyles colors and underlines in place, without locating or registering anything again", () => {
+  it("restyles colors and looks in place, without locating or registering anything again", () => {
     const { registry, entries } = fakeRegistry();
     const highlighter = new SignalHighlighter(document, registry, factory);
     highlighter.render(targets);
@@ -101,8 +102,8 @@ describe("SignalHighlighter", () => {
     const style = () => document.getElementById("lw-signal-style")!.textContent!;
     expect(style()).toContain(`::highlight(linkwise-signal-leadership) { background-color: ${HIGHLIGHT_SHADES.purple.fill}; text-decoration: none; }`);
 
-    highlighter.setPreferences(withStyle({ leadership: { enabled: true, color: "yellow", underline: true } }));
-    expect(style()).toContain(`::highlight(linkwise-signal-leadership) { background-color: ${HIGHLIGHT_SHADES.yellow.fill}; text-decoration: underline 2px ${HIGHLIGHT_SHADES.yellow.mark};`);
+    highlighter.setPreferences(withStyle({ leadership: { enabled: true, color: "yellow", look: "underline" } }));
+    expect(style()).toMatch(/::highlight\(linkwise-signal-leadership\) \{ background-color: transparent; text-decoration: underline 2px rgba\(/);
     highlighter.render(targets);
     expect(registry.set).toHaveBeenCalledTimes(4);
     expect(entries.get(highlightName("leadership"))!.ranges).toBe(ranges);
@@ -112,7 +113,7 @@ describe("SignalHighlighter", () => {
   it("uses the chosen styles for highlights drawn after a change", () => {
     const { registry } = fakeRegistry();
     const highlighter = new SignalHighlighter(document, registry, factory);
-    highlighter.setPreferences(withStyle({ impact: { enabled: true, color: "pink", underline: false } }));
+    highlighter.setPreferences(withStyle({ impact: { enabled: true, color: "pink", look: "solid" } }));
     highlighter.render(targets);
     expect(document.getElementById("lw-signal-style")!.textContent).toContain(HIGHLIGHT_SHADES.pink.fill);
   });
@@ -122,7 +123,7 @@ describe("SignalHighlighter", () => {
     const highlighter = new SignalHighlighter(document, registry, factory);
     highlighter.render(targets);
     const before = [...entries.values()].map((e) => e.ranges);
-    highlighter.setPreferences(withStyle({ impact: { enabled: true, color: "green", underline: false, custom: { hex: "#FACC15", opacity: 0.35 } } }));
+    highlighter.setPreferences(withStyle({ impact: { enabled: true, color: "green", look: "solid", custom: { hex: "#FACC15", opacity: 0.35 } } }));
     const css = document.getElementById("lw-signal-style")!.textContent!;
     expect(css).toContain("linkwise-signal-impact) { background-color: rgba(250, 204, 21, 0.35);");
     expect([...entries.values()].map((e) => e.ranges)).toEqual(before);
@@ -134,11 +135,45 @@ describe("SignalHighlighter", () => {
     expect(rules.filter((r) => r.includes("rgba(168, 85, 247, 0.45)"))).toEqual([expect.stringContaining(`linkwise-signal-${category})`)]);
   });
 
-  it("styles every category, underlined only where asked", () => {
+  it("styles every category, all Solid by default", () => {
     const css = signalStyles(DEFAULT_HIGHLIGHT_PREFERENCES);
     expect(css.match(/::highlight\(/g)).toHaveLength(9);
-    expect(css).toMatch(/linkwise-signal-numbers\) \{ background-color: [^;]+; text-decoration: underline/);
-    expect(css).toMatch(/linkwise-signal-roles\) \{ background-color: [^;]+; text-decoration: none/);
+    expect(css).toMatch(/linkwise-signal-numbers\) \{ background-color: rgba\(0, 191, 165, 0\.22\); text-decoration: none/);
+    expect(css).toMatch(/linkwise-signal-roles\) \{ background-color: rgba\(10, 102, 194, 0\.14\); text-decoration: none/);
+  });
+
+  it("draws each look with ::highlight() where it can, and borders with the overlay", () => {
+    const custom = { hex: "#F59AC1", opacity: 0.5 };
+    const rule = (look: HighlightLook) => signalStyles(withStyle({ skills: { enabled: true, color: "sky", look, custom } })).split("\n").find((r) => r.includes("signal-skills)"))!;
+    expect(rule("solid")).toContain("background-color: rgba(245, 154, 193, 0.5); text-decoration: none;");
+    expect(rule("soft")).toContain("background-color: rgba(245, 154, 193, 0.2); text-decoration: none;");
+    expect(rule("underline")).toMatch(/background-color: transparent; text-decoration: underline 2px rgba\(\d+, \d+, \d+, 0\.8\); text-underline-offset: 1px;/);
+    // Text Color darkens a light color until it reads on white.
+    expect(rule("text")).toMatch(/background-color: transparent; color: #[0-9A-F]{6}; text-decoration: none;/);
+    expect(rule("dashed")).toContain("background-color: rgba(245, 154, 193, 0.08);");
+    expect(rule("left-border")).toContain("background-color: transparent; text-decoration: none;");
+    // Never CSS opacity: that would fade the text too.
+    for (const look of HIGHLIGHT_LOOKS) expect(rule(look)).not.toMatch(/(^|[ ;{])opacity:/);
+  });
+
+  it("outlines Dashed and Left Border ranges in an overlay, and removes it when the look changes back", () => {
+    const { registry } = fakeRegistry();
+    const set = vi.fn();
+    const clear = vi.fn();
+    const outlines = { set, clear } as unknown as RangeOutlines;
+    const highlighter = new SignalHighlighter(document, registry, factory, outlines);
+    highlighter.setPreferences(withStyle({ leadership: { enabled: true, color: "purple", look: "dashed" } }));
+    highlighter.render(targets);
+    const last = (layer: string) => set.mock.calls.filter((c) => c[0] === layer).at(-1)!;
+    expect(last("leadership")[1].length).toBeGreaterThan(0);
+    expect(last("leadership")[2]).toMatchObject({ kind: "dashed" });
+    expect(last("roles")[2]).toBeNull();
+    highlighter.setPreferences(withStyle({ leadership: { enabled: true, color: "purple", look: "left-border" } }));
+    expect(last("leadership")[2]).toMatchObject({ kind: "left" });
+    highlighter.setPreferences(withStyle({ leadership: { enabled: true, color: "purple", look: "soft" } }));
+    expect(last("leadership")[2]).toBeNull();
+    highlighter.clear();
+    expect(clear).toHaveBeenCalled();
   });
 
   it("does nothing when the browser has no highlight registry", () => {

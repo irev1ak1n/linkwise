@@ -2425,6 +2425,72 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a949c;
   }
 
+  /* Highlight Style: six look cards, 3 per row. */
+  .lw-hs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #e0e6ef;
+    border-radius: 14px;
+    background: #fff;
+  }
+  .lw-hs__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .lw-hs__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 11px 4px 9px;
+    border: 1px solid #e0e6ef;
+    border-radius: 11px;
+    background: #fff;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+  .lw-hs__card:hover {
+    border-color: #c7d3ec;
+    background: #fafcff;
+  }
+  .lw-hs__card--selected,
+  .lw-hs__card--selected:hover {
+    border-color: #3f67d8;
+    background: #fff;
+    box-shadow: 0 0 0 1px #3f67d8, 0 2px 8px rgba(63, 103, 216, 0.14);
+  }
+  .lw-hs__card:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+  .lw-hs__sample {
+    display: grid;
+    place-items: center;
+    height: 30px;
+  }
+  .lw-hs__mark {
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: #1d2226;
+  }
+  .lw-hs__label {
+    max-width: 100%;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #44505c;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* Live Preview: miniature LinkedIn pieces, one under another, drawn like the profile. */
   .lw-live {
     display: flex;

@@ -347,13 +347,13 @@ describe("Highlighting settings", () => {
     await act(async () => roles.querySelector<HTMLButtonElement>('[aria-label="Pink"]')!.click());
     expect(roles.querySelector(".lw-dot__popover")).toBeNull();
     await act(async () => roles.querySelector<HTMLInputElement>('[role="switch"]')!.click());
-    expect(highlightPreferences.getState().value.categories.roles).toEqual({ color: "pink", enabled: false, underline: false });
+    expect(highlightPreferences.getState().value.categories.roles).toEqual({ color: "pink", enabled: false, look: "solid" });
     await act(async () => roles.querySelector<HTMLInputElement>('[role="switch"]')!.click());
     expect(stored["finder.highlightPreferences.v1"]).toBeDefined();
     expect(sendMessage()).not.toHaveBeenCalled();
 
     await act(async () => button("Reset highlight styles").click());
-    expect(highlightPreferences.getState().value.categories.roles).toEqual({ enabled: true, color: "blue", underline: false });
+    expect(highlightPreferences.getState().value.categories.roles).toEqual({ enabled: true, color: "blue", look: "solid" });
   });
 
   it("closes the color palette with Escape or a click elsewhere", async () => {

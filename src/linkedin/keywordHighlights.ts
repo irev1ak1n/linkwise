@@ -2,14 +2,13 @@
 // match titles and organization names too, since the user asked for them by name.
 import type { HighlightRegistryLike } from "./signalHighlighter";
 import { findProfileContentRoots } from "./profileAdapter";
-import { DEFAULT_KEYWORD_HIGHLIGHT_COLOR, highlightCss, highlightDeclarations, type ColoredStyle } from "./highlightPalette";
+import { DEFAULT_HIGHLIGHT_LOOK, DEFAULT_KEYWORD_HIGHLIGHT_COLOR, highlightCss, highlightRender, type LookedStyle } from "./highlightPalette";
+import { RangeOutlines } from "./rangeOutlines";
 
 export const KEYWORD_HIGHLIGHT = "linkwise-keyword";
 const STYLE_ID = "lw-keyword-style";
-// The underline is dotted, so keywords stay distinct from Signal highlights even in the same color.
-type KeywordStyle = ColoredStyle & { underline: boolean };
-function stylesFor(style: KeywordStyle): string {
-  return `::highlight(${KEYWORD_HIGHLIGHT}) { ${highlightCss(highlightDeclarations(style, true))} }`;
+function stylesFor(style: LookedStyle): string {
+  return `::highlight(${KEYWORD_HIGHLIGHT}) { ${highlightCss(highlightRender(style).highlight)} }`;
 }
 const SKIPPED_ANCESTORS = "button, svg, script, style, nav, header, aside, footer, .visually-hidden, [data-lw-ignore]";
 
@@ -109,37 +108,44 @@ function defaultFactory(ranges: Range[]): Highlight {
 // Uses the CSS Custom Highlight API like Signal Mode, so overlapping highlights layer on the same
 // text without wrapping or changing any of LinkedIn's markup.
 export class KeywordHighlighter {
-  private style: KeywordStyle = { color: DEFAULT_KEYWORD_HIGHLIGHT_COLOR, underline: true };
+  private style: LookedStyle = { color: DEFAULT_KEYWORD_HIGHLIGHT_COLOR, look: DEFAULT_HIGHLIGHT_LOOK };
+  private ranges: Range[] = [];
 
   constructor(
     private readonly doc: Document,
     private readonly registry: HighlightRegistryLike | null = defaultRegistry(),
     private readonly createHighlight: (ranges: Range[]) => Highlight = defaultFactory,
+    private readonly outlines: RangeOutlines = new RangeOutlines(doc, "lw-keyword-outlines"),
   ) {}
 
   render(keywords: string[]): number {
     if (!this.registry) return 0;
     const ranges = locateKeywords(this.doc, keywords);
     if (ranges.length === 0) {
-      this.registry.delete(KEYWORD_HIGHLIGHT);
+      this.clear();
       return 0;
     }
     this.ensureStyles();
     this.registry.set(KEYWORD_HIGHLIGHT, this.createHighlight(ranges));
+    this.ranges = ranges;
+    this.outlines.set(KEYWORD_HIGHLIGHT, ranges, highlightRender(this.style).outline);
     return ranges.length;
   }
 
   clear(): void {
     this.registry?.delete(KEYWORD_HIGHLIGHT);
+    this.ranges = [];
+    this.outlines.clear();
   }
 
   // Restyles existing matches in place; nothing is located again.
-  setStyle(style: KeywordStyle): void {
-    const next: KeywordStyle = { color: style.color, custom: style.custom, underline: style.underline };
-    if (stylesFor(next) === stylesFor(this.style)) return;
+  setStyle(style: LookedStyle): void {
+    const next: LookedStyle = { color: style.color, custom: style.custom, look: style.look };
+    if (JSON.stringify(highlightRender(next)) === JSON.stringify(highlightRender(this.style))) return;
     this.style = next;
     const element = this.doc.getElementById(STYLE_ID);
     if (element) element.textContent = stylesFor(next);
+    this.outlines.set(KEYWORD_HIGHLIGHT, this.ranges, highlightRender(next).outline);
   }
 
   private ensureStyles(): void {

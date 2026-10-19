@@ -1,4 +1,4 @@
-import { parseRgba, rgba, underlineColor } from "./highlightColor";
+import { parseRgba, readableOnWhite, rgba, underlineColor } from "./highlightColor";
 
 // Soft highlighter colors for Signal Mode, light enough to keep LinkedIn's black text readable.
 // "fill" is the phrase background, "mark" underlines the numbers inside it, "swatch" is the
@@ -60,20 +60,74 @@ export function editableColor(style: ColoredStyle): CustomHighlightColor {
   return style.custom ?? parseRgba(HIGHLIGHT_SHADES[style.color].fill)!;
 }
 
+/** How a highlighted phrase is drawn. The color picker decides the color, this decides the look. */
+export const HIGHLIGHT_LOOKS = ["solid", "soft", "underline", "text", "dashed", "left-border"] as const;
+export type HighlightLook = (typeof HIGHLIGHT_LOOKS)[number];
+export const DEFAULT_HIGHLIGHT_LOOK: HighlightLook = "solid";
+
+export function toHighlightLook(value: unknown): HighlightLook | undefined {
+  return HIGHLIGHT_LOOKS.find((look) => look === value);
+}
+
+export interface LookedStyle extends ColoredStyle {
+  look?: HighlightLook;
+}
+
+/** What ::highlight() can draw: a background, a text color, and text decoration. */
 export interface HighlightDeclarations {
   backgroundColor: string;
+  color?: string;
   textDecoration: string;
   textUnderlineOffset?: string;
 }
 
-// One definition of how a highlight looks, used for the ::highlight() rules on LinkedIn and for
-// the panel's previews, so a preview always matches the page.
-export function highlightDeclarations(style: ColoredStyle & { underline: boolean }, dotted = false): HighlightDeclarations {
-  const { fill, mark } = shadeFor(style);
-  if (!style.underline) return { backgroundColor: fill, textDecoration: "none" };
-  return { backgroundColor: fill, textDecoration: `underline ${dotted ? "dotted " : ""}2px ${mark}`, textUnderlineOffset: "3px" };
+/** Borders ::highlight() cannot draw; LinkedIn gets them from an overlay, the preview from CSS. */
+export interface HighlightOutline {
+  kind: "dashed" | "left";
+  color: string;
+}
+
+export interface HighlightRender {
+  highlight: HighlightDeclarations;
+  outline: HighlightOutline | null;
+}
+
+const NO_DECORATION = "none";
+// Lines and colored text stay visible however low the opacity goes: opacity mostly shapes
+// backgrounds, and a faint underline or border would just look broken.
+const lineAlpha = (opacity: number) => 0.6 + 0.4 * opacity;
+
+// One definition of how every look is drawn, used for the ::highlight() rules on LinkedIn, the
+// border overlay, and the panel's previews, so a preview always matches the page. Opacity is
+// always an alpha on the property it shapes, never CSS opacity, so the text itself never fades.
+export function highlightRender(style: LookedStyle): HighlightRender {
+  const { hex, opacity } = editableColor(style);
+  switch (style.look ?? DEFAULT_HIGHLIGHT_LOOK) {
+    case "solid":
+      return { highlight: { backgroundColor: rgba(hex, opacity), textDecoration: NO_DECORATION }, outline: null };
+    case "soft":
+      return { highlight: { backgroundColor: rgba(hex, opacity * 0.4), textDecoration: NO_DECORATION }, outline: null };
+    // LinkedIn clips its "see more" text boxes line by line, so a deeper underline offset is cut off.
+    case "underline":
+      return {
+        highlight: { backgroundColor: "transparent", textDecoration: `underline 2px ${rgba(readableOnWhite(hex, 1.8), lineAlpha(opacity))}`, textUnderlineOffset: "1px" },
+        outline: null,
+      };
+    case "text":
+      return { highlight: { backgroundColor: "transparent", color: readableOnWhite(hex, 4.5), textDecoration: NO_DECORATION }, outline: null };
+    case "dashed":
+      return {
+        highlight: { backgroundColor: rgba(hex, opacity * 0.15), textDecoration: NO_DECORATION },
+        outline: { kind: "dashed", color: rgba(readableOnWhite(hex, 1.8), lineAlpha(opacity)) },
+      };
+    case "left-border":
+      return {
+        highlight: { backgroundColor: "transparent", textDecoration: NO_DECORATION },
+        outline: { kind: "left", color: rgba(readableOnWhite(hex, 1.8), lineAlpha(opacity)) },
+      };
+  }
 }
 
 export function highlightCss(d: HighlightDeclarations): string {
-  return `background-color: ${d.backgroundColor}; text-decoration: ${d.textDecoration};${d.textUnderlineOffset ? ` text-underline-offset: ${d.textUnderlineOffset};` : ""}`;
+  return `background-color: ${d.backgroundColor};${d.color ? ` color: ${d.color};` : ""} text-decoration: ${d.textDecoration};${d.textUnderlineOffset ? ` text-underline-offset: ${d.textUnderlineOffset};` : ""}`;
 }

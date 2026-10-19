@@ -76,8 +76,8 @@ describe("highlightPreferences", () => {
     const colors = Object.values(categories).map((c) => c.color);
     expect(new Set(colors).size).toBe(colors.length);
     expect(Object.values(categories).every((c) => c.enabled)).toBe(true);
-    expect(categories.numbers.underline).toBe(true);
-    expect(keywords).toEqual({ enabled: true, color: "orange", underline: true });
+    expect(Object.values(categories).every((c) => c.look === "solid")).toBe(true);
+    expect(keywords).toEqual({ enabled: true, color: "orange", look: "solid" });
   });
 
   it("gives a custom legacy Signal color to Impact, and the old keyword color to Keywords", async () => {
@@ -97,25 +97,27 @@ describe("highlightPreferences", () => {
     expect((await fresh()).getState().value.categories.impact.color).toBe("green");
   });
 
-  it("persists category colors, switches, and underlines, and the saved value wins over legacy keys", async () => {
+  it("persists category colors, switches, and looks, and the saved value wins over legacy keys", async () => {
     data["finder.signalHighlightColor.v1"] = "yellow";
     const prefs = await fresh();
-    prefs.setCategory("roles", { color: "pink", underline: true });
+    prefs.setCategory("roles", { color: "pink", look: "dashed" });
     prefs.setCategory("numbers", { enabled: false });
-    prefs.setKeywords({ underline: false });
+    prefs.setKeywords({ look: "text" });
     await vi.waitFor(() => expect(data["finder.highlightPreferences.v1"]).toBeDefined());
     const { categories, keywords } = (await fresh()).getState().value;
-    expect(categories.roles).toEqual({ enabled: true, color: "pink", underline: true });
+    expect(categories.roles).toEqual({ enabled: true, color: "pink", look: "dashed" });
     expect(categories.numbers.enabled).toBe(false);
     expect(categories.numbers.color).toBe("mint");
     expect(categories.impact.color).toBe("yellow");
-    expect(keywords.underline).toBe(false);
+    expect(keywords.look).toBe("text");
   });
 
   it("repairs a damaged saved value field by field", async () => {
-    data["finder.highlightPreferences.v1"] = { categories: { roles: { color: "neon", enabled: false } }, keywords: "x" };
+    data["finder.highlightPreferences.v1"] = { categories: { roles: { color: "neon", enabled: false, look: "rounded" }, numbers: { color: "mint", underline: true } }, keywords: "x" };
     const { categories, keywords } = (await fresh()).getState().value;
-    expect(categories.roles).toEqual({ enabled: false, color: "blue", underline: false });
+    expect(categories.roles).toEqual({ enabled: false, color: "blue", look: "solid" });
+    // The old underline flag (from before looks) is dropped; the rule opens as Solid.
+    expect(categories.numbers).toEqual({ enabled: true, color: "mint", look: "solid" });
     expect(keywords.color).toBe("orange");
   });
 

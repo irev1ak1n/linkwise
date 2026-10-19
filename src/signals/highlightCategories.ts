@@ -4,7 +4,16 @@
 // are the primary kind of a chosen claim. A chosen claim that fits none of them is "general" and
 // keeps the Signal color: the settings categories style evidence, they never limit what counts.
 import type { Grades, SemanticLabel, SignalFactType } from "../ai/signalTypes";
-import { DEFAULT_HIGHLIGHT_COLOR, DEFAULT_KEYWORD_HIGHLIGHT_COLOR, toHighlightColor, type CustomHighlightColor, type HighlightColor } from "../linkedin/highlightPalette";
+import {
+  DEFAULT_HIGHLIGHT_COLOR,
+  DEFAULT_HIGHLIGHT_LOOK,
+  DEFAULT_KEYWORD_HIGHLIGHT_COLOR,
+  toHighlightColor,
+  toHighlightLook,
+  type CustomHighlightColor,
+  type HighlightColor,
+  type HighlightLook,
+} from "../linkedin/highlightPalette";
 import { normalizeHex } from "../linkedin/highlightColor";
 
 export const HIGHLIGHT_CATEGORIES = ["roles", "numbers", "impact", "leadership", "skills", "achievements", "projects", "languages"] as const;
@@ -16,7 +25,7 @@ export type StyleLayer = HighlightCategory | "general";
 export const STYLE_LAYERS: readonly StyleLayer[] = [...HIGHLIGHT_CATEGORIES, "general"];
 
 /** Important claims of no particular kind: always shown while Signal Mode is on, in the Signal color. */
-export const GENERAL_STYLE = { enabled: true, color: DEFAULT_HIGHLIGHT_COLOR, underline: false } as const;
+export const GENERAL_STYLE = { enabled: true, color: DEFAULT_HIGHLIGHT_COLOR, look: DEFAULT_HIGHLIGHT_LOOK } as const;
 
 export interface CategoryInfo {
   label: string;
@@ -41,7 +50,8 @@ export interface HighlightStyle {
   enabled: boolean;
   /** The preset shade, used until the user picks a color of their own. */
   color: HighlightColor;
-  underline: boolean;
+  /** How the phrase is drawn: Solid, Soft, Underline, Text Color, Dashed, or Left Border. */
+  look: HighlightLook;
   /** A color from the color editor; when present it replaces the preset. */
   custom?: CustomHighlightColor;
 }
@@ -51,13 +61,12 @@ export interface HighlightPreferences {
   keywords: HighlightStyle;
 }
 
-const style = (color: HighlightColor, underline = false): HighlightStyle => ({ enabled: true, color, underline });
+const style = (color: HighlightColor): HighlightStyle => ({ enabled: true, color, look: DEFAULT_HIGHLIGHT_LOOK });
 
-// Numbers and keywords were always underlined, so they keep it by default.
 export const DEFAULT_HIGHLIGHT_PREFERENCES: HighlightPreferences = {
   categories: {
     roles: style("blue"),
-    numbers: style("mint", true),
+    numbers: style("mint"),
     impact: style("green"),
     leadership: style("purple"),
     skills: style("sky"),
@@ -65,7 +74,7 @@ export const DEFAULT_HIGHLIGHT_PREFERENCES: HighlightPreferences = {
     projects: style("violet"),
     languages: style("coral"),
   },
-  keywords: style(DEFAULT_KEYWORD_HIGHLIGHT_COLOR, true),
+  keywords: style(DEFAULT_KEYWORD_HIGHLIGHT_COLOR),
 };
 
 // The kind of evidence a chosen phrase is. Rules on grades first catch what the type alone
@@ -123,7 +132,8 @@ function parseStyle(value: unknown, fallback: HighlightStyle): HighlightStyle {
   return {
     enabled: typeof v.enabled === "boolean" ? v.enabled : fallback.enabled,
     color: toHighlightColor(v.color) ?? fallback.color,
-    underline: typeof v.underline === "boolean" ? v.underline : fallback.underline,
+    // Before looks, Numbers and Keywords carried an underline flag; they open as Solid now.
+    look: toHighlightLook(v.look) ?? fallback.look,
     ...(custom ? { custom } : {}),
   };
 }

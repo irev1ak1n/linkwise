@@ -1925,10 +1925,12 @@ describe("content.ts bootstrap - keyword highlights", () => {
     // The old single Signal color carries over to Impact.
     await vi.waitFor(() => expect(highlightPreferences.getState().value.categories.impact.color).toBe("coral"));
     document.head.insertAdjacentHTML("beforeend", '<style id="lw-signal-style"></style>');
-    highlightPreferences.setCategory("roles", { color: "pink", underline: true });
+    highlightPreferences.setCategory("roles", { color: "pink", look: "underline" });
     highlightPreferences.setCategory("roles", { color: "purple" });
     const style = () => document.getElementById("lw-signal-style")!.textContent!;
-    expect(style()).toContain(`::highlight(linkwise-signal-roles) { background-color: ${HIGHLIGHT_SHADES.purple.fill}; text-decoration: underline 2px`);
+    expect(style()).toContain("::highlight(linkwise-signal-roles) { background-color: transparent; text-decoration: underline 2px");
+    highlightPreferences.setCategory("roles", { look: "solid" });
+    expect(style()).toContain(`::highlight(linkwise-signal-roles) { background-color: ${HIGHLIGHT_SHADES.purple.fill}; text-decoration: none;`);
     // A color still being dragged in the editor shows on the page at once.
     highlightPreferences.setCategory("roles", { custom: { hex: "#FACC15", opacity: 0.35 } }, true);
     expect(style()).toContain("::highlight(linkwise-signal-roles) { background-color: rgba(250, 204, 21, 0.35);");
@@ -1950,11 +1952,11 @@ describe("content.ts bootstrap - keyword highlights", () => {
     const style = () => document.getElementById("lw-keyword-style")?.textContent ?? "";
     await vi.advanceTimersByTimeAsync(200);
     expect(style()).toContain(HIGHLIGHT_SHADES.coral.fill);
-    expect(style()).toContain("dotted");
     const { highlightPreferences } = await import("./panel/highlightPreferences");
-    highlightPreferences.setKeywords({ color: "mint", underline: false });
+    highlightPreferences.setKeywords({ color: "mint", look: "text" });
+    expect(style()).toMatch(/background-color: transparent; color: #[0-9A-F]{6};/);
+    highlightPreferences.setKeywords({ look: "solid" });
     expect(style()).toContain(HIGHLIGHT_SHADES.mint.fill);
-    expect(style()).not.toContain("dotted");
     expect(keywordRanges()).toEqual(["Python"]);
     highlightPreferences.setKeywords({ enabled: false });
     await vi.advanceTimersByTimeAsync(100);

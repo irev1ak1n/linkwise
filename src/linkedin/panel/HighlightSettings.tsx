@@ -11,6 +11,7 @@ import {
 import { highlightPreferences, MAX_RECENT_COLORS, recentHighlightColors, rememberRecentColor } from "./highlightPreferences";
 import { HighlightColorEditor } from "./HighlightColorEditor";
 import { HighlightPreviewCards } from "./HighlightPreviewCards";
+import { HighlightStylePicker } from "./HighlightStylePicker";
 import { panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { closeHighlightRule, getHighlightRule, openHighlightRule, subscribeHighlightRule, takeListScroll, type HighlightRuleId } from "./settingsNav";
 
@@ -277,6 +278,7 @@ function HighlightCategoryEditor({
         recent={recent.length > 0 ? recent : QUICK_COLORS}
         onSettle={rememberRecentColor}
       />
+      <HighlightStylePicker name={label} style={rule} onChange={(look) => onChange({ look })} />
       <HighlightPreviewCards id={id} rule={rule} />
     </section>
   );

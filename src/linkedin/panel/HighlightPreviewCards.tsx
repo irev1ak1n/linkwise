@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { highlightDeclarations } from "../highlightPalette";
+import { highlightLookCss } from "./highlightLookCss";
 import type { HighlightStyle } from "../../signals/highlightCategories";
 import { PREVIEW_EDUCATION, PREVIEW_EXPERIENCE, PREVIEW_POST, PREVIEW_SKILLS, type PreviewSegment } from "./highlightExamples";
 import type { HighlightRuleId } from "./settingsNav";
@@ -34,10 +34,10 @@ function Segments({ segments, mark }: { segments: PreviewSegment[]; mark: CSSPro
 }
 
 // Miniature LinkedIn pieces with a fixed set of highlighted phrases, all drawn in the style being
-// edited: the same declarations as the ::highlight() rules on the profile, so the preview shows
-// exactly how that style will look. The phrases never change between category pages.
-export function HighlightPreviewCards({ id, rule }: PreviewProps) {
-  const mark = highlightDeclarations(rule, id === "keywords") as CSSProperties;
+// edited: the same look as the highlights on the profile, so the preview shows exactly how that
+// style will look. The phrases never change between category pages.
+export function HighlightPreviewCards({ rule }: PreviewProps) {
+  const mark = highlightLookCss(rule);
   const text = (segments: PreviewSegment[]) => <Segments segments={segments} mark={mark} />;
   return (
     <section className="lw-live" aria-label="Live preview">

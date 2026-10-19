@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { clampChannel, hexToRgb, hsvToRgb, normalizeHex, parseRgba, rgba, rgbToHex, rgbToHsv } from "./highlightColor";
-import { editableColor, highlightDeclarations, shadeFor } from "./highlightPalette";
+import { clampChannel, contrastOnWhite, hexToRgb, hsvToRgb, normalizeHex, parseRgba, readableOnWhite, rgba, rgbToHex, rgbToHsv } from "./highlightColor";
+import { editableColor, highlightRender, shadeFor } from "./highlightPalette";
 
 describe("highlight color math", () => {
   it("normalizes complete HEX values only", () => {
@@ -35,6 +35,12 @@ describe("highlight color math", () => {
     expect(shadeFor({ color: "blue" }).fill).toBe("rgba(10, 102, 194, 0.14)");
     expect(shadeFor({ color: "blue", custom: { hex: "#FACC15", opacity: 0.35 } }).fill).toBe("rgba(250, 204, 21, 0.35)");
     expect(editableColor({ color: "yellow" })).toEqual({ hex: "#FFEB3B", opacity: 0.5 });
-    expect(highlightDeclarations({ color: "blue", underline: true, custom: { hex: "#FACC15", opacity: 1 } }, true).textDecoration).toMatch(/^underline dotted 2px rgba\(150, 122, 13, 0\.9\)$/);
+    expect(highlightRender({ color: "blue", look: "solid", custom: { hex: "#FACC15", opacity: 1 } }).highlight.backgroundColor).toBe("rgba(250, 204, 21, 1)");
+  });
+
+  it("keeps colored text readable and leaves dark colors alone", () => {
+    expect(contrastOnWhite(readableOnWhite("#FFEB3B", 4.5))).toBeGreaterThanOrEqual(4.5);
+    expect(readableOnWhite("#1D4ED8", 4.5)).toBe("#1D4ED8");
+    expect(highlightRender({ color: "yellow", look: "text" }).highlight.color).toBe(readableOnWhite("#FFEB3B", 4.5));
   });
 });

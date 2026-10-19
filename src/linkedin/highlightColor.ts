@@ -78,3 +78,27 @@ export function parseRgba(value: string): { hex: string; opacity: number } | nul
   if (!m) return null;
   return { hex: rgbToHex({ r: +m[1]!, g: +m[2]!, b: +m[3]! }), opacity: m[4] === undefined ? 1 : clamp01(+m[4]) };
 }
+
+// WCAG relative luminance, for keeping colored text and lines legible on LinkedIn's white.
+function luminance({ r, g, b }: Rgb): number {
+  const ch = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
+}
+
+export function contrastOnWhite(hex: string): number {
+  return 1.05 / (luminance(hexToRgb(hex)) + 0.05);
+}
+
+/** The color itself when it already reads on white, else the closest darker shade that does:
+ * a pastel yellow chosen for backgrounds would be unreadable as text. */
+export function readableOnWhite(hex: string, minContrast: number): string {
+  const base = hexToRgb(hex);
+  for (let k = 0; k <= 1.0001; k += 0.02) {
+    const shade = rgbToHex({ r: base.r * (1 - k), g: base.g * (1 - k), b: base.b * (1 - k) });
+    if (contrastOnWhite(shade) >= minContrast) return shade;
+  }
+  return "#000000";
+}

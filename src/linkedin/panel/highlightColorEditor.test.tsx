@@ -112,10 +112,10 @@ describe("highlight category page", () => {
     await openCategory("Roles");
     expect(getHighlightRule()).toBe("roles");
     expect(q(".lw-rule-detail__title").textContent).toBe("Roles");
-    // A functional page: no hero, no Scanning group, and none of the later Highlight Style controls.
+    // A functional page: no hero, no Scanning group, no preview tabs.
     expect(container.querySelector(".lw-art-hero")).toBeNull();
     expect(container.textContent).not.toContain("Scanning");
-    expect(container.textContent).not.toMatch(/Underline|Reset Preview|Real Examples|Generic Examples|Combined View/);
+    expect(container.textContent).not.toMatch(/Rounded|Reset Preview|Real Examples|Generic Examples|Combined View/);
     expect(container.querySelector('[role="tablist"]')).toBeNull();
 
     await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
@@ -145,7 +145,7 @@ describe("highlight category page", () => {
     expect(labels).toEqual(["Preview", "HEX", "RGB", "Recent Colors", "Opacity"]);
     expect(q(".lw-ce__rgb").querySelectorAll("input")).toHaveLength(3);
     const sections = [...container.querySelectorAll(".lw-rule-detail > section")].map((el) => el.getAttribute("aria-label"));
-    expect(sections).toEqual(["Roles color", "Live preview"]);
+    expect(sections).toEqual(["Roles color", "Roles highlight style", "Live preview"]);
     const cards = [...container.querySelectorAll(".lw-live > article")].map((el) => el.getAttribute("aria-label"));
     expect(cards).toEqual(["Post example", "Experience example", "Skills example", "Education example"]);
   });
@@ -307,10 +307,54 @@ describe("highlight category page", () => {
     );
   });
 
-  it("draws Numbers with their underline, like on the profile", async () => {
+  const looks = () => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Highlight style"] [role="radio"]')];
+  const pickLook = async (label: string) => act(async () => looks().find((b) => b.textContent?.includes(label))!.click());
+
+  it("offers six highlight styles in a 3 by 2 grid, Solid first and selected by default", async () => {
     await mountPanel();
-    await marksFor("Meaningful Numbers");
-    expect(previewMarks().every((m) => m.style.textDecoration.includes("underline"))).toBe(true);
+    await openCategory("Roles");
+    expect(looks().map((b) => b.querySelector(".lw-hs__label")!.textContent)).toEqual(["Solid", "Soft", "Underline", "Text Color", "Dashed", "Left Border"]);
+    expect(container.textContent).not.toContain("Rounded");
+    expect(looks().filter((b) => b.getAttribute("aria-checked") === "true").map((b) => b.textContent)).toEqual(["AaSolid"]);
+    // Text Color's sample is "Abc" in the color itself, with no background.
+    const text = looks()[3]!.querySelector<HTMLElement>(".lw-hs__mark")!;
+    expect(text.textContent).toBe("Abc");
+    expect(text.style.backgroundColor).toBe("transparent");
+    expect(text.style.color).not.toBe("");
+  });
+
+  it("restyles the same preview phrases for every look, never fading the text, with no AI", async () => {
+    await mountPanel();
+    await openCategory("Skills & Tools");
+    await typeInto(hex(), "#F59AC1");
+    sendMessage.mockClear();
+    const mark = () => previewMarks()[0]!.style;
+    const expectations: [string, (s: CSSStyleDeclaration) => void][] = [
+      ["Soft", (s) => expect(s.backgroundColor).toBe("rgba(245, 154, 193, 0.07)")],
+      ["Underline", (s) => (expect(s.backgroundColor).toBe("transparent"), expect(s.textDecoration).toContain("underline"))],
+      ["Text Color", (s) => (expect(s.backgroundColor).toBe("transparent"), expect(s.color).not.toBe(""))],
+      ["Dashed", (s) => expect(s.border).toContain("dashed")],
+      ["Left Border", (s) => (expect(s.borderLeft).toContain("solid"), expect(s.border).not.toContain("dashed"))],
+      ["Solid", (s) => expect(s.backgroundColor).toBe("rgba(245, 154, 193, 0.18)")],
+    ];
+    for (const [label, check] of expectations) {
+      await pickLook(label);
+      expect(looks().find((b) => b.getAttribute("aria-checked") === "true")!.textContent).toContain(label);
+      check(mark());
+      expect(previewMarks().map((m) => m.textContent)).toEqual(FIXTURE_PHRASES);
+      expect(previewMarks().every((m) => m.style.opacity === "")).toBe(true);
+    }
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps the chosen look after leaving and reopening the page, and in storage", async () => {
+    await mountPanel();
+    await openCategory("Projects");
+    await pickLook("Left Border");
+    await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
+    await openCategory("Projects");
+    expect(looks().find((b) => b.getAttribute("aria-checked") === "true")!.textContent).toContain("Left Border");
+    expect((stored[HIGHLIGHT_PREFERENCES_STORAGE_KEY] as typeof DEFAULT_HIGHLIGHT_PREFERENCES).categories.projects.look).toBe("left-border");
   });
 
   it("updates every card at once when the color or opacity changes, fading only the background", async () => {
@@ -356,7 +400,7 @@ describe("highlight category page", () => {
     expect(row.querySelector<HTMLElement>(".lw-dot__button")!.style.backgroundColor).toBe("rgb(250, 204, 21)");
     await act(async () => row.querySelector<HTMLButtonElement>(".lw-dot__button")!.click());
     await act(async () => row.querySelector<HTMLButtonElement>('[aria-label="Pink"]')!.click());
-    expect(roles()).toEqual({ enabled: true, color: "pink", underline: false });
+    expect(roles()).toEqual({ enabled: true, color: "pink", look: "solid" });
   });
 });
 
@@ -423,6 +467,23 @@ describe("every highlight rule opens the same full editor", () => {
     expect(previewMarks()).toHaveLength(FIXTURE_PHRASES.length);
   });
 
+  it("keeps every rule's highlight style apart", async () => {
+    await mountPanel();
+    const LOOK_LABELS = ["Solid", "Soft", "Underline", "Text Color", "Dashed", "Left Border"];
+    const picks = RULES.map((r, i) => [r.label, LOOK_LABELS[i % LOOK_LABELS.length]!] as const);
+    for (const [label, look] of picks) {
+      await openCategory(label);
+      await act(async () => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Highlight style"] [role="radio"]')].find((b) => b.textContent?.includes(look))!.click());
+      await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
+    }
+    for (const [label, look] of picks) {
+      await openCategory(label);
+      expect(container.querySelector('[aria-label="Highlight style"] [aria-checked="true"]')!.textContent).toContain(look);
+      await act(async () => q<HTMLButtonElement>('[aria-label="Back to highlighting"]').click());
+    }
+    expect(RULES.map((r) => styleOf(r.id).look)).toEqual(["solid", "soft", "underline", "text", "dashed", "left-border", "solid", "soft", "underline"]);
+  });
+
   it("keeps every rule's color and opacity apart", async () => {
     await mountPanel();
     const picks: [string, string, string][] = [["Roles", "#EF4444", "60"], ["Skills & Tools", "#3B82F6", "30"], ["Projects", "#A855F7", "45"], ["Languages", "#22C55E", "25"], ["Keywords", "#F97316", "55"]];
@@ -451,7 +512,7 @@ describe("stored custom colors", () => {
   it("restore after a reload, and a broken value falls back to the preset", () => {
     const restored = readHighlightPreferences({
       [HIGHLIGHT_PREFERENCES_STORAGE_KEY]: {
-        categories: { roles: { enabled: true, color: "blue", underline: false, custom: { hex: "#facc15", opacity: 0.35 } }, skills: { color: "sky", custom: { hex: "nope", opacity: 1 } } },
+        categories: { roles: { enabled: true, color: "blue", look: "dashed", custom: { hex: "#facc15", opacity: 0.35 } }, skills: { color: "sky", custom: { hex: "nope", opacity: 1 } } },
       },
     });
     expect(restored.categories.roles.custom).toEqual({ hex: "#FACC15", opacity: 0.35 });

@@ -1,5 +1,6 @@
 import { compactText, locateSignals, type SignalTarget } from "./signalRanges";
-import { highlightCss, highlightDeclarations } from "./highlightPalette";
+import { highlightCss, highlightRender } from "./highlightPalette";
+import { RangeOutlines } from "./rangeOutlines";
 import { DEFAULT_HIGHLIGHT_PREFERENCES, GENERAL_STYLE, STYLE_LAYERS, type HighlightPreferences, type StyleLayer } from "../signals/highlightCategories";
 
 export const QUOTE_HIGHLIGHT = "linkwise-signal";
@@ -11,14 +12,15 @@ export function highlightName(category: StyleLayer): string {
   return `${QUOTE_HIGHLIGHT}-${category}`;
 }
 
-// Numbers and skills mark words inside a phrase, so they sit on top of it: their own fill over the
-// phrase's reads as their color, and an underline (when on) keeps them legible either way.
+// Numbers and skills mark words inside a phrase, so they sit on top of it: their own look over the
+// phrase's reads as theirs.
 export function signalStyles(prefs: HighlightPreferences): string {
   return STYLE_LAYERS.map((category) => {
-    const style = category === "general" ? GENERAL_STYLE : prefs.categories[category];
-    return `::highlight(${highlightName(category)}) { ${highlightCss(highlightDeclarations(style))} }`;
+    return `::highlight(${highlightName(category)}) { ${highlightCss(highlightRender(layerStyle(prefs, category)).highlight)} }`;
   }).join("\n");
 }
+
+const layerStyle = (prefs: HighlightPreferences, layer: StyleLayer) => (layer === "general" ? GENERAL_STYLE : prefs.categories[layer]);
 
 export interface HighlightRegistryLike {
   set(name: string, highlight: Highlight): unknown;
@@ -50,11 +52,13 @@ export class SignalHighlighter {
   private applied: Applied | null = null;
   private prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES;
   private readonly registered = new Set<string>();
+  private layerRanges = new Map<StyleLayer, Range[]>();
 
   constructor(
     private readonly doc: Document,
     private readonly registry: HighlightRegistryLike | null = defaultRegistry(),
     private readonly createHighlight: HighlightFactory = defaultFactory,
+    private readonly outlines: RangeOutlines = new RangeOutlines(doc, "lw-signal-outlines"),
   ) {}
 
   render(targets: SignalTarget[]): number {
@@ -87,6 +91,8 @@ export class SignalHighlighter {
       this.registry.set(highlightName(category), this.createHighlight(ranges, mark ? 1 : 0));
       this.registered.add(highlightName(category));
     }
+    this.layerRanges = layers;
+    this.drawOutlines();
 
     // The count is of signals, not of drawn ranges: a claim's supporting clause or a number marked
     // inside it is part of that one signal.
@@ -105,12 +111,20 @@ export class SignalHighlighter {
     this.prefs = prefs;
     const style = this.doc.getElementById(STYLE_ID);
     if (style) style.textContent = signalStyles(prefs);
+    this.drawOutlines();
   }
 
   clear(): void {
     for (const name of this.registered) this.registry?.delete(name);
     this.registered.clear();
     this.applied = null;
+    this.layerRanges = new Map();
+    this.outlines.clear();
+  }
+
+  // Dashed and Left Border looks are borders, which ::highlight() cannot draw.
+  private drawOutlines(): void {
+    for (const layer of STYLE_LAYERS) this.outlines.set(layer, this.layerRanges.get(layer) ?? [], highlightRender(layerStyle(this.prefs, layer)).outline);
   }
 
   private stillValid(applied: Applied): boolean {
