@@ -5,6 +5,11 @@ export function getPanelStyles(widthPx: number): string {
   :host, * {
     box-sizing: border-box;
   }
+  /* Structural section labels (SCANNING, COLOR, Summary, Checklist...): one near-black so the page
+     structure reads at a glance. Helper text and descriptions keep their muted grays. */
+  :host {
+    --lw-section-label: #20242c;
+  }
   .lw-panel {
     display: flex;
     flex-direction: column;
@@ -106,9 +111,10 @@ export function getPanelStyles(widthPx: number): string {
   .lw-goal h2 {
     font-size: 12px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #56687a;
+    letter-spacing: 0.06em;
+    color: var(--lw-section-label);
     margin: 0 0 8px;
+    font-weight: 700;
   }
   .text-area {
     font: inherit;
@@ -178,8 +184,9 @@ export function getPanelStyles(widthPx: number): string {
   .lw-scan-mode__label {
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #56687a;
+    letter-spacing: 0.06em;
+    color: var(--lw-section-label);
+    font-weight: 700;
   }
   .lw-scan-mode__control {
     display: flex;
@@ -803,8 +810,9 @@ export function getPanelStyles(widthPx: number): string {
     margin: 0;
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #56687a;
+    letter-spacing: 0.06em;
+    color: var(--lw-section-label);
+    font-weight: 700;
   }
   .lw-opt-block p {
     margin: 0;
@@ -1349,7 +1357,7 @@ export function getPanelStyles(widthPx: number): string {
     margin: 0 0 6px;
     font-size: 12px;
     font-weight: 700;
-    color: #56687a;
+    color: var(--lw-section-label);
   }
   .lw-fa-summary {
     padding: 14px 14px 14px 16px;
@@ -1748,7 +1756,7 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 700;
     letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: #56687a;
+    color: var(--lw-section-label);
   }
   .lw-od-checks {
     list-style: none;
@@ -1854,7 +1862,7 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 700;
     letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: #8a949c;
+    color: var(--lw-section-label);
   }
   .lw-opt-group .lw-opt-cards {
     gap: 4px;
@@ -1911,7 +1919,7 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 700;
     letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: #8a949c;
+    color: var(--lw-section-label);
   }
   .lw-dash .lw-an-summary {
     margin: 0;
@@ -1957,7 +1965,8 @@ export function getPanelStyles(widthPx: number): string {
     font-size: 11px;
     letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: #8a949c;
+    color: var(--lw-section-label);
+    font-weight: 700;
   }
 
   /* Profile highlights in Settings: compact single-line rows. */
@@ -1969,10 +1978,10 @@ export function getPanelStyles(widthPx: number): string {
   .lw-rules__label {
     margin: 6px 0 0;
     font-size: 10.5px;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #8a949c;
+    color: var(--lw-section-label);
   }
   /* One grouped list of rows. No overflow clipping: a row's quick palette opens past the edge. */
   .lw-rules {
@@ -2391,7 +2400,7 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 700;
     letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: #56687a;
+    color: var(--lw-section-label);
   }
   .lw-ce__main {
     display: grid;
@@ -2449,8 +2458,8 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-ce__label {
     font-size: 11px;
-    font-weight: 600;
-    color: #56687a;
+    font-weight: 700;
+    color: var(--lw-section-label);
   }
   .lw-ce__values .lw-ce__label:not(:first-child) {
     margin-top: 4px;
