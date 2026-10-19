@@ -7,7 +7,7 @@ export const LINKWISE_CANCEL_SIGNALS = "LINKWISE_CANCEL_SIGNALS";
 
 // Contract version 2: only items still to be graded, plus short context for the rest.
 export interface AnalyzeSignalsRequestBody {
-  version: 2;
+  version: 3;
   profile: { identity: string; evidence: EvidencePayloadItem[]; context?: { section: string; text: string }[] };
   goal?: { text: string } | null;
 }
@@ -16,7 +16,7 @@ export type PendingSignalRequest = PendingRelayRequest<SignalClassificationOutco
 
 function toOutcome(response: AnalyzeSignalsApiResponse): SignalClassificationOutcome {
   if (response.status === "signals") {
-    if (response.version !== 2 || !Array.isArray(response.candidates) || !Array.isArray(response.classified)) return { status: "unavailable", reason: "processing_error" };
+    if (response.version !== 3 || !Array.isArray(response.candidates) || !Array.isArray(response.classified)) return { status: "unavailable", reason: "processing_error" };
     return { status: "ok", careerStage: response.careerStage, candidates: response.candidates, classified: response.classified };
   }
   if (response.status === "unavailable") return { status: "unavailable", reason: response.reason };

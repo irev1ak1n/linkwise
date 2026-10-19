@@ -51,5 +51,14 @@ export function skillsIn(quote: string, terms: string[], limit = 3): string[] {
       break;
     }
   }
-  return found.sort((a, b) => a.at - b.at).slice(0, limit).map((f) => f.text);
+  // A run of listed skills ("Python, C++, C#") reads as one mark, not a row of separate ones.
+  const spans: { at: number; end: number }[] = [];
+  for (const f of found.sort((a, b) => a.at - b.at)) {
+    const last = spans.at(-1);
+    if (last && LIST_GAP.test(quote.slice(last.end, f.at))) last.end = f.at + f.text.length;
+    else spans.push({ at: f.at, end: f.at + f.text.length });
+  }
+  return spans.slice(0, limit).map((s) => quote.slice(s.at, s.end));
 }
+
+const LIST_GAP = /^\s*(?:,|\/|&|and|,\s*and)\s*$/i;

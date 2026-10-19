@@ -1,21 +1,21 @@
 import { compactText, locateSignals, type SignalTarget } from "./signalRanges";
 import { HIGHLIGHT_SHADES } from "./highlightPalette";
-import { DEFAULT_HIGHLIGHT_PREFERENCES, HIGHLIGHT_CATEGORIES, type HighlightCategory, type HighlightPreferences } from "../signals/highlightCategories";
+import { DEFAULT_HIGHLIGHT_PREFERENCES, GENERAL_STYLE, STYLE_LAYERS, type HighlightPreferences, type StyleLayer } from "../signals/highlightCategories";
 
 export const QUOTE_HIGHLIGHT = "linkwise-signal";
 const STYLE_ID = "lw-signal-style";
-const DEFAULT_LAYER: HighlightCategory = "impact";
+const DEFAULT_LAYER: StyleLayer = "general";
 
-/** One CSS highlight per category, so each can be restyled alone and nothing is ever nested. */
-export function highlightName(category: HighlightCategory): string {
+/** One CSS highlight per style layer, so each can be restyled alone and nothing is ever nested. */
+export function highlightName(category: StyleLayer): string {
   return `${QUOTE_HIGHLIGHT}-${category}`;
 }
 
 // Numbers and skills mark words inside a phrase, so they sit on top of it: their own fill over the
 // phrase's reads as their color, and an underline (when on) keeps them legible either way.
 export function signalStyles(prefs: HighlightPreferences): string {
-  return HIGHLIGHT_CATEGORIES.map((category) => {
-    const { color, underline } = prefs.categories[category];
+  return STYLE_LAYERS.map((category) => {
+    const { color, underline } = category === "general" ? GENERAL_STYLE : prefs.categories[category];
     const { fill, mark } = HIGHLIGHT_SHADES[color];
     const line = underline ? ` text-decoration: underline 2px ${mark}; text-underline-offset: 3px;` : " text-decoration: none;";
     return `::highlight(${highlightName(category)}) { background-color: ${fill};${line} }`;
@@ -46,8 +46,7 @@ interface Applied {
   count: number;
 }
 
-const toCategory = (layer: string | undefined): HighlightCategory =>
-  HIGHLIGHT_CATEGORIES.find((c) => c === layer) ?? DEFAULT_LAYER;
+const toCategory = (layer: string | undefined): StyleLayer => STYLE_LAYERS.find((c) => c === layer) ?? DEFAULT_LAYER;
 
 export class SignalHighlighter {
   private applied: Applied | null = null;
@@ -71,8 +70,8 @@ export class SignalHighlighter {
     if (this.applied?.fingerprint === fingerprint && this.applied.complete && this.stillValid(this.applied)) return this.applied.count;
 
     const located = locateSignals(this.doc, targets);
-    const layers = new Map<HighlightCategory, Range[]>();
-    const add = (category: HighlightCategory, ranges: Range[]) => {
+    const layers = new Map<StyleLayer, Range[]>();
+    const add = (category: StyleLayer, ranges: Range[]) => {
       if (ranges.length > 0) layers.set(category, [...(layers.get(category) ?? []), ...ranges]);
     };
     for (const target of targets) {
@@ -91,13 +90,16 @@ export class SignalHighlighter {
       this.registered.add(highlightName(category));
     }
 
+    // The count is of signals, not of drawn ranges: a claim's supporting clause or a number marked
+    // inside it is part of that one signal.
+    const count = targets.filter((t) => t.counted !== false && located.has(t.key)).length;
     this.applied = {
       fingerprint,
       ranges: [...layers.values()].flat().map((range) => ({ range, expected: compactText(range.toString()) })),
       complete: located.size === targets.length,
-      count: located.size,
+      count,
     };
-    return located.size;
+    return count;
   }
 
   // Only restyles the existing highlights: nothing is located, requested, or re-rendered.

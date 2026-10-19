@@ -13,6 +13,10 @@ export interface SignalTarget {
   layer?: string;
   /** Evidence never sits in a title ("exclude"); a role is one ("only"); a language may be either. */
   titles?: "exclude" | "only" | "any";
+  /** The sentence it sits in, so colors can be limited per sentence. */
+  sentence?: string;
+  /** Whether it counts as a signal of its own; a supporting clause does not. */
+  counted?: boolean;
 }
 
 export interface LocatedSignal {

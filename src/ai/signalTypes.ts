@@ -11,6 +11,8 @@ export type SignalFactType =
   | "project_ownership"
   | "technical_execution"
   | "selective_admission"
+  | "milestone"
+  | "distinction"
   | "credential"
   | "sustained_training"
   | "teaching_scope"
@@ -23,6 +25,28 @@ export type SignalFactType =
   | "membership"
   | "self_description"
   | "other";
+
+/** What a claim is about. Richer than the settings categories, which only style chosen claims. */
+export type SemanticLabel =
+  | "achievement"
+  | "milestone"
+  | "selectivity"
+  | "distinction"
+  | "credential"
+  | "completion"
+  | "impact"
+  | "leadership"
+  | "ownership"
+  | "technical_execution"
+  | "project"
+  | "training"
+  | "duration"
+  | "scale"
+  | "skill"
+  | "education"
+  | "teaching"
+  | "responsibility"
+  | "language";
 
 export type CareerStage = "student" | "early_career" | "professional" | "senior" | "unknown";
 
@@ -55,6 +79,11 @@ export interface GradedCandidateDTO {
   goalRelevance: number;
   confidence: number;
   metrics: string[];
+  /** A sentence's central claim, or a clause that supports one. Main when absent. */
+  claim?: "main" | "support";
+  /** Claims about the same event share a group within their item. */
+  group?: number;
+  labels?: SemanticLabel[];
 }
 
 // An exact phrase to highlight in the profile text.
@@ -68,6 +97,12 @@ export interface InlineHighlightDTO {
   metrics: string[];
   /** The kind of evidence, which decides only how the phrase is colored. */
   category: PhraseCategory;
+  /** A main claim, or a clause shown only beside its main claim; main when absent. */
+  claim?: "main" | "support";
+  /** Which sentence of which item the claim sits in, for limiting colors per sentence. */
+  sentence?: string;
+  /** The claim group: a supporting clause shares its main claim's group. */
+  group?: string;
 }
 
 export interface SignalFactDTO {
@@ -76,7 +111,7 @@ export interface SignalFactDTO {
 }
 
 export type AnalyzeSignalsApiResponse =
-  | { status: "signals"; version: 2; model: string; careerStage: CareerStage; candidates: GradedCandidateDTO[]; classified: string[] }
+  | { status: "signals"; version: 3; model: string; careerStage: CareerStage; candidates: GradedCandidateDTO[]; classified: string[] }
   | { status: "not_configured" }
   | { status: "unavailable"; reason: string }
   | { status: "invalid_request"; message: string };

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KEYWORD_HIGHLIGHT, KeywordHighlighter, locateKeywords, parseKeywords } from "./keywordHighlights";
 import { highlightName, SignalHighlighter, type HighlightRegistryLike } from "./signalHighlighter";
-const IMPACT_HIGHLIGHT = highlightName("impact");
+const IMPACT_HIGHLIGHT = highlightName("general");
 import { HIGHLIGHT_SHADES } from "./highlightPalette";
 
 function fakeRegistry() {

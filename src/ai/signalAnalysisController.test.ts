@@ -59,9 +59,9 @@ afterEach(() => {
 });
 
 describe("buildSignalsRequest", () => {
-  it("sends contract version 2 with gradable evidence only, no headline or location", () => {
+  it("sends contract version 3 with gradable evidence only, no headline or location", () => {
     const body = buildSignalsRequest("jordan", profile("Led a team"), "Robotics captains")!;
-    expect(body.version).toBe(2);
+    expect(body.version).toBe(3);
     expect(body.profile.evidence.map((e) => e.id)).toEqual(["about:0"]);
     expect(body.goal).toEqual({ text: "Robotics captains" });
   });

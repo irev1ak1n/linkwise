@@ -5,7 +5,7 @@ import { SignalHighlighter } from "./signalHighlighter";
 import type { SignalTarget } from "./signalRanges";
 import { profileIdentityKey } from "./profileAdapter";
 import type { PanelProfileData } from "./panel/panelStore";
-import { DEFAULT_HIGHLIGHT_PREFERENCES, isMeaningfulMetric, type HighlightCategory, type HighlightPreferences } from "../signals/highlightCategories";
+import { DEFAULT_HIGHLIGHT_PREFERENCES, isMeaningfulMetric, type PhraseCategory, type HighlightCategory, type HighlightPreferences } from "../signals/highlightCategories";
 import { skillTerms, skillsIn } from "../signals/skillTerms";
 
 export const INLINE_MIN_IMPORTANCE = 0.5;
@@ -46,18 +46,47 @@ export function signalTickInput(enabled: boolean, href: string, data: PanelProfi
   };
 }
 
-// Chosen evidence, styled by its kind. A disabled kind is simply not drawn; its evidence and
-// grades stay, so turning it back on needs no new request.
+// The style plan: the SignalPlan's chosen claims, drawn by kind. It never decides what matters.
+// - General claims (important, of no settings kind) always show while Signal Mode is on.
+// - A switched-off kind hides only its own claims; their grades stay, so turning it back on needs
+//   no request. A supporting clause is hidden with its main claim, never shown on its own.
+// - Numbers and skills mark words inside a claim; at most three colors share one sentence.
 export function signalTargets(highlights: InlineHighlightDTO[], prefs: HighlightPreferences = DEFAULT_HIGHLIGHT_PREFERENCES, skills: string[] = []): SignalTarget[] {
   const { categories } = prefs;
   const terms = categories.skills.enabled ? skillTerms(skills) : [];
-  return highlights
-    .filter((s) => s.importance >= INLINE_MIN_IMPORTANCE && categories[s.category ?? "impact"].enabled)
-    .map((s, i) => {
-      const metrics = categories.numbers.enabled ? s.metrics.filter((m) => isMeaningfulMetric(s.quote, m)) : [];
-      const marked = skillsIn(s.quote, terms).filter((skill) => !metrics.some((m) => m.includes(skill) || skill.includes(m)));
-      return { key: `${s.evidenceId}#${i}`, section: s.section, quote: s.quote, metrics, skills: marked, layer: s.category ?? "impact" };
-    });
+  const shown = (category: PhraseCategory) => category === "general" || categories[category].enabled;
+  const visible = highlights.filter((s) => s.importance >= INLINE_MIN_IMPORTANCE);
+  const hiddenGroups = new Set(visible.filter((s) => s.claim !== "support" && !shown(s.category ?? "general")).map((s) => s.group));
+  const targets: SignalTarget[] = [];
+  visible.forEach((s, i) => {
+    const category = s.category ?? "general";
+    const key = `${s.evidenceId}#${i}`;
+    const metrics = categories.numbers.enabled ? s.metrics.filter((m) => isMeaningfulMetric(s.quote, m)) : [];
+    if (!shown(category) || (s.claim === "support" && s.group !== undefined && hiddenGroups.has(s.group))) {
+      // Only a number that reads as a phrase by itself ("1 of 30 pianists worldwide") may remain.
+      for (const m of metrics) if (m.trim().split(/\s+/).length >= 3) targets.push({ key: `${key}:${m}`, section: s.section, quote: m, metrics: [], layer: "numbers", sentence: s.sentence, counted: false });
+      return;
+    }
+    const marked = skillsIn(s.quote, terms).filter((skill) => !metrics.some((m) => m.includes(skill) || skill.includes(m)));
+    targets.push({ key, section: s.section, quote: s.quote, metrics, skills: marked, layer: category, sentence: s.sentence, counted: s.claim !== "support" });
+  });
+  return limitColors(targets);
+}
+
+const MAX_COLORS_PER_SENTENCE = 3;
+
+// Restraint over completeness: when a sentence would carry more than three colors, its skill
+// marks go first, then its number marks. The claims themselves always stay.
+function limitColors(targets: SignalTarget[]): SignalTarget[] {
+  const bySentence = new Map<string, SignalTarget[]>();
+  for (const t of targets) if (t.sentence) bySentence.set(t.sentence, [...(bySentence.get(t.sentence) ?? []), t]);
+  const colors = (group: SignalTarget[]) =>
+    new Set(group.flatMap((t) => [t.layer, t.metrics.length > 0 ? "numbers" : null, (t.skills?.length ?? 0) > 0 ? "skills" : null]).filter(Boolean)).size;
+  for (const group of bySentence.values()) {
+    if (colors(group) > MAX_COLORS_PER_SENTENCE) for (const t of group) t.skills = [];
+    if (colors(group) > MAX_COLORS_PER_SENTENCE) for (const t of group) t.metrics = [];
+  }
+  return targets;
 }
 
 // Roles, project names, and languages are read from the profile's own structure: the title of

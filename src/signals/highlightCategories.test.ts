@@ -49,8 +49,12 @@ describe("skill terms", () => {
 
   it("finds whole terms only: C++ is not C, and React is not Reactive", () => {
     const terms = skillTerms(["C"]);
-    expect(skillsIn("Wrote C++ and C# tools in a Reactive style", terms)).toEqual(["C++", "C#"]);
-    expect(skillsIn("Taught C and Python", terms)).toEqual(["C", "Python"]);
+    expect(skillsIn("Wrote C++ and C# tools in a Reactive style", terms)).toEqual(["C++ and C#"]);
+    expect(skillsIn("Taught C, then Python", terms)).toEqual(["C", "Python"]);
+  });
+
+  it("marks a run of listed skills as one span", () => {
+    expect(skillsIn("acquired skills in Python, C++, C#, and SQL over 9 years", skillTerms([]))).toEqual(["Python, C++, C#, and SQL"]);
   });
 
   it("skips ambiguous words unless the person lists them", () => {

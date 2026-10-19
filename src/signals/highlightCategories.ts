@@ -1,14 +1,21 @@
 // The kinds of profile evidence Signal Mode can color separately. Ranking decides WHAT is
-// highlighted; a category only decides HOW a chosen phrase looks. Roles and Languages come from
-// the profile's own structure, Numbers and Skills are marks inside chosen phrases, and the rest
-// are the primary kind of a chosen phrase.
-import type { Grades, SignalFactType } from "../ai/signalTypes";
+// highlighted; a category only decides HOW a chosen claim looks. Roles and Languages come from
+// the profile's own structure, Numbers and Skills are marks inside chosen claims, and the rest
+// are the primary kind of a chosen claim. A chosen claim that fits none of them is "general" and
+// keeps the Signal color: the settings categories style evidence, they never limit what counts.
+import type { Grades, SemanticLabel, SignalFactType } from "../ai/signalTypes";
 import { DEFAULT_HIGHLIGHT_COLOR, DEFAULT_KEYWORD_HIGHLIGHT_COLOR, toHighlightColor, type HighlightColor } from "../linkedin/highlightPalette";
 
 export const HIGHLIGHT_CATEGORIES = ["roles", "numbers", "impact", "leadership", "skills", "achievements", "projects", "languages"] as const;
 export type HighlightCategory = (typeof HIGHLIGHT_CATEGORIES)[number];
-/** Categories a whole chosen phrase can take; numbers and skills only mark words inside one. */
-export type PhraseCategory = "impact" | "leadership" | "achievements" | "projects";
+/** The style layer of a whole chosen claim; numbers and skills only mark words inside one. */
+export type PhraseCategory = "impact" | "leadership" | "achievements" | "projects" | "general";
+/** Every style layer the highlighter draws: the settings categories plus general Signal. */
+export type StyleLayer = HighlightCategory | "general";
+export const STYLE_LAYERS: readonly StyleLayer[] = [...HIGHLIGHT_CATEGORIES, "general"];
+
+/** Important claims of no particular kind: always shown while Signal Mode is on, in the Signal color. */
+export const GENERAL_STYLE = { enabled: true, color: DEFAULT_HIGHLIGHT_COLOR, underline: false } as const;
 
 export interface CategoryInfo {
   label: string;
@@ -64,7 +71,6 @@ const TYPE_CATEGORY: Partial<Record<SignalFactType, PhraseCategory>> = {
   award: "achievements",
   selective_admission: "achievements",
   credential: "achievements",
-  sustained_training: "achievements",
   measurable_impact: "impact",
   volunteering_impact: "impact",
   leadership_scope: "leadership",
@@ -73,15 +79,29 @@ const TYPE_CATEGORY: Partial<Record<SignalFactType, PhraseCategory>> = {
   technical_execution: "projects",
 };
 
-export function phraseCategory(candidate: { type: SignalFactType; grades: Grades }): PhraseCategory {
+const LABEL_CATEGORY: [SemanticLabel[], PhraseCategory][] = [
+  [["achievement", "selectivity", "credential"], "achievements"],
+  [["leadership", "teaching"], "leadership"],
+  [["impact"], "impact"],
+  [["project", "technical_execution"], "projects"],
+];
+
+// Decided only after a claim was chosen, and never the reason it was chosen. Milestones, long
+// training, distinctions, and other important claims of no settings kind stay "general".
+export function phraseCategory(candidate: { type: SignalFactType; grades: Grades; labels?: SemanticLabel[] }): PhraseCategory {
   const g = candidate.grades;
   const byType = TYPE_CATEGORY[candidate.type];
   if (byType === "achievements" || g.selectivity >= 3) return "achievements";
   if (byType) return byType;
+  if (candidate.labels && candidate.labels.length > 0) {
+    // Labels come most relevant first: the claim's main kind decides, and a claim whose main kind
+    // has no settings category (a milestone, long training) stays general.
+    return LABEL_CATEGORY.find(([labels]) => labels.includes(candidate.labels![0]!))?.[1] ?? "general";
+  }
   if (g.leadership >= 2) return "leadership";
   if (g.result >= 2 || g.impact >= 2) return "impact";
   if (g.ownership >= 2 && g.technicalDepth >= 1) return "projects";
-  return "impact";
+  return "general";
 }
 
 function parseStyle(value: unknown, fallback: HighlightStyle): HighlightStyle {

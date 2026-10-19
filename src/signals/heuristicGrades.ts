@@ -4,7 +4,8 @@
 import type { GradedCandidateDTO, Grades, SignalFactType, SignalSection } from "../ai/signalTypes";
 
 const CONFIDENCE = 0.55;
-const MAX_WORDS = 16;
+// A clause may run long when that is what keeps a claim whole.
+const MAX_WORDS = 25;
 const MIN_WORDS = 3;
 
 const COMPETITION = /\b(?:\d+(?:st|nd|rd|th)\s+place|first|second|third|winner|won|finalist|champion(?:ship)?|placed|award(?:ed)?|medal|honou?rable mention)\b/i;
@@ -16,6 +17,8 @@ const SELECTIVE = /\b(?:selected|admitted|accepted|chosen|invited|scholarship|fe
 const SUSTAINED = /\b\d+\+?\s*(?:years?|yrs?)\s+(?:of|studying|training|experience)/i;
 const SCALE = /\b\d[\d,.]*\+?\s*(?:%|k\b|people|persons|students|users|customers|clients|members|tickets|participants|attendees|visitors|hours|hrs|schools|volunteers|employees|children|kids|countries|downloads)/i;
 const SELF = /\b(?:passionate|interested in|motivated|driven|aspiring|love|enjoy|eager|strive|dedicated to)\b/i;
+const CREDENTIAL = /\b(?:graduated|diploma|degree|bachelor'?s?|master'?s?|certified|certification|licen[cs]e)\b/i;
+const MILESTONE = /\b(?:at (?:the )?age (?:of )?\d{1,2}|began|started|first ever|youngest)\b/i;
 const COURSES = /\b(?:AP |courses?|coursework|classes|curriculum)\b/;
 const DATE_ONLY = /^(?:[A-Z][a-z]{2,8}\.?\s+)?\d{4}(?:\s*[-–]\s*(?:(?:[A-Z][a-z]{2,8}\.?\s+)?\d{4}|Present))?(?:\s*·.*)?$|^\d+\s*(?:yrs?|mos?)(?:\s+\d+\s*mos?)?$/;
 
@@ -69,6 +72,14 @@ function grade(text: string, section: SignalSection): { type: SignalFactType; gr
   if (SUSTAINED.test(text)) {
     raise("sustainedDepth", 3), raise("distinctiveness", 2);
     types.push("sustained_training");
+  }
+  if (CREDENTIAL.test(text)) {
+    raise("result", 2), raise("distinctiveness", 2), raise("specificity", 2);
+    types.push("credential");
+  }
+  if (MILESTONE.test(text)) {
+    raise("distinctiveness", 2), raise("specificity", 2);
+    types.push("milestone");
   }
   if (SCALE.test(text)) raise("scale", 2), raise("specificity", 3);
   if (types.length === 0 && SELF.test(text)) {

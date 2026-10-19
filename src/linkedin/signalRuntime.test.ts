@@ -113,7 +113,7 @@ describe("signalTargets", () => {
 
   it("marks the person's skills only inside chosen phrases, never over a number", () => {
     const highlights = [{ ...base, quote: "Built 3 apps in React and Python (Django)", importance: 1, metrics: ["3 apps"] }];
-    expect(signalTargets(highlights, DEFAULT_HIGHLIGHT_PREFERENCES, ["React.js", "Python (Programming Language)"])[0]!.skills).toEqual(["React", "Python", "Django"]);
+    expect(signalTargets(highlights, DEFAULT_HIGHLIGHT_PREFERENCES, ["React.js", "Python (Programming Language)"])[0]!.skills).toEqual(["React and Python", "Django"]);
     expect(signalTargets(highlights, off("skills"), ["React"])[0]!.skills).toEqual([]);
   });
 });

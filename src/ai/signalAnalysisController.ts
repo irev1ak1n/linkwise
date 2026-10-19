@@ -8,6 +8,7 @@ import { createPersistentCache, type PersistentCache } from "./persistentCache";
 import { SIGNAL_RANKING_VERSION, rankSignals, type RankCandidate, type RankingResult } from "../signals/signalRanking";
 import { heuristicGrades } from "../signals/heuristicGrades";
 import { phraseCategory } from "../signals/highlightCategories";
+import { planHighlights, sentenceIndex } from "../signals/signalPlan";
 
 export const SIGNAL_ANALYSIS_VERSION = `signals-v${SIGNAL_RANKING_VERSION}`;
 export const SIGNAL_DEBOUNCE_MS = 1500;
@@ -65,7 +66,7 @@ function gradableItems(profile: LinkedInProfile): EvidencePayloadItem[] {
 
 export function buildSignalsRequest(profileKey: string, profile: LinkedInProfile, goalText: string | null = null): AnalyzeSignalsRequestBody | null {
   const evidence = gradableItems(profile);
-  return evidence.length > 0 ? { version: 2, profile: { identity: profileKey, evidence }, goal: goalText ? { text: goalText } : null } : null;
+  return evidence.length > 0 ? { version: 3, profile: { identity: profileKey, evidence }, goal: goalText ? { text: goalText } : null } : null;
 }
 
 const itemHash = (item: EvidencePayloadItem) => hashString(`${item.section}\n${item.text}`);
@@ -104,7 +105,7 @@ function debugEnabled(): boolean {
 
 function logRanking(ranking: RankingResult, profileKey: string): void {
   if (!debugEnabled()) return;
-  const rows = ranking.debug.map((r) => ({ status: r.status, reason: r.reason ?? "", band: r.band, score: r.score, intrinsic: r.intrinsic, goal: r.goalPart, type: r.type, section: r.section, quote: r.quote, confidence: r.confidence, grades: Object.entries(r.grades).filter(([, v]) => v > 0).map(([k, v]) => `${k}${v}`).join(" "), goalRelevance: r.goalRelevance }));
+  const rows = ranking.debug.map((r) => ({ status: r.status, reason: r.reason ?? "", band: r.band, score: r.score, intrinsic: r.intrinsic, goal: r.goalPart, type: r.type, section: r.section, quote: r.quote, sentence: r.sentence, claim: r.claim, group: r.group, labels: r.labels.join(" "), category: phraseCategory(r), confidence: r.confidence, grades: Object.entries(r.grades).filter(([, v]) => v > 0).map(([k, v]) => `${k}${v}`).join(" "), goalRelevance: r.goalRelevance }));
   console.groupCollapsed(`[LinkWise signals] ${profileKey}: ${ranking.core.length} core, ${ranking.discovery.length} discovery, ${ranking.debug.length} candidates`);
   console.table(rows);
   console.groupEnd();
@@ -216,7 +217,7 @@ export class SignalAnalysisController {
         // Grounding against the current text: a quote that is no longer there is never ranked.
         const position = item.text.indexOf(c.quote);
         if (position === -1) continue;
-        candidates.push({ ...c, id: `${hash}|${c.quote.toLowerCase()}`, itemKey: hash, evidenceId: item.id, section: item.section, itemOrder: order, position, itemLength: item.text.length });
+        candidates.push({ ...c, id: `${hash}|${c.quote.toLowerCase()}`, itemKey: hash, evidenceId: item.id, section: item.section, itemOrder: order, position, itemLength: item.text.length, sentence: sentenceIndex(item.text, position) });
       }
     });
 
@@ -227,10 +228,7 @@ export class SignalAnalysisController {
     const sessionKey = `${input.profileKey}:${goal}`;
     const ranking = rankSignals(candidates, { goalActive: goal !== "none", incumbents: this.incumbents.get(sessionKey), discoverySeed: this.seeds.get(input.profileKey) });
     this.incumbents.set(sessionKey, new Set(ranking.core.map((c) => c.id)));
-    const highlights: InlineHighlightDTO[] = [
-      ...ranking.core.map((c) => ({ evidenceId: c.evidenceId, section: c.section, quote: c.quote, type: "core" as const, importance: 1, metrics: c.metrics, category: phraseCategory(c) })),
-      ...ranking.discovery.map((c) => ({ evidenceId: c.evidenceId, section: c.section, quote: c.quote, type: "discovery" as const, importance: 0.75, metrics: c.metrics, category: phraseCategory(c) })),
-    ];
+    const highlights: InlineHighlightDTO[] = planHighlights(ranking, new Map(items.map((item) => [item.id, item.text])));
     const source = fallback === 0 ? "ai" : graded === 0 ? "heuristic" : "mixed";
     this.debug(ranking, input.profileKey);
     this.setState({ status: "ready", profileKey: input.profileKey, highlights, facts: ranking.facts, source, ranking, updating, updateError: updating ? undefined : this.lastError });
@@ -256,7 +254,7 @@ export class SignalAnalysisController {
       .slice(0, MAX_CONTEXT_ITEMS)
       .map((item) => ({ section: item.section, text: item.text.slice(0, CONTEXT_TEXT) }));
     const body: AnalyzeSignalsRequestBody = {
-      version: 2,
+      version: 3,
       profile: { identity: input.profileKey, evidence: batch.map(({ item }) => item), context },
       goal: input.goalText ? { text: input.goalText } : null,
     };

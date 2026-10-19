@@ -138,7 +138,7 @@ describe("rankSignals", () => {
 
   it("keeps one dense experience from taking every highlight", () => {
     const facts = ["Built the ticketing system", "Shipped a mobile scanner app", "Migrated payments to Stripe", "Designed the analytics warehouse", "Automated nightly reporting", "Launched a volunteer portal"];
-    const dense = facts.map((q, i) => candidate("shipped", q, { itemKey: "dense", position: i * 40 }));
+    const dense = facts.map((q, i) => candidate("shipped", q, { itemKey: "dense", position: i * 40, itemLength: 300 }));
     const others = [candidate("competition", "Won the state final", { itemKey: "h", section: "honors" }), candidate("tutoring", "Tutored 60 students", { itemKey: "v", section: "volunteering" })];
     const result = rankSignals([...dense, ...others], { goalActive: false });
     const fromDense = [...result.core, ...result.discovery].filter((c) => c.itemKey === "dense");

@@ -119,7 +119,7 @@ describe("SignalHighlighter", () => {
 
   it("styles every category, underlined only where asked", () => {
     const css = signalStyles(DEFAULT_HIGHLIGHT_PREFERENCES);
-    expect(css.match(/::highlight\(/g)).toHaveLength(8);
+    expect(css.match(/::highlight\(/g)).toHaveLength(9);
     expect(css).toMatch(/linkwise-signal-numbers\) \{ background-color: [^;]+; text-decoration: underline/);
     expect(css).toMatch(/linkwise-signal-roles\) \{ background-color: [^;]+; text-decoration: none/);
   });
