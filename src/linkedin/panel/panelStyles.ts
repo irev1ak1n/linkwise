@@ -2048,10 +2048,11 @@ export function getPanelStyles(widthPx: number): string {
     right: 6%;
     bottom: 9%;
     margin: 0;
-    font-size: 12.5px;
+    font-size: 14px;
+    font-weight: 500;
     line-height: 1.35;
-    color: rgba(228, 232, 255, 0.84);
-    text-shadow: 0 1px 6px rgba(8, 12, 50, 0.5);
+    color: #f7f8ff;
+    text-shadow: 0 1px 6px rgba(8, 12, 50, 0.55);
   }
   .lw-sh__switch {
     position: absolute;
