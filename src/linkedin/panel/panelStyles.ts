@@ -1992,15 +1992,154 @@ export function getPanelStyles(widthPx: number): string {
     gap: 8px;
     box-sizing: border-box;
   }
-  /* Signal Mode stays a card of its own, above the list. */
-  .lw-rule--master {
-    min-height: 46px;
-    padding: 0 12px;
-    border: 1px solid #e0e6ef;
-    border-radius: 12px;
-    background: #fff;
-    cursor: pointer;
+  /* Smart Highlights: the premium card above the categories, in the hero artwork's palette. */
+  .lw-sh {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 14px 14px 13px;
+    border-radius: 16px;
+    overflow: hidden;
+    isolation: isolate;
+    background:
+      radial-gradient(120% 140% at 100% 100%, rgba(79, 110, 255, 0.55) 0%, rgba(79, 110, 255, 0) 55%),
+      radial-gradient(70% 90% at 85% 10%, rgba(124, 92, 255, 0.35) 0%, rgba(124, 92, 255, 0) 60%),
+      linear-gradient(115deg, #0f1546 0%, #1b2273 45%, #2f3cc0 80%, #4a5bea 100%);
+    box-shadow: 0 8px 22px rgba(40, 52, 170, 0.28), 0 1px 2px rgba(15, 21, 70, 0.25);
+    color: #fff;
   }
+  /* A soft curved band of light, like the hero artwork's waves. */
+  .lw-sh::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: 48%;
+    right: -45%;
+    top: 74%;
+    height: 160%;
+    border-radius: 50%;
+    border-top: 1px solid rgba(160, 175, 255, 0.35);
+    background: radial-gradient(60% 40% at 50% 0%, rgba(120, 140, 255, 0.22), rgba(120, 140, 255, 0));
+    transform: rotate(-8deg);
+  }
+  .lw-sh--off {
+    box-shadow: 0 4px 14px rgba(40, 52, 170, 0.16);
+  }
+  .lw-sh__star {
+    position: absolute;
+    z-index: -1;
+    fill: #c9d2ff;
+    pointer-events: none;
+  }
+  .lw-sh__star--a {
+    width: 13px;
+    height: 13px;
+    right: 74px;
+    top: 44px;
+    opacity: 0.55;
+  }
+  .lw-sh__star--b {
+    width: 8px;
+    height: 8px;
+    right: 96px;
+    top: 60px;
+    opacity: 0.4;
+  }
+  .lw-sh__star--c {
+    width: 6px;
+    height: 6px;
+    right: 140px;
+    top: 12px;
+    opacity: 0.35;
+  }
+  .lw-sh__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .lw-sh__tile {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 13px;
+    background: linear-gradient(145deg, rgba(120, 132, 255, 0.38), rgba(64, 76, 210, 0.22));
+    border: 1px solid rgba(165, 175, 255, 0.45);
+    box-shadow: inset 0 0 14px rgba(150, 165, 255, 0.28), 0 0 12px rgba(99, 115, 255, 0.25);
+  }
+  .lw-sh__tile svg {
+    width: 26px;
+    height: 26px;
+    fill: #f3f2ff;
+    filter: drop-shadow(0 0 4px rgba(200, 205, 255, 0.55));
+  }
+  .lw-sh__text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lw-sh__title {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lw-sh__count {
+    font-size: 14px;
+    color: #c3c9f5;
+  }
+  .lw-sh__description {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: rgba(225, 230, 255, 0.78);
+  }
+  .lw-sh__switch {
+    flex: none;
+    appearance: none;
+    position: relative;
+    width: 46px;
+    height: 27px;
+    margin: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.16);
+    cursor: pointer;
+    transition: background 0.18s ease, box-shadow 0.18s ease;
+  }
+  .lw-sh__switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 21px;
+    height: 21px;
+    border-radius: 50%;
+    background: #f2f4ff;
+    box-shadow: 0 1px 3px rgba(10, 15, 60, 0.35);
+    transition: transform 0.18s ease;
+  }
+  .lw-sh__switch:checked {
+    border-color: rgba(150, 200, 255, 0.55);
+    background: linear-gradient(90deg, #3b6cf6, #3fa9f5);
+    box-shadow: 0 0 10px rgba(63, 140, 245, 0.35);
+  }
+  .lw-sh__switch:checked::after {
+    transform: translateX(19px);
+    background: #fff;
+  }
+  .lw-sh__switch:focus-visible {
+    outline: 2px solid #a5b4fc;
+    outline-offset: 2px;
+  }
+
   .lw-rule--row {
     position: relative;
     min-height: 54px;
@@ -2066,14 +2205,6 @@ export function getPanelStyles(widthPx: number): string {
   .lw-rule__name:disabled,
   .lw-rule__more:disabled {
     cursor: default;
-  }
-  .lw-rule__name--static {
-    cursor: inherit;
-  }
-  .lw-rule__count {
-    font-size: 11.5px;
-    font-weight: 400;
-    color: #8a949c;
   }
   .lw-rule__icon {
     flex: none;

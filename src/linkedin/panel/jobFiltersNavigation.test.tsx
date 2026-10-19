@@ -245,7 +245,7 @@ describe("Settings", () => {
     expect(container.querySelectorAll('[aria-label="Scan mode"]')).toHaveLength(1);
     expect(container.querySelectorAll('[aria-label="Profile highlights"]')).toHaveLength(1);
     expect(container.querySelector('[aria-label="Scanning"]')!.textContent).toContain("Scan mode");
-    expect(container.querySelector('[aria-label="Profile highlights"]')!.textContent).toContain("Signal Mode");
+    expect(container.querySelector('[aria-label="Profile highlights"]')!.textContent).toContain("Smart Highlights");
     expect(container.querySelector('[aria-label="Highlight on profile"]')).toBeNull();
   });
 
@@ -381,7 +381,7 @@ describe("Highlighting settings", () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     await openSettings();
-    const toggle = () => highlights().querySelector<HTMLInputElement>('[aria-label="Signal Mode"]')!;
+    const toggle = () => highlights().querySelector<HTMLInputElement>('input[aria-label="Smart Highlights"]')!;
     expect(highlights().querySelectorAll(".lw-rule--disabled .lw-rule__name")).toHaveLength(8);
     // Keywords are the user's own words, not Signal Mode's, so they stay usable.
     expect([...highlights().querySelectorAll(".lw-rule--row:not(.lw-rule--disabled) .lw-rule__name")].map((e) => e.textContent)).toEqual(["Keywords"]);

@@ -237,6 +237,39 @@ function NavButton({ label, onClick, children }: { label: string; onClick: () =>
   );
 }
 
+const Sparkle = ({ className }: { className: string }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 2c.6 4.9 2.6 7.6 7.5 8.6l2.5.4-2.5.4c-4.9 1-6.9 3.7-7.5 8.6-.6-4.9-2.6-7.6-7.5-8.6L2 11l2.5-.4C9.4 9.6 11.4 6.9 12 2Z" />
+  </svg>
+);
+
+// Smart Highlights (Signal Mode in the code) is the switch above every category: it decides
+// whether the page is highlighted at all. Only the switch toggles it; the card around it is
+// display, so a stray click never turns highlighting off.
+function SmartHighlightsCard({ enabled, highlighted, onChange }: { enabled: boolean; highlighted: number; onChange: (enabled: boolean) => void }) {
+  return (
+    <div className={enabled ? "lw-sh" : "lw-sh lw-sh--off"} role="group" aria-label="Smart Highlights">
+      <Sparkle className="lw-sh__star lw-sh__star--a" />
+      <Sparkle className="lw-sh__star lw-sh__star--b" />
+      <Sparkle className="lw-sh__star lw-sh__star--c" />
+      <div className="lw-sh__row">
+        <span className="lw-sh__tile" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M10 3c.5 4.2 2.2 6.5 6.4 7.3l2.1.4-2.1.4c-4.2.8-5.9 3.1-6.4 7.3-.5-4.2-2.2-6.5-6.4-7.3L1.5 10.7l2.1-.4C7.8 9.5 9.5 7.2 10 3Z" />
+            <path d="M18.5 2.5c.25 1.9 1 2.9 2.9 3.25l.6.1-.6.1c-1.9.35-2.65 1.35-2.9 3.25-.25-1.9-1-2.9-2.9-3.25l-.6-.1.6-.1c1.9-.35 2.65-1.35 2.9-3.25ZM18 15.5c.2 1.4.75 2.15 2.15 2.4l.45.1-.45.1c-1.4.25-1.95 1-2.15 2.4-.2-1.4-.75-2.15-2.15-2.4l-.45-.1.45-.1c1.4-.25 1.95-1 2.15-2.4Z" />
+          </svg>
+        </span>
+        <span className="lw-sh__text">
+          <span className="lw-sh__title">Smart Highlights</span>
+          <span className="lw-sh__count">{enabled ? `${highlighted} highlighted` : "Off"}</span>
+        </span>
+        <input type="checkbox" role="switch" className="lw-sh__switch" aria-label="Smart Highlights" checked={enabled} onChange={(e) => onChange(e.target.checked)} />
+      </div>
+      <p className="lw-sh__description">Automatically highlight the most important details as you browse.</p>
+    </div>
+  );
+}
+
 // The one editor every highlight rule opens: the eight automatic categories and Keywords get the
 // same page, which differs only by the rule's name, icon, and stored style (plus, for Keywords,
 // the words themselves).
@@ -343,13 +376,7 @@ export function HighlightSettings({ signalEnabled, highlighted, onSignalChange, 
   return (
     <section className="lw-hl lw-highlighting" aria-label="Profile highlights" ref={sectionRef}>
       <h3 className="lw-an-heading">Profile highlights</h3>
-      <label className="lw-rule lw-rule--master">
-        <span className="lw-rule__name lw-rule__name--static">
-          <span>Signal Mode</span>
-          {signalEnabled && highlighted > 0 && <span className="lw-rule__count">{highlighted} highlighted</span>}
-        </span>
-        <Switch label="Signal Mode" checked={signalEnabled} onChange={onSignalChange} />
-      </label>
+      <SmartHighlightsCard enabled={signalEnabled} highlighted={highlighted} onChange={onSignalChange} />
       {/* One grouped list: the automatic categories, then the user's own Keywords. Keywords keep
           their own rules (and stay usable without Signal Mode); only the grouping is shared. */}
       <h4 className="lw-rules__label">Highlight categories</h4>

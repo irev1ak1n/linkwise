@@ -424,6 +424,37 @@ const FIXTURE_PHRASES = [
   "500+", "30%", "TypeScript, React, and Azure", "team of 4", "2 product teams", "Node.js", "AI", "Machine Learning",
 ];
 
+describe("Smart Highlights card", () => {
+  const card = () => q('[aria-label="Smart Highlights"][role="group"]');
+  const toggle = () => q<HTMLInputElement>('input[aria-label="Smart Highlights"]');
+
+  it("is named Smart Highlights, shows the live count and its description, and only the switch toggles it", async () => {
+    await mountPanel();
+    const { publishSignalAnalysis } = await import("./signalModeStore");
+    await act(async () => publishSignalAnalysis({ status: "idle" }, 12));
+    expect(card().querySelector(".lw-sh__title")!.textContent).toBe("Smart Highlights");
+    expect(card().querySelector(".lw-sh__count")!.textContent).toBe("12 highlighted");
+    await act(async () => publishSignalAnalysis({ status: "idle" }, 13));
+    expect(card().querySelector(".lw-sh__count")!.textContent).toBe("13 highlighted");
+    expect(card().textContent).toContain("Automatically highlight the most important details as you browse.");
+    expect(container.querySelector('[aria-label="Profile highlights"]')!.textContent).not.toContain("Signal Mode");
+    // A click on the card itself never switches highlighting off.
+    await act(async () => card().querySelector<HTMLElement>(".lw-sh__title")!.click());
+    await act(async () => card().click());
+    expect(toggle().checked).toBe(true);
+    sendMessage.mockClear();
+    await act(async () => toggle().click());
+    expect(toggle().checked).toBe(false);
+    expect(card().classList.contains("lw-sh--off")).toBe(true);
+    expect(card().querySelector(".lw-sh__count")!.textContent).toBe("Off");
+    await act(async () => toggle().click());
+    expect(toggle().checked).toBe(true);
+    // Switching never touches the category styles, and never asks for AI.
+    expect(highlightPreferences.getState().value).toEqual(DEFAULT_HIGHLIGHT_PREFERENCES);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+});
+
 describe("every highlight rule opens the same full editor", () => {
   it("covers every category the settings know, and Keywords", async () => {
     const { HIGHLIGHT_CATEGORIES } = await import("../../signals/highlightCategories");
