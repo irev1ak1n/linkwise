@@ -9,7 +9,7 @@ import { setPanelProfileData } from "./panelStore";
 import { getJobsSettingsState, setJobsSettings, subscribeJobsSettingsStore } from "./jobsSettingsStore";
 import { decodePanelTool, panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { resetJobsRuntime, runJobsTick } from "../jobs/jobsRuntime";
-import { resetSettingsOriginForTests } from "./settingsNav";
+import { resetHighlightRuleForTests, resetSettingsOriginForTests } from "./settingsNav";
 import { getOptimizerPage, openOptimizerPage } from "../../optimizer/optimizerNav";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -62,6 +62,7 @@ installChrome();
 beforeEach(() => {
   panelToolPreference.set("menu");
   resetSettingsOriginForTests();
+  resetHighlightRuleForTests();
   setJobsSettings(DEFAULT_JOBS_SETTINGS);
   for (const key of Object.keys(stored)) delete stored[key];
   set.mockClear();
@@ -334,7 +335,7 @@ describe("Highlighting settings", () => {
     expect(sendMessage()).not.toHaveBeenCalled();
   });
 
-  it("changes a category's color, switch, and underline at once, keeping its other settings, with no AI", async () => {
+  it("changes a category's preset color and switch from its row, keeping its other settings, with no AI", async () => {
     (await import("./signalModeStore")).setSignalModeEnabled(true);
     const { highlightPreferences } = await import("./highlightPreferences");
     await mountPanel();
@@ -346,16 +347,11 @@ describe("Highlighting settings", () => {
     await act(async () => roles.querySelector<HTMLButtonElement>('[aria-label="Pink"]')!.click());
     expect(roles.querySelector(".lw-dot__popover")).toBeNull();
     await act(async () => roles.querySelector<HTMLInputElement>('[role="switch"]')!.click());
-    expect(highlightPreferences.getState().value.categories.roles).toMatchObject({ color: "pink", enabled: false });
+    expect(highlightPreferences.getState().value.categories.roles).toEqual({ color: "pink", enabled: false, underline: false });
     await act(async () => roles.querySelector<HTMLInputElement>('[role="switch"]')!.click());
-    await act(async () => rowButton("Roles").click());
-    await act(async () => highlights().querySelector<HTMLInputElement>('[aria-label="Underline Roles"]')!.click());
-    expect(highlightPreferences.getState().value.categories.roles).toEqual({ enabled: true, color: "pink", underline: true });
-    expect(highlights().querySelector<HTMLElement>(".lw-rule-detail__preview")!.style.textDecoration).toContain("underline");
     expect(stored["finder.highlightPreferences.v1"]).toBeDefined();
     expect(sendMessage()).not.toHaveBeenCalled();
 
-    await act(async () => button("← Highlighting").click());
     await act(async () => button("Reset highlight styles").click());
     expect(highlightPreferences.getState().value.categories.roles).toEqual({ enabled: true, color: "blue", underline: false });
   });

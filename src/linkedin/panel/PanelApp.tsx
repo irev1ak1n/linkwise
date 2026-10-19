@@ -30,6 +30,7 @@ import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
 import { OptimizerView } from "../../optimizer/OptimizerView";
 import { panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { isPanelVisible, subscribePanelVisibility } from "./panelVisibilityStore";
+import { getHighlightRule, subscribeHighlightRule } from "./settingsNav";
 import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
@@ -110,6 +111,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
     setForcedKeys((prev) => new Set(prev).add(profileKey));
   }
 
+  const highlightRule = useSyncExternalStore(subscribeHighlightRule, getHighlightRule, getHighlightRule);
   // How LinkWise scans and highlights profiles, set once in Settings.
   const highlights = (
     <HighlightSettings
@@ -171,6 +173,9 @@ export function PanelApp({ onClose }: PanelAppProps) {
       <div className="lw-panel__body">
         {tool === "menu" ? (
           <MainMenu onOpen={panelToolPreference.set} />
+        ) : tool === "settings" && highlightRule ? (
+          // A highlight category's own page, one level deeper in Settings: no hero, no other groups.
+          highlights
         ) : tool === "settings" ? (
           <SettingsPage
             highlights={highlights}

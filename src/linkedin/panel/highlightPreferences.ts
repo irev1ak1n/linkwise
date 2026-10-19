@@ -8,7 +8,8 @@ import {
   type HighlightPreferences,
   type HighlightStyle,
 } from "../../signals/highlightCategories";
-import type { StoredPreferenceState } from "./storedPreference";
+import { createStoredPreference, type StoredPreferenceState } from "./storedPreference";
+import { normalizeHex } from "../highlightColor";
 
 export const HIGHLIGHT_PREFERENCES_STORAGE_KEY = "finder.highlightPreferences.v1";
 // Before categories: one color for every Signal highlight, one for keywords. Read only until the
@@ -31,13 +32,29 @@ export function readHighlightPreferences(stored: Record<string, unknown>): Highl
   return saved !== undefined ? parseHighlightPreferences(saved) : migrateLegacyColors(stored[LEGACY_SIGNAL_COLOR_KEY], stored[LEGACY_KEYWORD_COLOR_KEY]);
 }
 
+// Dragging in the color editor changes the color many times a second: every change is shown at
+// once, and storage gets the value the drag settles on.
+const LIVE_WRITE_DELAY_MS = 250;
+let pendingWrite: ReturnType<typeof setTimeout> | null = null;
+
 async function refresh(): Promise<void> {
-  setState({ value: readHighlightPreferences(await safeStorageGet(WATCHED)), loaded: true });
+  const value = readHighlightPreferences(await safeStorageGet(WATCHED));
+  // A change not yet written is newer than anything storage holds.
+  if (pendingWrite) return;
+  setState({ value, loaded: true });
 }
 
-function save(value: HighlightPreferences): void {
+function write(): void {
+  if (pendingWrite) clearTimeout(pendingWrite);
+  pendingWrite = null;
+  void safeStorageSet({ [HIGHLIGHT_PREFERENCES_STORAGE_KEY]: state.value });
+}
+
+function save(value: HighlightPreferences, live = false): void {
   setState({ value, loaded: true });
-  void safeStorageSet({ [HIGHLIGHT_PREFERENCES_STORAGE_KEY]: value });
+  if (!live) return write();
+  if (pendingWrite) clearTimeout(pendingWrite);
+  pendingWrite = setTimeout(write, LIVE_WRITE_DELAY_MS);
 }
 
 // Shared by the panel and the content script, like every other stored setting.
@@ -57,17 +74,43 @@ export const highlightPreferences = {
     }
     void refresh();
   },
-  set: save,
-  setCategory(category: HighlightCategory, patch: Partial<HighlightStyle>): void {
+  set: (value: HighlightPreferences) => save(value),
+  /** `live` is for a change still in progress (a drag): shown now, stored when it settles. */
+  setCategory(category: HighlightCategory, patch: Partial<HighlightStyle>, live = false): void {
     const current = state.value;
-    save({ ...current, categories: { ...current.categories, [category]: { ...current.categories[category], ...patch } } });
+    save({ ...current, categories: { ...current.categories, [category]: withPatch(current.categories[category], patch) } }, live);
   },
-  setKeywords(patch: Partial<HighlightStyle>): void {
-    save({ ...state.value, keywords: { ...state.value.keywords, ...patch } });
+  setKeywords(patch: Partial<HighlightStyle>, live = false): void {
+    save({ ...state.value, keywords: withPatch(state.value.keywords, patch) }, live);
   },
 };
 
+// Picking a preset swatch drops any custom color, so the preset is what shows.
+function withPatch(style: HighlightStyle, patch: Partial<HighlightStyle>): HighlightStyle {
+  const next = { ...style, ...patch };
+  if ("custom" in patch && !patch.custom) delete next.custom;
+  return next;
+}
+
+export const RECENT_COLORS_STORAGE_KEY = "finder.highlightRecentColors.v1";
+export const MAX_RECENT_COLORS = 8;
+
+/** Colors picked in the color editor, newest first, shared by every category. */
+export const recentHighlightColors = createStoredPreference<string[]>(RECENT_COLORS_STORAGE_KEY, [], (stored) =>
+  Array.isArray(stored) ? [...new Set(stored.map((c) => (typeof c === "string" ? normalizeHex(c) : null)).filter((c): c is string => c !== null))].slice(0, MAX_RECENT_COLORS) : undefined,
+);
+
+export function rememberRecentColor(hex: string): void {
+  const color = normalizeHex(hex);
+  if (!color) return;
+  const current = recentHighlightColors.getState().value;
+  if (current[0] === color) return;
+  recentHighlightColors.set([color, ...current.filter((c) => c !== color)].slice(0, MAX_RECENT_COLORS));
+}
+
 export function resetHighlightPreferencesForTests(): void {
+  if (pendingWrite) clearTimeout(pendingWrite);
+  pendingWrite = null;
   state = { value: DEFAULT_HIGHLIGHT_PREFERENCES, loaded: false };
   listeners.clear();
   initialized = false;

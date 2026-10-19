@@ -1,3 +1,5 @@
+import { parseRgba, rgba, underlineColor } from "./highlightColor";
+
 // Soft highlighter colors for Signal Mode, light enough to keep LinkedIn's black text readable.
 // "fill" is the phrase background, "mark" underlines the numbers inside it, "swatch" is the
 // opaque color shown in the panel.
@@ -31,4 +33,47 @@ export const HIGHLIGHT_SHADES: Record<HighlightColor, HighlightShade> = {
 
 export function toHighlightColor(value: unknown): HighlightColor | undefined {
   return PROFILE_HIGHLIGHT_COLORS.find((color) => color === value);
+}
+
+/** A color the user chose in the color editor: the opaque color and how solid the highlight is. */
+export interface CustomHighlightColor {
+  /** "#RRGGBB" */
+  hex: string;
+  /** 0 is invisible, 1 fully solid. */
+  opacity: number;
+}
+
+export interface ColoredStyle {
+  color: HighlightColor;
+  custom?: CustomHighlightColor;
+}
+
+/** How a style is drawn: its custom color when it has one, else its preset shade. */
+export function shadeFor(style: ColoredStyle): HighlightShade {
+  if (!style.custom) return HIGHLIGHT_SHADES[style.color];
+  const { hex, opacity } = style.custom;
+  return { label: hex, fill: rgba(hex, opacity), mark: underlineColor(hex), swatch: hex };
+}
+
+/** The base color and opacity a style opens with in the color editor. */
+export function editableColor(style: ColoredStyle): CustomHighlightColor {
+  return style.custom ?? parseRgba(HIGHLIGHT_SHADES[style.color].fill)!;
+}
+
+export interface HighlightDeclarations {
+  backgroundColor: string;
+  textDecoration: string;
+  textUnderlineOffset?: string;
+}
+
+// One definition of how a highlight looks, used for the ::highlight() rules on LinkedIn and for
+// the panel's previews, so a preview always matches the page.
+export function highlightDeclarations(style: ColoredStyle & { underline: boolean }, dotted = false): HighlightDeclarations {
+  const { fill, mark } = shadeFor(style);
+  if (!style.underline) return { backgroundColor: fill, textDecoration: "none" };
+  return { backgroundColor: fill, textDecoration: `underline ${dotted ? "dotted " : ""}2px ${mark}`, textUnderlineOffset: "3px" };
+}
+
+export function highlightCss(d: HighlightDeclarations): string {
+  return `background-color: ${d.backgroundColor}; text-decoration: ${d.textDecoration};${d.textUnderlineOffset ? ` text-underline-offset: ${d.textUnderlineOffset};` : ""}`;
 }

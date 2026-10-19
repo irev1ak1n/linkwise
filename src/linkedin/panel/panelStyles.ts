@@ -2158,47 +2158,250 @@ export function getPanelStyles(widthPx: number): string {
     flex-direction: column;
     gap: 12px;
   }
-  .lw-rule-detail__title {
+  .lw-rule-detail__head {
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .lw-rule-detail__back {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid #e0e6ef;
+    border-radius: 10px;
+    background: #fff;
+    font: inherit;
+    font-size: 16px;
+    color: #0a66c2;
+    cursor: pointer;
+  }
+  .lw-rule-detail__back:hover {
+    background: #f3f6fb;
+  }
+  .lw-rule-detail__title {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
     margin: 0;
     font-size: 15px;
     color: #1d2226;
-  }
-  .lw-rule-detail__description {
-    margin: -6px 0 0;
-    font-size: 12.5px;
-    color: #56687a;
-  }
-  .lw-rule-detail__row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 40px;
-    padding: 0 12px;
-    border: 1px solid #e0e6ef;
-    border-radius: 12px;
-    background: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    color: #1d2226;
-    cursor: pointer;
   }
   .lw-rule-detail__field {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
-  .lw-rule-detail__label {
-    font-size: 11.5px;
+
+  /* Color editor: square + hue slider + values, sized for the 360px sidebar. */
+  .lw-ce,
+  .lw-live {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #e0e6ef;
+    border-radius: 14px;
+    background: #fff;
+  }
+  .lw-ce__heading,
+  .lw-live__heading {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
     color: #56687a;
   }
-  .lw-rule-detail__preview {
-    align-self: flex-start;
-    padding: 1px 2px;
-    font-size: 13px;
+  .lw-ce__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 14px 112px;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .lw-ce__square {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 10px;
+    background-image: linear-gradient(to top, #000, rgba(0, 0, 0, 0)), linear-gradient(to right, #fff, rgba(255, 255, 255, 0));
+    cursor: crosshair;
+    touch-action: none;
+  }
+  .lw-ce__square-thumb {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+  }
+  .lw-ce__hue {
+    position: relative;
+    border-radius: 7px;
+    background: linear-gradient(to bottom, #f00 0%, #ff0 16.67%, #0f0 33.33%, #0ff 50%, #00f 66.67%, #f0f 83.33%, #f00 100%);
+    cursor: ns-resize;
+    touch-action: none;
+  }
+  .lw-ce__hue-thumb {
+    position: absolute;
+    left: -3px;
+    right: -3px;
+    height: 6px;
+    margin-top: -3px;
+    border: 2px solid #fff;
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+  }
+  .lw-ce__square:focus-visible,
+  .lw-ce__hue:focus-visible,
+  .lw-ce__recent-color:focus-visible,
+  .lw-rule-detail__back:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+  .lw-ce__values {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .lw-ce__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #56687a;
+  }
+  .lw-ce__values .lw-ce__label:not(:first-child) {
+    margin-top: 4px;
+  }
+  .lw-ce__preview {
+    display: block;
+    height: 30px;
+    border: 1px solid #e0e6ef;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .lw-ce__preview > span {
+    display: block;
+    height: 100%;
+  }
+  .lw-ce__hex,
+  .lw-ce__channel input {
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    border: 1px solid #d0d7dd;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
     color: #1d2226;
+    text-align: center;
+  }
+  .lw-ce__hex[aria-invalid="true"] {
+    border-color: #d97706;
+  }
+  .lw-ce__hex:focus,
+  .lw-ce__channel input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+  }
+  .lw-ce__rgb {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .lw-ce__channel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    font-size: 10px;
+    font-weight: 700;
+    color: #8a949c;
+  }
+  .lw-ce__channel input {
+    padding: 0 2px;
+  }
+  .lw-ce__recent {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .lw-ce__recent-color {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .lw-ce__recent-color--selected {
+    outline: 2px solid #1d2226;
+    outline-offset: 1px;
+  }
+  .lw-ce__opacity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lw-ce__opacity input {
+    flex: 1;
+    min-width: 0;
+    height: 8px;
+    margin: 0;
+    border: 1px solid #e0e6ef;
+    border-radius: 999px;
+    appearance: none;
+    cursor: pointer;
+  }
+  .lw-ce__opacity input::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #2563eb;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
+  .lw-ce__percent {
+    flex: none;
+    width: 38px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: #1d2226;
+  }
+  .lw-ce__hint {
+    margin: -2px 0 0;
+    font-size: 11px;
+    color: #8a949c;
+  }
+
+  /* Live Preview: generic sentences, one under another, drawn like the profile. */
+  .lw-live {
+    gap: 10px;
+  }
+  .lw-live__example {
+    margin: 0;
+    padding: 0 0 10px;
+    border-bottom: 1px solid #eef1f4;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #1d2226;
+  }
+  .lw-live__example:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 `;
 }

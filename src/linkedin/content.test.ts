@@ -1929,6 +1929,10 @@ describe("content.ts bootstrap - keyword highlights", () => {
     highlightPreferences.setCategory("roles", { color: "purple" });
     const style = () => document.getElementById("lw-signal-style")!.textContent!;
     expect(style()).toContain(`::highlight(linkwise-signal-roles) { background-color: ${HIGHLIGHT_SHADES.purple.fill}; text-decoration: underline 2px`);
+    // A color still being dragged in the editor shows on the page at once.
+    highlightPreferences.setCategory("roles", { custom: { hex: "#FACC15", opacity: 0.35 } }, true);
+    expect(style()).toContain("::highlight(linkwise-signal-roles) { background-color: rgba(250, 204, 21, 0.35);");
+    highlightPreferences.setCategory("roles", { custom: undefined });
     expect(keywordRanges()).toEqual(["Python"]);
     expect(sendMessage).not.toHaveBeenCalled();
 

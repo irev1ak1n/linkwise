@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { parseKeywords } from "../keywordHighlights";
-import { HIGHLIGHT_SHADES, PROFILE_HIGHLIGHT_COLORS, type HighlightColor } from "../highlightPalette";
+import { editableColor, HIGHLIGHT_SHADES, highlightDeclarations, PROFILE_HIGHLIGHT_COLORS, shadeFor, type HighlightColor } from "../highlightPalette";
 import {
   CATEGORY_INFO,
   HIGHLIGHT_CATEGORIES,
   KEYWORDS_INFO,
   resetHighlightStyles,
-  type HighlightCategory,
   type HighlightStyle,
 } from "../../signals/highlightCategories";
-import { highlightPreferences } from "./highlightPreferences";
+import { highlightPreferences, MAX_RECENT_COLORS, recentHighlightColors, rememberRecentColor } from "./highlightPreferences";
+import { HighlightColorEditor } from "./HighlightColorEditor";
+import { exampleSegments, HIGHLIGHT_EXAMPLES } from "./highlightExamples";
+import { closeHighlightRule, getHighlightRule, openHighlightRule, subscribeHighlightRule, takeListScroll, type HighlightRuleId } from "./settingsNav";
 
 export const HIGHLIGHT_TEXT_MAX_LENGTH = 500;
 
@@ -19,7 +21,7 @@ export function keywordSetKey(text: string): string {
   return [...new Set(parseKeywords(text).map((keyword) => keyword.toLowerCase()))].sort().join("\n");
 }
 
-type RuleId = HighlightCategory | "keywords";
+type RuleId = HighlightRuleId;
 
 const ICON_PATHS: Record<RuleId, ReactNode> = {
   roles: <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" />,
@@ -52,7 +54,7 @@ function RuleIcon({ id }: { id: RuleId }) {
 
 const infoFor = (id: RuleId) => (id === "keywords" ? KEYWORDS_INFO : CATEGORY_INFO[id]);
 
-function Swatches({ color, onChange, label }: { color: HighlightColor; onChange: (color: HighlightColor) => void; label: string }) {
+function Swatches({ color, onChange, label }: { color: HighlightColor | null; onChange: (color: HighlightColor) => void; label: string }) {
   return (
     <div className="lw-swatches" role="radiogroup" aria-label={label}>
       {PROFILE_HIGHLIGHT_COLORS.map((option) => (
@@ -73,7 +75,8 @@ function Swatches({ color, onChange, label }: { color: HighlightColor; onChange:
 }
 
 // The color dot opens a small palette in place, closed by a pick, a click elsewhere, or Escape.
-function ColorDot({ name, color, onChange, disabled }: { name: string; color: HighlightColor; onChange: (color: HighlightColor) => void; disabled?: boolean }) {
+function ColorDot({ name, rule, onChange, disabled }: { name: string; rule: HighlightStyle; onChange: (color: HighlightColor) => void; disabled?: boolean }) {
+  const shade = shadeFor(rule);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -96,18 +99,18 @@ function ColorDot({ name, color, onChange, disabled }: { name: string; color: Hi
       <button
         type="button"
         className="lw-dot__button"
-        aria-label={`${name} color: ${HIGHLIGHT_SHADES[color].label}`}
+        aria-label={`${name} color: ${shade.label}`}
         aria-haspopup="true"
         aria-expanded={open}
         disabled={disabled}
-        style={{ backgroundColor: HIGHLIGHT_SHADES[color].swatch }}
+        style={{ backgroundColor: shade.swatch }}
         onClick={() => setOpen((o) => !o)}
       />
       {open && (
         <span className="lw-dot__popover">
           <Swatches
             label={`${name} color`}
-            color={color}
+            color={rule.custom ? null : rule.color}
             onChange={(next) => {
               onChange(next);
               setOpen(false);
@@ -153,7 +156,7 @@ function RuleRow({
         <RuleIcon id={id} />
         <span>{label}</span>
       </button>
-      <ColorDot name={label} color={rule.color} disabled={disabled} onChange={(color) => onChange({ color })} />
+      <ColorDot name={label} rule={rule} disabled={disabled} onChange={(color) => onChange({ color, custom: undefined })} />
       <span className="lw-rule__divider" aria-hidden="true" />
       <Switch label={`Highlight ${label}`} checked={rule.enabled} disabled={disabled} onChange={(enabled) => onChange({ enabled })} />
       <button type="button" className="lw-rule__more" aria-label={`${label} settings`} onClick={onOpen} disabled={disabled}>
@@ -163,16 +166,27 @@ function RuleRow({
   );
 }
 
-function Preview({ text, rule, dotted }: { text: string; rule: HighlightStyle; dotted?: boolean }) {
-  const { fill, mark } = HIGHLIGHT_SHADES[rule.color];
-  const underline = rule.underline ? { textDecoration: `underline ${dotted ? "dotted " : ""}2px ${mark}`, textUnderlineOffset: "3px" } : {};
+// Generic sentences drawn with the same declarations as the ::highlight() rules on LinkedIn, so
+// what the preview shows is what the profile shows.
+function LivePreview({ id, rule }: { id: RuleId; rule: HighlightStyle }) {
+  const marked = highlightDeclarations(rule, id === "keywords");
   return (
-    <div className="lw-rule-detail__field">
-      <span className="lw-rule-detail__label">Preview</span>
-      <span className="lw-rule-detail__preview" style={{ backgroundColor: fill, ...underline }}>
-        {text}
-      </span>
-    </div>
+    <section className="lw-live" aria-label="Live preview">
+      <h4 className="lw-live__heading">Live Preview</h4>
+      {HIGHLIGHT_EXAMPLES[id].map((sentence) => (
+        <p key={sentence} className="lw-live__example">
+          {exampleSegments(sentence).map((part, i) =>
+            part.marked ? (
+              <span key={i} className="lw-live__mark" style={marked}>
+                {part.text}
+              </span>
+            ) : (
+              part.text
+            ),
+          )}
+        </p>
+      ))}
+    </section>
   );
 }
 
@@ -232,40 +246,41 @@ function RuleDetail({
 }: {
   id: RuleId;
   rule: HighlightStyle;
-  onChange: (patch: Partial<HighlightStyle>) => void;
+  onChange: (patch: Partial<HighlightStyle>, live?: boolean) => void;
   onBack: () => void;
   keywords: string;
   onKeywordsSave: (keywords: string) => void;
 }) {
-  const { label, description, preview } = infoFor(id);
-  const sample = id === "keywords" ? (parseKeywords(keywords)[0] ?? preview) : preview;
+  const { label } = infoFor(id);
+  recentHighlightColors.init();
+  const { value: recent } = useSyncExternalStore(recentHighlightColors.subscribe, recentHighlightColors.getState, recentHighlightColors.getState);
   return (
     <section className="lw-rule-detail" aria-label={`${label} highlighting`}>
-      <button type="button" className="lw-opt-back" onClick={onBack}>
-        ← Highlighting
-      </button>
-      <h3 className="lw-rule-detail__title">
-        <RuleIcon id={id} />
-        {label}
-      </h3>
-      <p className="lw-rule-detail__description">{description}</p>
-      {id === "keywords" && <KeywordsEditor keywords={keywords} onSave={onKeywordsSave} onCancel={onBack} />}
-      <label className="lw-rule-detail__row">
-        <span>Enabled</span>
+      <header className="lw-rule-detail__head">
+        <button type="button" className="lw-rule-detail__back" aria-label="Back to highlighting" onClick={onBack}>
+          ←
+        </button>
+        <h3 className="lw-rule-detail__title">
+          <RuleIcon id={id} />
+          {label}
+        </h3>
         <Switch label={`Highlight ${label}`} checked={rule.enabled} onChange={(enabled) => onChange({ enabled })} />
-      </label>
-      <div className="lw-rule-detail__field">
-        <span className="lw-rule-detail__label">Highlight color</span>
-        <Swatches label={`${label} color`} color={rule.color} onChange={(color) => onChange({ color })} />
-      </div>
-      <label className="lw-rule-detail__row">
-        <span>Underline text</span>
-        <Switch label={`Underline ${label}`} checked={rule.underline} onChange={(underline) => onChange({ underline })} />
-      </label>
-      <Preview text={sample} rule={rule} dotted={id === "keywords"} />
+      </header>
+      {id === "keywords" && <KeywordsEditor keywords={keywords} onSave={onKeywordsSave} onCancel={onBack} />}
+      <HighlightColorEditor
+        name={label}
+        value={editableColor(rule)}
+        onChange={(custom, live) => onChange({ custom }, live)}
+        recent={recent.length > 0 ? recent : QUICK_COLORS}
+        onSettle={rememberRecentColor}
+      />
+      <LivePreview id={id} rule={rule} />
     </section>
   );
 }
+
+// Until the user has picked colors of their own, Recent Colors offers LinkWise's presets.
+const QUICK_COLORS = PROFILE_HIGHLIGHT_COLORS.slice(0, MAX_RECENT_COLORS).map((color) => editableColor({ color }).hex);
 
 interface HighlightSettingsProps {
   signalEnabled: boolean;
@@ -273,38 +288,36 @@ interface HighlightSettingsProps {
   onSignalChange: (enabled: boolean) => void;
   keywords: string;
   onKeywordsSave: (keywords: string) => void;
-  /** Opens a rule's details first; only for tests. */
-  initialDetail?: RuleId | null;
 }
 
 // How highlighting looks on the LinkedIn page. Signal Mode decides what is worth highlighting;
 // each category only decides how that evidence is drawn, and Keywords are the user's own terms.
-export function HighlightSettings({ signalEnabled, highlighted, onSignalChange, keywords, onKeywordsSave, initialDetail = null }: HighlightSettingsProps) {
+export function HighlightSettings({ signalEnabled, highlighted, onSignalChange, keywords, onKeywordsSave }: HighlightSettingsProps) {
   highlightPreferences.init();
   const { value: prefs } = useSyncExternalStore(highlightPreferences.subscribe, highlightPreferences.getState, highlightPreferences.getState);
-  const [detail, setDetail] = useState<RuleId | null>(initialDetail);
-  // Switching between the list and a rule's page keeps the top of the new view in sight.
+  const detail = useSyncExternalStore(subscribeHighlightRule, getHighlightRule, getHighlightRule);
+  // A category's page starts at its top; Back returns to the list where it was left.
   const sectionRef = useRef<HTMLElement>(null);
-  const switched = useRef(false);
-  useEffect(() => {
-    if (!switched.current) {
-      switched.current = true;
-      return;
-    }
-    sectionRef.current?.scrollIntoView?.({ block: "nearest" });
+  const scroller = () => sectionRef.current?.closest<HTMLElement>(".lw-panel__body") ?? null;
+  useLayoutEffect(() => {
+    const body = scroller();
+    const top = detail ? 0 : takeListScroll();
+    if (body && top !== null) body.scrollTop = top;
   }, [detail]);
+  const open = (id: RuleId) => openHighlightRule(id, scroller()?.scrollTop ?? 0);
+  const back = closeHighlightRule;
   const ruleFor = (id: RuleId) => (id === "keywords" ? prefs.keywords : prefs.categories[id]);
-  const change = (id: RuleId) => (patch: Partial<HighlightStyle>) =>
-    id === "keywords" ? highlightPreferences.setKeywords(patch) : highlightPreferences.setCategory(id, patch);
+  const change = (id: RuleId) => (patch: Partial<HighlightStyle>, live = false) =>
+    id === "keywords" ? highlightPreferences.setKeywords(patch, live) : highlightPreferences.setCategory(id, patch, live);
 
   if (detail) {
     return (
-      <section className="lw-hl lw-highlighting" aria-label="Profile highlights" ref={sectionRef}>
+      <section className="lw-highlighting" aria-label="Profile highlights" ref={sectionRef}>
         <RuleDetail
           id={detail}
           rule={ruleFor(detail)}
           onChange={change(detail)}
-          onBack={() => setDetail(null)}
+          onBack={back}
           keywords={keywords}
           onKeywordsSave={onKeywordsSave}
         />
@@ -325,12 +338,12 @@ export function HighlightSettings({ signalEnabled, highlighted, onSignalChange, 
       <h4 className="lw-rules__label">Auto categories</h4>
       <ul className="lw-rules" aria-label="Auto categories">
         {HIGHLIGHT_CATEGORIES.map((id) => (
-          <RuleRow key={id} id={id} rule={prefs.categories[id]} onOpen={() => setDetail(id)} onChange={change(id)} disabled={!signalEnabled} />
+          <RuleRow key={id} id={id} rule={prefs.categories[id]} onOpen={() => open(id)} onChange={change(id)} disabled={!signalEnabled} />
         ))}
       </ul>
       <h4 className="lw-rules__label">Custom rules</h4>
       <ul className="lw-rules" aria-label="Custom rules">
-        <RuleRow id="keywords" rule={prefs.keywords} onOpen={() => setDetail("keywords")} onChange={change("keywords")} />
+        <RuleRow id="keywords" rule={prefs.keywords} onOpen={() => open("keywords")} onChange={change("keywords")} />
       </ul>
       <button type="button" className="lw-rules__reset" onClick={() => highlightPreferences.set({ ...resetHighlightStyles() })}>
         Reset highlight styles

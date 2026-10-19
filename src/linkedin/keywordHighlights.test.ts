@@ -128,10 +128,10 @@ describe("KeywordHighlighter", () => {
     expect(style()).toContain("rgba(240, 180, 20, 0.32)");
     const ranges = entries.get(KEYWORD_HIGHLIGHT)!.ranges;
     const before = document.body.innerHTML;
-    keywords.setStyle("green", true);
+    keywords.setStyle({ color: "green", underline: true });
     expect(style()).toContain(HIGHLIGHT_SHADES.green.fill);
     expect(style()).toContain("dotted");
-    keywords.setStyle("green", false);
+    keywords.setStyle({ color: "green", underline: false });
     expect(style()).not.toContain("dotted");
     expect(entries.get(KEYWORD_HIGHLIGHT)!.ranges).toBe(ranges);
     expect(document.body.innerHTML).toBe(before);

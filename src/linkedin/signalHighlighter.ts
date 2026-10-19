@@ -1,5 +1,5 @@
 import { compactText, locateSignals, type SignalTarget } from "./signalRanges";
-import { HIGHLIGHT_SHADES } from "./highlightPalette";
+import { highlightCss, highlightDeclarations } from "./highlightPalette";
 import { DEFAULT_HIGHLIGHT_PREFERENCES, GENERAL_STYLE, STYLE_LAYERS, type HighlightPreferences, type StyleLayer } from "../signals/highlightCategories";
 
 export const QUOTE_HIGHLIGHT = "linkwise-signal";
@@ -15,10 +15,8 @@ export function highlightName(category: StyleLayer): string {
 // phrase's reads as their color, and an underline (when on) keeps them legible either way.
 export function signalStyles(prefs: HighlightPreferences): string {
   return STYLE_LAYERS.map((category) => {
-    const { color, underline } = category === "general" ? GENERAL_STYLE : prefs.categories[category];
-    const { fill, mark } = HIGHLIGHT_SHADES[color];
-    const line = underline ? ` text-decoration: underline 2px ${mark}; text-underline-offset: 3px;` : " text-decoration: none;";
-    return `::highlight(${highlightName(category)}) { background-color: ${fill};${line} }`;
+    const style = category === "general" ? GENERAL_STYLE : prefs.categories[category];
+    return `::highlight(${highlightName(category)}) { ${highlightCss(highlightDeclarations(style))} }`;
   }).join("\n");
 }
 

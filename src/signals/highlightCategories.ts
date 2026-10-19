@@ -4,7 +4,8 @@
 // are the primary kind of a chosen claim. A chosen claim that fits none of them is "general" and
 // keeps the Signal color: the settings categories style evidence, they never limit what counts.
 import type { Grades, SemanticLabel, SignalFactType } from "../ai/signalTypes";
-import { DEFAULT_HIGHLIGHT_COLOR, DEFAULT_KEYWORD_HIGHLIGHT_COLOR, toHighlightColor, type HighlightColor } from "../linkedin/highlightPalette";
+import { DEFAULT_HIGHLIGHT_COLOR, DEFAULT_KEYWORD_HIGHLIGHT_COLOR, toHighlightColor, type CustomHighlightColor, type HighlightColor } from "../linkedin/highlightPalette";
+import { normalizeHex } from "../linkedin/highlightColor";
 
 export const HIGHLIGHT_CATEGORIES = ["roles", "numbers", "impact", "leadership", "skills", "achievements", "projects", "languages"] as const;
 export type HighlightCategory = (typeof HIGHLIGHT_CATEGORIES)[number];
@@ -38,8 +39,11 @@ export const KEYWORDS_INFO: CategoryInfo = { label: "Keywords", description: "Yo
 
 export interface HighlightStyle {
   enabled: boolean;
+  /** The preset shade, used until the user picks a color of their own. */
   color: HighlightColor;
   underline: boolean;
+  /** A color from the color editor; when present it replaces the preset. */
+  custom?: CustomHighlightColor;
 }
 
 export interface HighlightPreferences {
@@ -104,13 +108,23 @@ export function phraseCategory(candidate: { type: SignalFactType; grades: Grades
   return "general";
 }
 
+function parseCustom(value: unknown): CustomHighlightColor | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const v = value as { hex?: unknown; opacity?: unknown };
+  const hex = typeof v.hex === "string" ? normalizeHex(v.hex) : null;
+  if (!hex || typeof v.opacity !== "number" || !Number.isFinite(v.opacity)) return undefined;
+  return { hex, opacity: Math.min(1, Math.max(0, v.opacity)) };
+}
+
 function parseStyle(value: unknown, fallback: HighlightStyle): HighlightStyle {
   if (!value || typeof value !== "object") return fallback;
   const v = value as Partial<Record<keyof HighlightStyle, unknown>>;
+  const custom = parseCustom(v.custom);
   return {
     enabled: typeof v.enabled === "boolean" ? v.enabled : fallback.enabled,
     color: toHighlightColor(v.color) ?? fallback.color,
     underline: typeof v.underline === "boolean" ? v.underline : fallback.underline,
+    ...(custom ? { custom } : {}),
   };
 }
 

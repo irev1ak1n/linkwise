@@ -838,7 +838,7 @@ let appliedHighlightPreferences = highlightPreferences.getState().value;
 function applyHighlightPreferences(): void {
   const prefs = highlightPreferences.getState().value;
   signalHighlighter.setPreferences(prefs);
-  keywordHighlighter.setStyle(prefs.keywords.color, prefs.keywords.underline);
+  keywordHighlighter.setStyle(prefs.keywords);
   const toggled = HIGHLIGHT_CATEGORIES.some((c) => prefs.categories[c].enabled !== appliedHighlightPreferences.categories[c].enabled);
   if (prefs.keywords.enabled !== appliedHighlightPreferences.keywords.enabled) scheduleKeywordPaint();
   appliedHighlightPreferences = prefs;

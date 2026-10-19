@@ -117,6 +117,17 @@ describe("SignalHighlighter", () => {
     expect(document.getElementById("lw-signal-style")!.textContent).toContain(HIGHLIGHT_SHADES.pink.fill);
   });
 
+  it("restyles drawn highlights in place with a custom color and opacity, locating nothing again", () => {
+    const { registry, entries } = fakeRegistry();
+    const highlighter = new SignalHighlighter(document, registry, factory);
+    highlighter.render(targets);
+    const before = [...entries.values()].map((e) => e.ranges);
+    highlighter.setPreferences(withStyle({ impact: { enabled: true, color: "green", underline: false, custom: { hex: "#FACC15", opacity: 0.35 } } }));
+    const css = document.getElementById("lw-signal-style")!.textContent!;
+    expect(css).toContain("linkwise-signal-impact) { background-color: rgba(250, 204, 21, 0.35);");
+    expect([...entries.values()].map((e) => e.ranges)).toEqual(before);
+  });
+
   it("styles every category, underlined only where asked", () => {
     const css = signalStyles(DEFAULT_HIGHLIGHT_PREFERENCES);
     expect(css.match(/::highlight\(/g)).toHaveLength(9);

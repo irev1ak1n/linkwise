@@ -2,19 +2,14 @@
 // match titles and organization names too, since the user asked for them by name.
 import type { HighlightRegistryLike } from "./signalHighlighter";
 import { findProfileContentRoots } from "./profileAdapter";
-import { DEFAULT_KEYWORD_HIGHLIGHT_COLOR, HIGHLIGHT_SHADES, type HighlightColor } from "./highlightPalette";
+import { DEFAULT_KEYWORD_HIGHLIGHT_COLOR, highlightCss, highlightDeclarations, type ColoredStyle } from "./highlightPalette";
 
 export const KEYWORD_HIGHLIGHT = "linkwise-keyword";
 const STYLE_ID = "lw-keyword-style";
 // The underline is dotted, so keywords stay distinct from Signal highlights even in the same color.
-function stylesFor(color: HighlightColor, underline: boolean): string {
-  const { fill, mark } = HIGHLIGHT_SHADES[color];
-  const line = underline ? `text-decoration: underline dotted 2px ${mark};
-  text-underline-offset: 3px;` : "text-decoration: none;";
-  return `::highlight(${KEYWORD_HIGHLIGHT}) {
-  background-color: ${fill};
-  ${line}
-}`;
+type KeywordStyle = ColoredStyle & { underline: boolean };
+function stylesFor(style: KeywordStyle): string {
+  return `::highlight(${KEYWORD_HIGHLIGHT}) { ${highlightCss(highlightDeclarations(style, true))} }`;
 }
 const SKIPPED_ANCESTORS = "button, svg, script, style, nav, header, aside, footer, .visually-hidden, [data-lw-ignore]";
 
@@ -114,8 +109,7 @@ function defaultFactory(ranges: Range[]): Highlight {
 // Uses the CSS Custom Highlight API like Signal Mode, so overlapping highlights layer on the same
 // text without wrapping or changing any of LinkedIn's markup.
 export class KeywordHighlighter {
-  private color: HighlightColor = DEFAULT_KEYWORD_HIGHLIGHT_COLOR;
-  private underline = true;
+  private style: KeywordStyle = { color: DEFAULT_KEYWORD_HIGHLIGHT_COLOR, underline: true };
 
   constructor(
     private readonly doc: Document,
@@ -140,19 +134,19 @@ export class KeywordHighlighter {
   }
 
   // Restyles existing matches in place; nothing is located again.
-  setStyle(color: HighlightColor, underline: boolean): void {
-    if (color === this.color && underline === this.underline) return;
-    this.color = color;
-    this.underline = underline;
-    const style = this.doc.getElementById(STYLE_ID);
-    if (style) style.textContent = stylesFor(color, underline);
+  setStyle(style: KeywordStyle): void {
+    const next: KeywordStyle = { color: style.color, custom: style.custom, underline: style.underline };
+    if (stylesFor(next) === stylesFor(this.style)) return;
+    this.style = next;
+    const element = this.doc.getElementById(STYLE_ID);
+    if (element) element.textContent = stylesFor(next);
   }
 
   private ensureStyles(): void {
     if (this.doc.getElementById(STYLE_ID)) return;
     const style = this.doc.createElement("style");
     style.id = STYLE_ID;
-    style.textContent = stylesFor(this.color, this.underline);
+    style.textContent = stylesFor(this.style);
     this.doc.head.appendChild(style);
   }
 }
