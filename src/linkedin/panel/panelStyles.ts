@@ -2161,23 +2161,47 @@ export function getPanelStyles(widthPx: number): string {
   .lw-rule-detail__head {
     display: flex;
     align-items: center;
+    gap: 10px;
+  }
+  .lw-rule-detail__nav {
+    flex: none;
+    display: flex;
     gap: 8px;
   }
-  .lw-rule-detail__back {
+  /* Compact navigation control (Back, Menu): same size, border, shadow, and states; only the icon
+     differs. */
+  .lw-nav-button {
     flex: none;
-    width: 30px;
-    height: 30px;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
     padding: 0;
-    border: 1px solid #e0e6ef;
-    border-radius: 10px;
+    border: 1px solid #dce3f0;
+    border-radius: 13px;
     background: #fff;
-    font: inherit;
-    font-size: 16px;
-    color: #0a66c2;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(63, 103, 216, 0.06);
+    color: #3f67d8;
     cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
   }
-  .lw-rule-detail__back:hover {
-    background: #f3f6fb;
+  .lw-nav-button svg {
+    width: 20px;
+    height: 20px;
+  }
+  .lw-nav-button:hover {
+    background: #f1f5fe;
+    border-color: #b9c8ec;
+    color: #2f54bf;
+  }
+  .lw-nav-button:active {
+    transform: scale(0.96);
+    background: #e8eefc;
+  }
+  .lw-nav-button:focus-visible {
+    outline: none;
+    border-color: #8fa8e6;
+    box-shadow: 0 0 0 3px rgba(63, 103, 216, 0.22);
   }
   .lw-rule-detail__title {
     flex: 1;
@@ -2188,6 +2212,12 @@ export function getPanelStyles(widthPx: number): string {
     margin: 0;
     font-size: 15px;
     color: #1d2226;
+  }
+  /* A long name ("Meaningful Numbers") wraps rather than being cut off beside the two buttons. */
+  .lw-rule-detail__title > span {
+    min-width: 0;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
   }
   .lw-rule-detail__field {
     display: flex;
@@ -2268,8 +2298,7 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-ce__square:focus-visible,
   .lw-ce__hue:focus-visible,
-  .lw-ce__recent-color:focus-visible,
-  .lw-rule-detail__back:focus-visible {
+  .lw-ce__recent-color:focus-visible {
     outline: 2px solid #2563eb;
     outline-offset: 2px;
   }

@@ -11,6 +11,7 @@ import {
 import { highlightPreferences, MAX_RECENT_COLORS, recentHighlightColors, rememberRecentColor } from "./highlightPreferences";
 import { HighlightColorEditor } from "./HighlightColorEditor";
 import { HighlightPreviewCards } from "./HighlightPreviewCards";
+import { panelToolPreference } from "../../optimizer/optimizerPreferences";
 import { closeHighlightRule, getHighlightRule, openHighlightRule, subscribeHighlightRule, takeListScroll, type HighlightRuleId } from "./settingsNav";
 
 export const HIGHLIGHT_TEXT_MAX_LENGTH = 500;
@@ -214,6 +215,17 @@ function KeywordsEditor({ keywords, onSave, onCancel }: { keywords: string; onSa
   );
 }
 
+// Back and Menu share one compact control; only the icon differs.
+function NavButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className="lw-nav-button" aria-label={label} title={label} onClick={onClick}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {children}
+      </svg>
+    </button>
+  );
+}
+
 // The one editor every highlight rule opens: the eight automatic categories and Keywords get the
 // same page, which differs only by the rule's name, icon, and stored style (plus, for Keywords,
 // the words themselves).
@@ -238,12 +250,17 @@ function HighlightCategoryEditor({
   return (
     <section className="lw-rule-detail" aria-label={`${label} highlighting`}>
       <header className="lw-rule-detail__head">
-        <button type="button" className="lw-rule-detail__back" aria-label="Back to highlighting" onClick={onBack}>
-          ←
-        </button>
+        <span className="lw-rule-detail__nav">
+          <NavButton label="Back to highlighting" onClick={onBack}>
+            <path d="M19 12H5m6-6-6 6 6 6" />
+          </NavButton>
+          <NavButton label="Open LinkWise menu" onClick={() => panelToolPreference.set("menu")}>
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </NavButton>
+        </span>
         <h3 className="lw-rule-detail__title">
           <RuleIcon id={id} />
-          {label}
+          <span>{label}</span>
         </h3>
         <Switch label={`Highlight ${label}`} checked={rule.enabled} onChange={(enabled) => onChange({ enabled })} />
       </header>

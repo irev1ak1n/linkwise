@@ -123,6 +123,21 @@ describe("highlight category page", () => {
     expect(container.querySelector('[aria-label="Auto categories"]')).not.toBeNull();
   });
 
+  it("has compact icon Back and Menu buttons that share one style, and Menu opens the menu", async () => {
+    await mountPanel();
+    await openCategory("Roles");
+    const nav = [...container.querySelectorAll<HTMLButtonElement>(".lw-rule-detail__nav button")];
+    expect(nav.map((b) => b.getAttribute("aria-label"))).toEqual(["Back to highlighting", "Open LinkWise menu"]);
+    for (const b of nav) {
+      expect(b.className).toBe("lw-nav-button");
+      expect(b.querySelector("svg")).not.toBeNull();
+      // An icon, never a text glyph.
+      expect(b.textContent).toBe("");
+    }
+    await act(async () => nav[1]!.click());
+    expect(panelToolPreference.getState().value).toBe("menu");
+  });
+
   it("lays out Preview, then HEX, then RGB in one row, then Recent Colors, Opacity, and Live Preview below", async () => {
     await mountPanel();
     await openCategory("Roles");
