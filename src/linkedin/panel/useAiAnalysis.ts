@@ -23,7 +23,8 @@ export function useAiAnalysis(
   useEffect(() => {
     const controller = controllerRef.current!;
     if (!enabled || !goal || !profile || !localResult) {
-      controller.reset();
+      // Suspended, not reset: an analysis already on its way still reaches the cache.
+      controller.suspend();
       setState({ status: "idle" });
       return;
     }

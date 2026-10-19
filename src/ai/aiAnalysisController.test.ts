@@ -404,3 +404,35 @@ describe("AiAnalysisController - the same person after more evidence", () => {
     expect(requestAiAnalysis).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("AiAnalysisController - suspended while the Analyzer is not in use", () => {
+  it("asks nothing new, but keeps a request already on its way for when the user comes back", async () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+    const p = profile({ name: "Jordan Rivera", headline: "Student", skills: ["Python"] });
+    let resolve!: (o: AiAnalysisOutcome) => void;
+    const requestAiAnalysis = vi.fn(() => makePendingRequest(new Promise<AiAnalysisOutcome>((r) => (resolve = r))).pending);
+    const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 10 });
+    controller.request(goal, p, scoreProfileAgainstGoal(goal, p), vi.fn(), "jordan");
+    await vi.advanceTimersByTimeAsync(20);
+    controller.suspend();
+    resolve(readyOutcome());
+    await vi.advanceTimersByTimeAsync(20);
+    expect(requestAiAnalysis).toHaveBeenCalledTimes(1);
+    // Back on the Analyzer: the finished result is shown from the cache, with no new request.
+    const shown = vi.fn();
+    controller.request(goal, p, scoreProfileAgainstGoal(goal, p), shown, "jordan");
+    expect(shown).toHaveBeenLastCalledWith(expect.objectContaining({ status: "ready" }));
+    expect(requestAiAnalysis).toHaveBeenCalledTimes(1);
+  });
+
+  it("never asks while suspended, even when new evidence arrives", async () => {
+    const goal = { ...createGoal("Test"), criteria: [createCriterion("Python", "MUST_HAVE")] };
+    const requestAiAnalysis = vi.fn(() => makePendingRequest(new Promise(() => {})).pending);
+    const controller = new AiAnalysisController({ requestAiAnalysis, debounceMs: 10 });
+    const p = profile({ name: "Jordan Rivera", skills: ["Python"] });
+    controller.request(goal, p, scoreProfileAgainstGoal(goal, p), vi.fn(), "jordan");
+    controller.suspend();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(requestAiAnalysis).not.toHaveBeenCalled();
+  });
+});

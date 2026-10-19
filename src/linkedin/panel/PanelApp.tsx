@@ -29,6 +29,7 @@ import { getAnalyzerPage, subscribeAnalyzerPage, syncAnalyzerProfile } from "./a
 import { scoreProfileAgainstGoal } from "../../matching/scoreProfile";
 import { OptimizerView } from "../../optimizer/OptimizerView";
 import { panelToolPreference } from "../../optimizer/optimizerPreferences";
+import { isPanelVisible, subscribePanelVisibility } from "./panelVisibilityStore";
 import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
@@ -80,7 +81,11 @@ export function PanelApp({ onClose }: PanelAppProps) {
   // Memoized so this stays reference-stable, an unstable one would re-trigger AI on every render.
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
 
-  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && tool !== "optimizer", profileKey);
+  // Profile Analyzer runs only while it is the page being used: the panel shown on the Analyzer.
+  // Menu, Settings, the Optimizer, Job Filters, Saved Profiles, or a closed panel never analyze.
+  const panelVisible = useSyncExternalStore(subscribePanelVisibility, isPanelVisible, isPanelVisible);
+  const analyzerInUse = panelVisible && tool === "analyzer";
+  const { state: aiState, retry: retryAi } = useAiAnalysis(goal, profile, result, isFinal && analyzerInUse, profileKey);
 
   const scanState =
     profile && collection

@@ -72,10 +72,24 @@ function stubNavigableLocation(initialHref: string): { assign: (url: string) => 
   return { assign };
 }
 
+// Profile Analyzer's scanning runs only while the panel is open on the Analyzer, so the scanning
+// suites below open it there the way a reload restores it.
+let analyzerTool: string | undefined;
+function useAnalyzer(): void {
+  beforeEach(() => {
+    analyzerTool = "analyzer";
+    sessionStorage.setItem("linkwise.panelOpen", "1");
+  });
+  afterEach(() => {
+    analyzerTool = undefined;
+    sessionStorage.clear();
+  });
+}
+
 // content.ts reads goalStore.ts directly, which needs chrome.storage.local/onChanged.
 // Seeded with no goals so auto-scroll never engages and these bootstrap assertions are unaffected.
 function installFakeChromeStorage(overrides: Record<string, unknown> = {}) {
-  const data: Record<string, unknown> = { "finder.goalsSeeded.v1": true, "finder.goals.v1": [], ...overrides };
+  const data: Record<string, unknown> = { "finder.goalsSeeded.v1": true, "finder.goals.v1": [], ...(analyzerTool ? { "finder.panelTool.v1": analyzerTool } : {}), ...overrides };
   return {
     local: {
       get: (keys: string | string[] | null) =>
@@ -265,6 +279,7 @@ describe("content.ts bootstrap", () => {
 });
 
 describe("content.ts bootstrap - safe expansion gated by scan mode and the expand-details preference", () => {
+  useAnalyzer();
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
@@ -515,6 +530,7 @@ describe("content.ts bootstrap - safe expansion gated by scan mode and the expan
 });
 
 describe("content.ts bootstrap - safe expansion on profile detail pages (/details/{section}/)", () => {
+  useAnalyzer();
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
@@ -601,6 +617,7 @@ describe("content.ts bootstrap - safe expansion on profile detail pages (/detail
 });
 
 describe("content.ts bootstrap - Auto scan checklist crawler", () => {
+  useAnalyzer();
   let restoreHeight = () => {};
   beforeEach(() => {
     vi.resetModules();
@@ -1017,6 +1034,7 @@ describe("content.ts bootstrap - Auto scan checklist crawler", () => {
 });
 
 describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
+  useAnalyzer();
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
@@ -1152,6 +1170,7 @@ describe("content.ts bootstrap - sections the user opens in Auto scan", () => {
 });
 
 describe("content.ts bootstrap - profile sessions", () => {
+  useAnalyzer();
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
@@ -1257,6 +1276,7 @@ describe("content.ts bootstrap - profile sessions", () => {
 });
 
 describe("content.ts bootstrap - Enhanced analysis toggle", () => {
+  useAnalyzer();
   let restoreHeight = () => {};
   beforeEach(() => {
     vi.resetModules();
@@ -1952,5 +1972,76 @@ describe("content.ts bootstrap - keyword highlights", () => {
     main.innerHTML = `<p>Python post in the feed</p>`;
     await vi.advanceTimersByTimeAsync(200);
     expect(registry.has("linkwise-keyword")).toBe(false);
+  });
+});
+
+describe("content.ts bootstrap - Profile Analyzer works only while it is in use", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    sessionStorage.clear();
+    document.body.innerHTML = "";
+  });
+
+  function profileWithSeeMore(): HTMLButtonElement {
+    const appRoot = document.createElement("div");
+    appRoot.id = "app-root";
+    document.body.appendChild(appRoot);
+    appRoot.innerHTML = `
+      <main role="main">
+        <section><h1><span aria-hidden="true">Illia Reviakin</span></h1></section>
+        <section><h2>About</h2><button type="button">…see more</button></section>
+      </main>
+    `;
+    return document.querySelector("button")!;
+  }
+
+  async function boot(storage: Record<string, unknown>, panelOpen: boolean) {
+    if (panelOpen) sessionStorage.setItem("linkwise.panelOpen", "1");
+    vi.stubGlobal("chrome", { runtime: { id: "test", reload: vi.fn() }, storage: installFakeChromeStorage({ "finder.scanMode.v1": "auto", ...storage }) });
+    stubProfileUrl("irev1ak1n");
+    const button = profileWithSeeMore();
+    let clicks = 0;
+    button.addEventListener("click", () => clicks++);
+    await import("./content");
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.advanceTimersByTime(3000);
+    return { clicks: () => clicks };
+  }
+
+  it("never scans a profile while the panel is closed, whatever the scan mode", async () => {
+    const page = await boot({ "finder.panelTool.v1": "analyzer" }, false);
+    expect(page.clicks()).toBe(0);
+  });
+
+  it("never scans from Menu or Settings, and starts once Profile Analyzer opens", async () => {
+    const page = await boot({ "finder.panelTool.v1": "settings" }, true);
+    expect(page.clicks()).toBe(0);
+    const { panelToolPreference } = await import("../optimizer/optimizerPreferences");
+    panelToolPreference.set("analyzer");
+    await Promise.resolve();
+    vi.advanceTimersByTime(3000);
+    expect(page.clicks()).toBe(1);
+  });
+
+  it("keeps working for the person being analyzed when the user glances at Settings", async () => {
+    const page = await boot({ "finder.panelTool.v1": "analyzer" }, true);
+    expect(page.clicks()).toBe(1);
+    const { panelToolPreference } = await import("../optimizer/optimizerPreferences");
+    panelToolPreference.set("settings");
+    const more = document.createElement("button");
+    more.type = "button";
+    more.textContent = "…see more";
+    let clicked = false;
+    more.addEventListener("click", () => (clicked = true));
+    document.querySelector("main")!.appendChild(Object.assign(document.createElement("section"), { innerHTML: "<h2>Experience</h2>" })).appendChild(more);
+    vi.advanceTimersByTime(3000);
+    expect(clicked).toBe(true);
   });
 });

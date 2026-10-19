@@ -687,6 +687,18 @@ function publishProfileShell(): void {
   else if (!/\/(details|edit)\//.test(location.href)) recordProfileShell(profileKey, extractProfileShell(document), false);
 }
 
+// Profile Analyzer's own work (expanding text, auto-scrolling, the Enhanced crawl, reading the
+// sections the user opens) belongs to the person the user is analyzing: it starts only while the
+// panel shows the Analyzer, and keeps going for that person (an Auto scan already running, the
+// sections they open next) when the user glances at another page of the panel. A different
+// person while the Analyzer is not in use gets none of it. Viewing a profile is not permission to
+// analyze it; Signal Mode and Keywords stay page-level features either way.
+let analyzerPerson: string | null = null;
+function analyzerOwns(profileKey: string | null): boolean {
+  if (profileKey !== null && analyzerOpen()) analyzerPerson = profileKey;
+  return profileKey !== null && analyzerPerson === profileKey;
+}
+
 function tick(): void {
   if (torndown) return;
   const target = pageTarget();
@@ -706,15 +718,20 @@ function tick(): void {
   if (urlProfileKey !== null && !ensureProfileSession(urlProfileKey)) return;
   const mode = getScanModeState().mode;
   const isDetailsPage = /\/details\//.test(location.href);
+  const owned = analyzerOwns(urlProfileKey);
 
   if (isDetailsPage && mode === "auto") {
-    tickAutoScanCrawl();
+    if (owned) tickAutoScanCrawl();
     return;
   }
+  // A section page joins only an Analyzer session; without one it is left as it is.
+  if (isDetailsPage && !owned) return;
 
-  if (shouldExpandDetailsThisTick(mode)) {
+  if (owned && shouldExpandDetailsThisTick(mode)) {
     expandSeeMoreToggles(document, { restrictToViewport: mode === "scroll" });
   }
+  // Reading what the page already shows is cheap and feeds Signal Mode; it never scrolls,
+  // expands, navigates, or asks for an analysis by itself.
   engine.tick();
 
   const profileKey = engine.getProfileKey();
@@ -724,12 +741,12 @@ function tick(): void {
   const coverage = deriveScanCoverage(engine.getCollectionState());
 
   if (coverage === "complete") {
-    if (mode === "auto") tickAutoScanCrawl();
+    if (mode === "auto" && owned) tickAutoScanCrawl();
     return;
   }
 
-  // Auto scan skips a profile it just scanned.
-  if (!shouldAttemptAutoScroll(mode, coverage) || mainPageScanned || !isPageScrollable()) return;
+  // Auto scan skips a profile it just scanned, and only ever starts for the Analyzer's person.
+  if (!owned || !shouldAttemptAutoScroll(mode, coverage) || mainPageScanned || !isPageScrollable()) return;
   if (selectActiveGoal(getGoalStoreState()) === null) return;
   autoScroller.start(target, findScrollContainer);
 }
@@ -832,10 +849,11 @@ registerCleanup(highlightPreferences.subscribe(applyHighlightPreferences));
 
 panelToolPreference.init();
 let signalAnalyzerOpen = analyzerOpen();
+// Opening the Analyzer starts (or restores) its work for the person on screen at once.
 const retickForAnalyzer = () => {
   if (analyzerOpen() === signalAnalyzerOpen) return;
   signalAnalyzerOpen = analyzerOpen();
-  if (!torndown) tickSignals();
+  if (!torndown) tick();
 };
 registerCleanup(subscribePanelVisibility(retickForAnalyzer));
 registerCleanup(panelToolPreference.subscribe(retickForAnalyzer));

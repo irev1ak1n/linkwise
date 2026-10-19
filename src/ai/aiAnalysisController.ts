@@ -93,6 +93,19 @@ export class AiAnalysisController {
     this.current = null;
   }
 
+  /** The Analyzer is no longer being used: nothing new is asked or shown. A request already on its
+   * way is not wasted: it still lands in the cache, ready for when the user comes back. */
+  suspend(): void {
+    this.deferred = null;
+    if (this.debounceHandle) clearTimeout(this.debounceHandle);
+    this.debounceHandle = null;
+    this.queued = null;
+    this.latestKey = null;
+    this.subject = null;
+    this.showingResult = false;
+    this.current = null;
+  }
+
   /** Requests (or reuses a cached) AI analysis. New evidence for the same profile and goal never
    * cancels an in-flight request; it queues one refresh instead. */
   request(goal: Goal, profile: LinkedInProfile, localResult: MatchResult, onStateChange: (state: AiAnalysisState) => void, personKey: string | null = null): void {
@@ -174,12 +187,23 @@ export class AiAnalysisController {
       .catch((): AiAnalysisOutcome => ({ status: "unavailable", reason: "unexpected_error" }))
       .then((outcome) => {
         clearTimeout(timeoutHandle);
-        if (this.subject !== subject || this.pending?.key !== job.key) return;
-        this.pending = null;
-        const refreshing = this.queued !== null && this.queued.key === this.latestKey;
+        // A finished analysis is kept for its own key whoever is shown now, so suspending the
+        // Analyzer mid-request never wastes it.
         if (outcome.status === "ok") {
           setCachedAnalysis(job.key, outcome);
           if (job.person) setLatestAnalysis(job.person, { key: job.key, evidence: evidenceHashes(job.body) });
+        }
+        if (this.pending?.key !== job.key) return;
+        this.pending = null;
+        if (this.subject !== subject) {
+          // Suspended or moved on: only a request the current subject is already waiting for goes out.
+          const next = this.queued;
+          this.queued = null;
+          if (next && next.key === this.latestKey && !getCachedAnalysis(next.key)) this.schedule(next);
+          return;
+        }
+        const refreshing = this.queued !== null && this.queued.key === this.latestKey;
+        if (outcome.status === "ok") {
           if (job.key === this.latestKey || !this.showingResult) this.show({ status: "ready", outcome, updating: refreshing });
         } else if (this.showingResult && this.current) {
           this.show({ status: "ready", outcome: this.current, updating: refreshing, updateError: refreshing ? undefined : outcome.reason });
