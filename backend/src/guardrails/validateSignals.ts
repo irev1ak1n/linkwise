@@ -1,3 +1,4 @@
+import { wordingProblems } from "./keyEvidenceWording";
 import { semanticLabelSchema, type CareerStage, type EvidenceFact, type SemanticLabel, type SignalClassification, type SignalFactType } from "../openai/signalsSchema";
 
 // The model's grades are untrusted: every fact must name a submitted item, quote that item's exact
@@ -10,7 +11,8 @@ const MAX_HIGHLIGHT_LENGTH = 200;
 const MAX_HIGHLIGHT_WORDS = 26;
 const LIST_MAX_WORDS = 14;
 const LIST_LEAD_WORDS = 10;
-const MAX_FACT_LENGTH = 90;
+// Key Evidence lines are full sentences: usually 15-20 words, up to about 28 when context needs it.
+const MAX_FACT_LENGTH = 240;
 
 export interface EvidenceText {
   id: string;
@@ -235,12 +237,19 @@ function groundedQuote(quote: string, source: EvidenceText): { text: string; sta
 }
 
 // The short fact line must only use numbers and names its own item states.
-function groundedFact(raw: string, source: EvidenceText): string | null {
+function groundedFact(raw: string, source: EvidenceText, claimQuote: string): string | null {
   const text = raw.trim().replace(/\.$/, "");
   if (text.length === 0 || text.length > MAX_FACT_LENGTH || text.split(/\s+/).length < 2 || isVagueFact(text)) return null;
+  const problems = wordingProblems(text, claimQuote, source.text);
+  if (problems.length > 0) {
+    console.info(`[analyze-signals] dropped a Key Evidence line (${problems.join(", ")})`);
+    return null;
+  }
   const sourceText = normalizeText(source.text);
   const available = new Set(numbersIn(sourceText));
-  return numbersIn(text).every((n) => available.has(n)) && namesAreGrounded(text, sourceText) ? text : null;
+  if (numbersIn(text).every((n) => available.has(n)) && namesAreGrounded(text, sourceText)) return text;
+  console.info("[analyze-signals] dropped a Key Evidence line (ungrounded name or number)");
+  return null;
 }
 
 const STATED_SIZE = /\d|\b(?:dozens|hundreds|thousands|millions|school-?wide|statewide|nationwide|national|international|global)\b/i;
@@ -258,7 +267,7 @@ function toCandidate(raw: EvidenceFact, source: EvidenceText): (ValidatedCandida
     evidenceId: source.id,
     section: source.section,
     quote: quote.text,
-    fact: groundedFact(raw.fact, source),
+    fact: raw.claim === "support" ? null : groundedFact(raw.fact, source, quote.text),
     type: raw.type,
     grades,
     goalRelevance: clampGrade(raw.goalRelevance),

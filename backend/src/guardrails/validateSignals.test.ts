@@ -169,6 +169,24 @@ describe("validateClassification", () => {
     expect(result.candidates.map((c) => c.quote)).toEqual(["At age 12, I was admitted into the Advanced track", "In 2024, I graduated with an Advanced Diploma in Software Engineering"]);
   });
 
+  it("writes Key Evidence only for main claims, and drops a line that cannot stand alone", () => {
+    const result = run([
+      {
+        evidenceId: "experience:0",
+        facts: [
+          grade("Led a 4-person web team", { claim: "main", group: 1, fact: "Led a 4-person Robotics Club web team that earned 3rd place at the State Conference" }),
+          grade("earn 3rd place at the State Conference", { claim: "support", group: 1, fact: "Earned 3rd place" }),
+          grade("reached 300+ visitors", { claim: "main", group: 2, fact: "Reached 300 visitors" }),
+        ],
+      },
+    ]);
+    const facts = Object.fromEntries(result.candidates.map((c) => [c.quote, c.fact]));
+    expect(facts["Led a 4-person web team"]).toBe("Led a 4-person Robotics Club web team that earned 3rd place at the State Conference");
+    expect(facts["earn 3rd place at the State Conference"]).toBeNull();
+    // "300+" lost its plus and the line opens with a bare verb: no Key Evidence line, but the claim stays.
+    expect(facts["reached 300+ visitors"]).toBeNull();
+  });
+
   it("rejects a phrase that only describes the setting of a fact", () => {
     const result = run([{ evidenceId: "experience:0", facts: [grade("at the State Conference"), grade("earn 3rd place at the State Conference")] }]);
     expect(result.candidates.map((c) => c.quote)).toEqual(["earn 3rd place at the State Conference"]);
