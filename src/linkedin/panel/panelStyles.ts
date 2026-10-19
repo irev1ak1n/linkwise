@@ -1992,95 +1992,44 @@ export function getPanelStyles(widthPx: number): string {
     gap: 8px;
     box-sizing: border-box;
   }
-  /* Smart Highlights: the premium card above the categories, in the hero artwork's palette. */
+  /* Smart Highlights: the card art is one image (its sparkle tile included), with the real text
+     and switch laid over it. Positions are fractions of the card, so they track the art. */
   .lw-sh {
     position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    padding: 14px 14px 13px;
+    aspect-ratio: 1676 / 713;
     border-radius: 16px;
     overflow: hidden;
     isolation: isolate;
-    background:
-      radial-gradient(120% 140% at 100% 100%, rgba(79, 110, 255, 0.55) 0%, rgba(79, 110, 255, 0) 55%),
-      radial-gradient(70% 90% at 85% 10%, rgba(124, 92, 255, 0.35) 0%, rgba(124, 92, 255, 0) 60%),
-      linear-gradient(115deg, #0f1546 0%, #1b2273 45%, #2f3cc0 80%, #4a5bea 100%);
-    box-shadow: 0 8px 22px rgba(40, 52, 170, 0.28), 0 1px 2px rgba(15, 21, 70, 0.25);
+    background: #141a5c;
+    box-shadow: 0 8px 22px rgba(40, 52, 170, 0.26), 0 1px 2px rgba(15, 21, 70, 0.25);
     color: #fff;
   }
-  /* A soft curved band of light, like the hero artwork's waves. */
-  .lw-sh::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    left: 48%;
-    right: -45%;
-    top: 74%;
-    height: 160%;
-    border-radius: 50%;
-    border-top: 1px solid rgba(160, 175, 255, 0.35);
-    background: radial-gradient(60% 40% at 50% 0%, rgba(120, 140, 255, 0.22), rgba(120, 140, 255, 0));
-    transform: rotate(-8deg);
-  }
   .lw-sh--off {
-    box-shadow: 0 4px 14px rgba(40, 52, 170, 0.16);
+    box-shadow: 0 4px 14px rgba(40, 52, 170, 0.15);
   }
-  .lw-sh__star {
+  .lw-sh__art {
     position: absolute;
-    z-index: -1;
-    fill: #c9d2ff;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     pointer-events: none;
+    user-select: none;
   }
-  .lw-sh__star--a {
-    width: 13px;
-    height: 13px;
-    right: 74px;
-    top: 44px;
-    opacity: 0.55;
+  .lw-sh__content {
+    position: absolute;
+    inset: 0;
   }
-  .lw-sh__star--b {
-    width: 8px;
-    height: 8px;
-    right: 96px;
-    top: 60px;
-    opacity: 0.4;
-  }
-  .lw-sh__star--c {
-    width: 6px;
-    height: 6px;
-    right: 140px;
-    top: 12px;
-    opacity: 0.35;
-  }
-  .lw-sh__row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .lw-sh__tile {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 50px;
-    height: 50px;
-    border-radius: 13px;
-    background: linear-gradient(145deg, rgba(120, 132, 255, 0.38), rgba(64, 76, 210, 0.22));
-    border: 1px solid rgba(165, 175, 255, 0.45);
-    box-shadow: inset 0 0 14px rgba(150, 165, 255, 0.28), 0 0 12px rgba(99, 115, 255, 0.25);
-  }
-  .lw-sh__tile svg {
-    width: 26px;
-    height: 26px;
-    fill: #f3f2ff;
-    filter: drop-shadow(0 0 4px rgba(200, 205, 255, 0.55));
-  }
+  /* Beside the art's sparkle tile (5%–19% across, 15%–48% down). */
   .lw-sh__text {
-    flex: 1;
+    position: absolute;
+    left: 23.5%;
+    right: 22%;
+    top: 16%;
     display: flex;
     flex-direction: column;
     gap: 2px;
-    min-width: 0;
+    text-shadow: 0 1px 6px rgba(8, 12, 50, 0.45);
   }
   .lw-sh__title {
     font-size: 20px;
@@ -2088,23 +2037,27 @@ export function getPanelStyles(widthPx: number): string {
     line-height: 1.15;
     letter-spacing: -0.01em;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .lw-sh__count {
     font-size: 14px;
-    color: #c3c9f5;
+    color: #c8cdf7;
   }
   .lw-sh__description {
+    position: absolute;
+    left: 5%;
+    right: 6%;
+    bottom: 9%;
     margin: 0;
     font-size: 12.5px;
     line-height: 1.35;
-    color: rgba(225, 230, 255, 0.78);
+    color: rgba(228, 232, 255, 0.84);
+    text-shadow: 0 1px 6px rgba(8, 12, 50, 0.5);
   }
   .lw-sh__switch {
-    flex: none;
+    position: absolute;
+    right: 4.5%;
+    top: 20%;
     appearance: none;
-    position: relative;
     width: 46px;
     height: 27px;
     margin: 0;
