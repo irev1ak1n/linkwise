@@ -180,49 +180,37 @@ export function PanelApp({ onClose }: PanelAppProps) {
             scanning={
               <>
                 <ScanModeToggle mode={scanMode} onChange={setScanMode} />
-                {/* Only the settings that apply to the selected mode, each mode keeping its own values,
-                    grouped under the chooser as one list. */}
-                <section className="lw-scan-settings" aria-label="Scan settings">
-                  <h4 className="lw-rules__label">{scanMode === "auto" ? "Auto scan settings" : "Scroll settings"}</h4>
-                  <ul className="lw-scan-options">
-                    {scanMode === "scroll" && (
-                      <li>
-                        <ScanOptionRow
-                          icon="expand"
-                          title="Expand profile details"
-                          hint="Reveal full descriptions as you scroll."
-                          enabled={expandDetailsEnabled}
-                          onChange={setExpandDetailsPreference}
-                        />
-                      </li>
-                    )}
-                    {scanMode === "auto" && (
-                      <>
-                        <li>
-                          <ScanOptionRow icon="expand" title="Expand profile details" hint="Reveal full descriptions while scanning." enabled={autoExpandEnabled} onChange={autoExpandPreference.set} />
-                        </li>
-                        <li>
-                          <ScanOptionRow
-                            icon="enhanced"
-                            title="Enhanced analysis"
-                            hint="Open profile sections for a more complete analysis."
-                            enabled={enhancedAnalysisEnabled}
-                            onChange={setEnhancedAnalysisPreference}
-                          />
-                        </li>
-                        <li>
-                          <ScanOptionRow
-                            icon="sections"
-                            title="Analyze sections I open"
-                            hint="Add information from profile sections you visit."
-                            enabled={manualSectionsEnabled}
-                            onChange={setManualSectionsPreference}
-                          />
-                        </li>
-                      </>
-                    )}
-                  </ul>
-                </section>
+                {/* Only the settings that apply to the selected mode, each mode keeping its own values. */}
+                <div className="lw-scan-options">
+                  {scanMode === "scroll" && (
+                    <ScanOptionRow
+                      icon="expand"
+                      title="Expand profile details"
+                      hint="Reveal full descriptions as you scroll."
+                      enabled={expandDetailsEnabled}
+                      onChange={setExpandDetailsPreference}
+                    />
+                  )}
+                  {scanMode === "auto" && (
+                    <>
+                      <ScanOptionRow icon="expand" title="Expand profile details" hint="Reveal full descriptions while scanning." enabled={autoExpandEnabled} onChange={autoExpandPreference.set} />
+                      <ScanOptionRow
+                        icon="enhanced"
+                        title="Enhanced analysis"
+                        hint="Open profile sections for a more complete analysis."
+                        enabled={enhancedAnalysisEnabled}
+                        onChange={setEnhancedAnalysisPreference}
+                      />
+                      <ScanOptionRow
+                        icon="sections"
+                        title="Analyze sections I open"
+                        hint="Add information from profile sections you visit."
+                        enabled={manualSectionsEnabled}
+                        onChange={setManualSectionsPreference}
+                      />
+                    </>
+                  )}
+                </div>
               </>
             }
           />

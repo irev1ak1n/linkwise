@@ -287,56 +287,23 @@ export function getPanelStyles(widthPx: number): string {
   }
 
   /* The selected mode's settings: clean white rows under the chooser. */
-  /* The selected mode's settings as one grouped list, like Highlight categories: one container,
-     stacked rows, dividers that start after the icon. */
-  .lw-scan-settings {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 2px;
-  }
   .lw-scan-options {
     display: flex;
     flex-direction: column;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    border: 1px solid #e0e6ef;
-    border-radius: 15px;
-    background: #fff;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+    gap: 8px;
   }
   .lw-scan-option {
-    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
-    min-height: 64px;
-    padding: 11px 12px;
+    min-height: 70px;
+    padding: 12px 12px 12px 12px;
+    border: 1px solid #e0e6ef;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
     box-sizing: border-box;
     cursor: pointer;
-    transition: background-color 0.12s ease;
-  }
-  .lw-scan-options > li:not(:last-child) .lw-scan-option::after {
-    content: "";
-    position: absolute;
-    left: 62px;
-    right: 0;
-    bottom: 0;
-    height: 1px;
-    background: #e8ecf3;
-  }
-  .lw-scan-options > li:first-child .lw-scan-option {
-    border-radius: 14px 14px 0 0;
-  }
-  .lw-scan-options > li:last-child .lw-scan-option {
-    border-radius: 0 0 14px 14px;
-  }
-  .lw-scan-options > li:only-child .lw-scan-option {
-    border-radius: 14px;
-  }
-  .lw-scan-option:hover {
-    background: #f8faff;
   }
   .lw-scan-option__tile {
     flex: none;

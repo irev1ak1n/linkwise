@@ -438,10 +438,6 @@ describe("Scanning settings", () => {
     expect(scanning.querySelector(".lw-sm")).not.toBeNull();
     expect(rows()).toEqual(["Expand profile details"]);
     expect(modeCard("Analyze as I scroll").getAttribute("aria-checked")).toBe("true");
-    // One grouped list under the chooser, headed for the selected mode.
-    const group = () => q('[aria-label="Scan settings"]');
-    expect(group().querySelectorAll("ul")).toHaveLength(1);
-    expect(group().querySelector(".lw-rules__label")!.textContent).toBe("Scroll settings");
     // Switches, not the old checkboxes; and no chevrons, since nothing here opens a page.
     expect(container.querySelectorAll('.lw-scan-options input[type="checkbox"]:not([role="switch"])')).toHaveLength(0);
     expect(container.querySelector(".lw-scan-options .lw-rule__more")).toBeNull();
@@ -450,8 +446,6 @@ describe("Scanning settings", () => {
     await act(async () => modeCard("Auto scan profile").click());
     expect(modeCard("Auto scan profile").getAttribute("aria-checked")).toBe("true");
     expect(rows()).toEqual(["Expand profile details", "Enhanced analysis", "Analyze sections I open"]);
-    expect(group().querySelector(".lw-rules__label")!.textContent).toBe("Auto scan settings");
-    expect(group().querySelectorAll("ul > li")).toHaveLength(3);
     await act(async () => modeCard("Analyze as I scroll").click());
     expect(rows()).toEqual(["Expand profile details"]);
     // Changing modes in Settings never asks for a scan or an analysis.
