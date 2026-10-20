@@ -77,7 +77,7 @@ import { hydrateSignalCache } from "../ai/signalAnalysisController";
 import { hydrateOptimizerCache } from "../optimizer/optimizerController";
 import { hydrateSectionCache } from "../optimizer/sectionAnalysis";
 import { hydrateChecklistCache } from "../optimizer/checklistAssessment";
-import { recordProfileShell, setProfileShell } from "../optimizer/profileShellStore";
+import { getProfileShell, recordProfileShell, setProfileShell } from "../optimizer/profileShellStore";
 import { expandSeeMoreToggles, hasCollapsedText } from "./expandContent";
 import { getJobsSettingsState, initJobsSettingsStore, subscribeJobsSettingsStore } from "./panel/jobsSettingsStore";
 import { runJobsTick } from "./jobs/jobsRuntime";
@@ -387,11 +387,13 @@ function publishAutoScanState(profileKey: string): void {
 
 // Advances to whichever section comes next, or back to the original profile once the whole
 // queue is done. Never re-opens a URL already marked done this session. If Enhanced analysis
-// gets turned off mid-crawl, the section already open still finishes (see tickAutoScanCrawl),
+// gets turned off mid-crawl (or the Optimizer that wanted it is left), the section already open
+// still finishes (see tickAutoScanCrawl),
 // but this is the one place that decides whether to open another one — so turning it off here
 // stops the crawl in place instead, keeping whatever evidence was already collected.
 function goToNextSectionOrFinish(session: AutoScanSession): void {
-  const finalSession = !isSessionComplete(session) && !getEnhancedAnalysisState().enabled ? forceCompleteSession(session) : session;
+  const crawlWanted = getEnhancedAnalysisState().enabled || optimizerCrawls(session.profileKey);
+  const finalSession = !isSessionComplete(session) && !crawlWanted ? forceCompleteSession(session) : session;
   if (finalSession !== session) {
     autoScanSession = finalSession;
     void saveAutoScanSession(finalSession);
@@ -499,9 +501,10 @@ function isCrawlerPage(currentUrl: string): boolean {
   return nextPendingSection(autoScanSession)?.normalizedUrl === currentUrl;
 }
 
-// One tick of the multi-page crawl. Only ever called for "auto" mode. Local code alone decides
-// what happens next; OpenAI is never asked which page to visit.
-function tickAutoScanCrawl(): void {
+// One tick of the multi-page crawl, for "auto" mode, or for the Optimizer on the viewer's own
+// profile (forOptimizer). Local code alone decides what happens next; OpenAI is never asked
+// which page to visit.
+function tickAutoScanCrawl(forOptimizer = false): void {
   const profileKey = profileIdentityKey(location.href);
   if (profileKey === null) return;
 
@@ -527,15 +530,21 @@ function tickAutoScanCrawl(): void {
   // Only a page the crawler itself opened (the active session's pending section) is crawler-owned.
   // Anything else the user opened is left alone: no redirect, no new session.
   if (currentUrl !== mainProfileUrl && !isCrawlerPage(currentUrl)) {
-    tickManualSection(profileKey, currentUrl);
+    if (!forOptimizer) tickManualSection(profileKey, currentUrl);
     return;
   }
 
   if (autoScanSession === null) {
-    // Discovery needs the main page's own "Show all" links, so a crawl only ever starts there.
-    if (!getEnhancedAnalysisState().enabled) return; // main-page-only scan, never starts the crawler
-    const coverage = deriveScanCoverage(engine.getCollectionState());
-    if (coverage !== "complete") return;
+    // Discovery needs the main page's own "Show all" links, so a crawl only ever starts there:
+    // for the Optimizer once its own read of the page is done, otherwise once Auto scan covered it.
+    if (forOptimizer) {
+      const shell = getProfileShell();
+      if (shell?.profileKey !== profileKey || !shell.complete) return;
+    } else {
+      if (!getEnhancedAnalysisState().enabled) return; // main-page-only scan, never starts the crawler
+      const coverage = deriveScanCoverage(engine.getCollectionState());
+      if (coverage !== "complete") return;
+    }
 
     const rawDiscovered = discoverProfileSections(document);
     if (rawDiscovered.length === 0) {
@@ -684,7 +693,32 @@ function tickSignals(): void {
 function publishProfileShell(): void {
   const profileKey = profileIdentityKey(location.href);
   if (profileKey === null) setProfileShell(null);
-  else if (!/\/(details|edit)\//.test(location.href)) recordProfileShell(profileKey, extractProfileShell(document), false);
+  else if (!/\/(details|edit)\//.test(location.href)) {
+    recordProfileShell(profileKey, extractProfileShell(document), false);
+    if (getProfileShell()?.shell.isOwnProfile) rememberOwnProfile(profileKey);
+  }
+}
+
+// Own-profile detection needs the main profile page, so the result is kept for the tab: the
+// Optimizer's section pages carry on a crawl only for the profile the main page proved is yours.
+const OWN_PROFILE_KEY = "linkwise.ownProfile";
+function rememberOwnProfile(profileKey: string): void {
+  try {
+    sessionStorage.setItem(OWN_PROFILE_KEY, profileKey);
+  } catch {}
+}
+function isOwnProfileKey(profileKey: string | null): boolean {
+  try {
+    return profileKey !== null && sessionStorage.getItem(OWN_PROFILE_KEY) === profileKey;
+  } catch {
+    return false;
+  }
+}
+
+// Profile Optimizer always reviews the whole profile: while it is open on the viewer's own
+// profile, it runs the same detail-page crawl as Enhanced analysis, whatever the scan settings.
+function optimizerCrawls(profileKey: string | null): boolean {
+  return isPanelVisible() && panelToolPreference.getState().value === "optimizer" && isOwnProfileKey(profileKey);
 }
 
 // Profile Analyzer's own work (expanding text, auto-scrolling, the Enhanced crawl, reading the
@@ -720,6 +754,10 @@ function tick(): void {
   const isDetailsPage = /\/details\//.test(location.href);
   const owned = analyzerOwns(urlProfileKey);
 
+  if (isDetailsPage && optimizerCrawls(urlProfileKey)) {
+    tickAutoScanCrawl(true);
+    return;
+  }
   if (isDetailsPage && mode === "auto") {
     if (owned) tickAutoScanCrawl();
     return;
@@ -738,10 +776,13 @@ function tick(): void {
   if (profileKey === null) return;
   returnToTopAfterAutoScan();
 
+  const optimizerCrawl = optimizerCrawls(profileKey);
+  if (optimizerCrawl) tickAutoScanCrawl(true);
+
   const coverage = deriveScanCoverage(engine.getCollectionState());
 
   if (coverage === "complete") {
-    if (mode === "auto" && owned) tickAutoScanCrawl();
+    if (mode === "auto" && owned && !optimizerCrawl) tickAutoScanCrawl();
     return;
   }
 

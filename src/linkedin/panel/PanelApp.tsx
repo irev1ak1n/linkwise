@@ -46,6 +46,13 @@ interface PanelAppProps {
 // Collection finishes on its own via auto-scroll, so isFinal usually flips true before the
 // user does anything. Analysis is AI-first: nothing shows while OpenAI's reasoning is still in
 // flight, only a loading state, so there's never a stale or partial result on screen.
+// The Optimizer reviews the whole profile: ready only once the detail-page crawl has finished (it
+// has nothing to wait for when the profile has no detail pages) and the page's own reading has
+// settled, so it sends one request for the finished evidence. "Analyze now" forces it.
+export function optimizerReadyToAnalyze(forced: boolean, crawl: "scanning" | "complete" | null, collection: string | null): boolean {
+  return forced || (crawl === "complete" && collection === "settled");
+}
+
 export function PanelApp({ onClose }: PanelAppProps) {
   const { profileKey, profile, collection, autoScanProgress, updatingSection } = useCollectionData();
   const { selectedGoal: goal, loaded: goalsLoaded, setActiveGoalCriteria } = useGoalStore();
@@ -76,6 +83,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
     if (reachedFinal && profileKey && !finalKeys.has(profileKey)) setFinalKeys((prev) => new Set(prev).add(profileKey));
   }, [reachedFinal, profileKey, finalKeys]);
   const isFinal = reachedFinal || (profileKey !== null && finalKeys.has(profileKey) && !autoScanActive);
+  const optimizerFinal = optimizerReadyToAnalyze(forced, autoScanProgress?.status ?? null, collection?.status ?? null);
 
   // Memoized so this stays reference-stable, an unstable one would re-trigger AI on every render.
   const result = useMemo(() => (goal && profile ? scoreProfileAgainstGoal(goal, profile) : null), [goal, profile]);
@@ -224,7 +232,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
         ) : tool === "optimizer" ? (
           <>
             {optimizerPage.name === "home" && <OptimizerHero />}
-            <OptimizerView profileKey={profileKey} profile={profile} isFinal={isFinal} onAnalyzeNow={handleAnalyzeNow} />
+            <OptimizerView profileKey={profileKey} profile={profile} isFinal={optimizerFinal} onAnalyzeNow={handleAnalyzeNow} />
           </>
         ) : !goalsLoaded ? (
           <p className="lw-empty">Loading your goals…</p>
