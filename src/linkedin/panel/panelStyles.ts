@@ -1246,36 +1246,36 @@ export function getPanelStyles(widthPx: number): string {
     left: 19.9%;
   }
   .lw-art-hero--optimizer .lw-art-hero__hotspot {
-    top: 15.2%;
-    height: 20.4%;
+    top: 10%;
+    height: 20.8%;
   }
   .lw-art-hero--optimizer .lw-art-hero__hotspot--menu {
-    left: 5.5%;
-    width: 12.1%;
+    left: 4.8%;
+    width: 13.8%;
     border-radius: 24%;
   }
   .lw-art-hero--optimizer .lw-art-hero__hotspot--settings {
-    right: 5.8%;
-    width: 11.7%;
+    right: 5.3%;
+    width: 13.5%;
     border-radius: 50%;
   }
-  /* Between the menu and the planet's rim, ending just left of the orb, sparkle and chart tile
-     (which start past 53% of the width): one-line title, two-line subtitle. */
+  /* The Analyzer's zones: buttons in their own row, then the title and subtitle below them at the
+     Analyzer's scale. The artwork's illustration sits right of 61%, where the one-line title ends. */
   .lw-art-hero--optimizer .lw-art-hero__copy {
     left: 5.5%;
-    top: 39%;
+    top: 38.5%;
     max-width: none;
   }
   .lw-art-hero--optimizer .lw-art-hero__title {
-    font-size: 6.4cqw;
+    font-size: 7.2cqw;
     line-height: 1.1;
     white-space: nowrap;
   }
   .lw-art-hero--optimizer .lw-art-hero__subtitle {
-    margin-top: 1.8cqw;
-    font-size: 3.6cqw;
+    margin-top: 1.6cqw;
+    font-size: 4cqw;
     line-height: 1.32;
-    color: #f2f4ff;
+    color: rgba(255, 255, 255, 0.9);
   }
   .lw-art-hero--optimizer .lw-art-hero__subtitle > span {
     display: block;
