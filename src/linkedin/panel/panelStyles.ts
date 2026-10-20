@@ -179,12 +179,12 @@ export function getPanelStyles(widthPx: number): string {
      top. Positions are fractions of the art, measured from it, so they track it at any width. */
   .lw-sm {
     position: relative;
-    aspect-ratio: 1362 / 820;
+    aspect-ratio: 1337 / 765;
     border-radius: 18px;
     overflow: hidden;
     isolation: isolate;
-    background: #0a1048;
-    box-shadow: 0 8px 22px rgba(30, 50, 170, 0.22);
+    background: #050a2e;
+    box-shadow: 0 6px 18px rgba(20, 35, 120, 0.18);
     color: #fff;
   }
   .lw-sm__art {
@@ -199,10 +199,10 @@ export function getPanelStyles(widthPx: number): string {
   /* The wide top panel, beside its icon. */
   .lw-sm__head {
     position: absolute;
-    left: 22.1%;
+    left: 21.6%;
     right: 6%;
-    top: 14.9%;
-    height: 27.3%;
+    top: 15.2%;
+    height: 30.1%;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -221,12 +221,12 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-sm__option {
     position: absolute;
-    top: 46.8%;
-    height: 39.6%;
+    top: 49.3%;
+    height: 41.8%;
     padding: 0;
     border: 0;
-    border-radius: 11px;
-    background: rgba(3, 6, 32, 0.28);
+    border-radius: 10px;
+    background: rgba(2, 5, 28, 0.2);
     font: inherit;
     color: inherit;
     text-align: left;
@@ -234,19 +234,20 @@ export function getPanelStyles(widthPx: number): string {
     transition: background-color 0.15s ease, box-shadow 0.15s ease;
   }
   .lw-sm__option--scroll {
-    left: 3.74%;
-    width: 45%;
+    left: 2.69%;
+    width: 46%;
   }
   .lw-sm__option--auto {
-    left: 50.95%;
-    width: 45.74%;
+    left: 51.08%;
+    width: 46.07%;
   }
   .lw-sm__option:hover {
-    background: rgba(3, 6, 32, 0.12);
+    background: rgba(2, 5, 28, 0.08);
   }
+  /* The art draws each panel's border; selection only brightens it in the same blue. */
   .lw-sm__option.is-selected {
     background: transparent;
-    box-shadow: inset 0 0 0 1.5px rgba(170, 195, 255, 0.95), 0 0 14px rgba(90, 135, 255, 0.55);
+    box-shadow: inset 0 0 0 1.5px rgba(96, 140, 255, 0.95), 0 0 8px rgba(70, 115, 255, 0.35);
   }
   .lw-sm__option:focus-visible {
     outline: 2px solid #c7d2fe;
@@ -255,7 +256,7 @@ export function getPanelStyles(widthPx: number): string {
   /* Beside the panel's icon, never over it. */
   .lw-sm__label {
     position: absolute;
-    left: 40%;
+    left: 41%;
     right: 5%;
     top: 50%;
     transform: translateY(-50%);
@@ -278,7 +279,7 @@ export function getPanelStyles(widthPx: number): string {
     border-radius: 50%;
     background: #fff;
     color: #3048e0;
-    box-shadow: 0 0 10px rgba(140, 170, 255, 0.75);
+    box-shadow: 0 0 6px rgba(120, 155, 255, 0.5);
   }
   .lw-sm__check svg {
     width: 62%;

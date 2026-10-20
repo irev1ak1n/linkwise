@@ -19,7 +19,7 @@ export function ScanModeToggle({ mode, onChange }: ScanModeToggleProps) {
   const art = typeof chrome !== "undefined" ? chrome.runtime?.getURL?.(ART) : undefined;
   return (
     <div className="lw-sm">
-      <img className="lw-sm__art" src={art || undefined} width={1362} height={820} alt="" draggable={false} />
+      <img className="lw-sm__art" src={art || undefined} width={1337} height={765} alt="" draggable={false} />
       <div className="lw-sm__head">
         <span className="lw-sm__title">Scan mode</span>
         <span className="lw-sm__subtitle">Choose how LinkWise analyzes the profile.</span>
