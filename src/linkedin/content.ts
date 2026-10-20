@@ -44,7 +44,7 @@ import {
 } from "./profileAdapter";
 import { discoverProfileSections, excludeFromAutoScanQueue, truncatedSections } from "./sectionDiscovery";
 import { accumulateForPage, mergeProfileEvidence, reconcileSections, sameEvidence } from "./profileEvidenceAccumulator";
-import {
+import { extendSession,
   forceCompleteSession,
   hasExceededOverallTimeout,
   isSessionComplete,
@@ -102,6 +102,9 @@ const SETTLED_TICK_INTERVAL_MS = 6000;
 // How long a detail page gets before its extraction is trusted, and how long before giving up
 // on it entirely. Generous: LinkedIn's own detail pages can be slow to render.
 const SECTION_SETTLE_MS = 1500;
+// Bumped when the details-page reader learns to read entries it used to miss (2: lazily rendered
+// lists such as Skills; 3-4: waiting for their last chunk), so the Optimizer reads those pages again once.
+const DETAILS_READER_VERSION = 4;
 const SECTION_STEP_MS = 700;
 const SECTION_TIMEOUT_MS = 15000;
 const MAX_SECTION_ATTEMPTS = 2;
@@ -496,6 +499,32 @@ function tickManualSection(profileKey: string, currentUrl: string): void {
   });
 }
 
+// Steps a details page's scroller down a screen per call until every entry LinkedIn counted on
+// the main page has rendered, or, with no count, until the list has stopped growing at the bottom
+// for a while (LinkedIn loads the next chunk only once the end is in view), or a step cap.
+const SECTION_SCROLL_MAX_STEPS = 60;
+const SECTION_SCROLL_QUIET_MS = 4000;
+let sectionScroll: { url: string; steps: number; entries: number; quietSince: number | null } | null = null;
+function scrolledThroughSection(url: string, now = Date.now()): boolean {
+  if (sectionScroll?.url !== url) sectionScroll = { url, steps: 0, entries: -1, quietSince: null };
+  const scroller = findScrollContainer();
+  const separators = findDetailsSectionRoot(document)?.querySelectorAll("hr").length ?? 0;
+  const entries = separators > 0 ? separators + 1 : 0;
+  const expected = expectedEntries(detailsPageSection(url));
+  if (expected !== null && entries >= expected) return true;
+  const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 80;
+  if (!atEnd || entries !== sectionScroll.entries || sectionScroll.quietSince === null) sectionScroll.quietSince = atEnd ? now : null;
+  sectionScroll.entries = entries;
+  const quiet = sectionScroll.quietSince !== null && now - sectionScroll.quietSince >= SECTION_SCROLL_QUIET_MS;
+  if (quiet || sectionScroll.steps >= SECTION_SCROLL_MAX_STEPS) return true;
+  if (!atEnd) {
+    sectionScroll.steps += 1;
+    scroller.scrollTop += Math.max(400, scroller.clientHeight - 80);
+  }
+  scheduleSectionStep();
+  return false;
+}
+
 function isCrawlerPage(currentUrl: string): boolean {
   if (!autoScanSession || isSessionComplete(autoScanSession)) return false;
   return nextPendingSection(autoScanSession)?.normalizedUrl === currentUrl;
@@ -553,10 +582,10 @@ function tickAutoScanCrawl(forOptimizer = false): void {
       if (discoveryFirstEmptyAt === null) discoveryFirstEmptyAt = Date.now();
       if (Date.now() - discoveryFirstEmptyAt < DISCOVERY_SETTLE_MS) return; // give lazy-rendered links more time
     }
-    const discovered = excludeFromAutoScanQueue(rawDiscovered);
+    const discovered = excludeFromAutoScanQueue(rawDiscovered, { forOptimizer });
 
     autoScanEvidence = mergeProfileEvidence(autoScanEvidence, extractLinkedInProfile(document));
-    const session = startAutoScanSession(profileKey, currentUrl, discovered);
+    const session = { ...startAutoScanSession(profileKey, currentUrl, discovered), readerVersion: DETAILS_READER_VERSION };
     autoScanSession = session;
     void saveAutoScanSession(session);
     void updateProfileSession(profileKey, { evidence: autoScanEvidence });
@@ -566,6 +595,24 @@ function tickAutoScanCrawl(forOptimizer = false): void {
   }
 
   if (isSessionComplete(autoScanSession)) {
+    // The Optimizer redoes a crawl an older details reader filled in (it may have missed entries)...
+    if (forOptimizer && currentUrl === mainProfileUrl && (autoScanSession.readerVersion ?? 0) < DETAILS_READER_VERSION) {
+      autoScanSession = null;
+      tick();
+      return;
+    }
+    // ...and a finished crawl still picks up detail pages it never read, once the main page is read.
+    const shell = getProfileShell();
+    if (forOptimizer && currentUrl === mainProfileUrl && shell?.profileKey === profileKey && shell.complete) {
+      const extended = extendSession(autoScanSession, excludeFromAutoScanQueue(discoverProfileSections(document), { forOptimizer }));
+      if (extended !== autoScanSession) {
+        autoScanSession = extended;
+        void saveAutoScanSession(extended);
+        publishAutoScanState(profileKey);
+        goToNextSectionOrFinish(extended);
+        return;
+      }
+    }
     publishAutoScanState(profileKey);
     return;
   }
@@ -621,6 +668,8 @@ function tickAutoScanCrawl(forOptimizer = false): void {
   }
 
   if (elapsed < SECTION_SETTLE_MS) return;
+  // Long lists render in chunks as they scroll into view, so the Optimizer reads to the end first.
+  if (forOptimizer && !scrolledThroughSection(pending.normalizedUrl)) return;
 
   // LinkedIn renders expanded text asynchronously, so read the section on a later tick.
   if (expandSeeMoreToggles(document, { restrictToViewport: false }) > 0) return;
@@ -695,17 +744,31 @@ function publishProfileShell(): void {
   if (profileKey === null) setProfileShell(null);
   else if (!/\/(details|edit)\//.test(location.href)) {
     recordProfileShell(profileKey, extractProfileShell(document), false);
-    if (getProfileShell()?.shell.isOwnProfile) rememberOwnProfile(profileKey);
+    const shell = getProfileShell()?.shell;
+    if (shell?.isOwnProfile) rememberOwnProfile(profileKey, shell.sections);
   }
 }
 
 // Own-profile detection needs the main profile page, so the result is kept for the tab: the
 // Optimizer's section pages carry on a crawl only for the profile the main page proved is yours.
 const OWN_PROFILE_KEY = "linkwise.ownProfile";
-function rememberOwnProfile(profileKey: string): void {
+// The section counts LinkedIn shows on the main page ("Skills (50)") travel with it, so a details
+// page knows how many entries to expect before it stops scrolling.
+const OWN_SECTION_COUNTS_KEY = "linkwise.ownProfileCounts";
+function rememberOwnProfile(profileKey: string, sections: Partial<Record<string, number | null>>): void {
   try {
     sessionStorage.setItem(OWN_PROFILE_KEY, profileKey);
+    sessionStorage.setItem(OWN_SECTION_COUNTS_KEY, JSON.stringify(sections));
   } catch {}
+}
+function expectedEntries(section: ProfileSectionName | null): number | null {
+  if (!section) return null;
+  try {
+    const count = (JSON.parse(sessionStorage.getItem(OWN_SECTION_COUNTS_KEY) ?? "{}") as Record<string, unknown>)[section];
+    return typeof count === "number" && count > 0 ? count : null;
+  } catch {
+    return null;
+  }
 }
 function isOwnProfileKey(profileKey: string | null): boolean {
   try {

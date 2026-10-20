@@ -192,3 +192,13 @@ describe("checks only the user can make", () => {
     expect(summarizeChecklist(true, criteria)).toMatchObject({ state: "improve", passed: 2, verifiable: 3, needsUser: 4 });
   });
 });
+
+describe("section presence", () => {
+  it("says how much of a counted list LinkWise read", () => {
+    const shell: ProfileShell = { ...baseShell, sections: { skills: 50 } };
+    const skills = (n: number) => ({ ...profile, skills: Array.from({ length: n }, (_, i) => `Skill ${i}`) });
+    const explain = (p: LinkedInProfile) => evaluateChecklist("skills", context("skills", p, shell), { status: "idle" }).find((c) => c.id === "skills-present")?.explanation;
+    expect(explain(skills(50))).toBe("50 of 50 entries read.");
+    expect(explain(skills(46))).toBe("46 of 50 entries read.");
+  });
+});

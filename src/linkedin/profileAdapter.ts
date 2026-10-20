@@ -493,6 +493,25 @@ function detailsEntryList(doc: Document): HTMLElement | null {
   return list;
 }
 
+// A details list's entries are the elements between its separators: an <hr>, or a text-free
+// wrapper around one. LinkedIn renders long lists (Skills, for one) in lazily loaded chunks, each
+// with its own run of entries and separators, so the runs can sit deeper than the list itself.
+function detailsListEntries(list: HTMLElement): HTMLElement[] {
+  const separatorOf = (hr: Element): Element => {
+    let el = hr;
+    while (el.parentElement && el.parentElement !== list && (el.parentElement.textContent ?? "").trim() === "") el = el.parentElement;
+    return el;
+  };
+  const separators = new Set(Array.from(list.querySelectorAll("hr")).map(separatorOf));
+  const parents = [...new Set([...separators].map((separator) => separator.parentElement!))];
+  // The innermost runs hold the entries; an outer run only separates the chunks themselves.
+  const runs = parents.filter((parent) => !parents.some((other) => other !== parent && parent.contains(other)));
+  const holders = runs.length > 1 ? runs : [list];
+  return holders.flatMap((holder) =>
+    Array.from(holder.children).filter((el): el is HTMLElement => el instanceof HTMLElement && el.tagName !== "HR" && !separators.has(el) && (el.textContent ?? "").trim() !== ""),
+  );
+}
+
 // The element holding a details page's own entries, for scoping work to that section only.
 export function findDetailsSectionRoot(doc: Document = document): HTMLElement | null {
   if (!detailsPageSection(doc.URL)) return null;
@@ -534,7 +553,7 @@ export function extractDetailsPageProfile(doc: Document = document): LinkedInPro
     return profile;
   }
 
-  const entries = list ? Array.from(list.children).filter((el): el is HTMLElement => el.tagName !== "HR") : [container!];
+  const entries = list ? detailsListEntries(list) : [container!];
   for (const entry of entries) {
     const lines = entryLines(entry);
     if (lines.length > 0 && isSectionHeading(section, lines[0]!)) lines.shift();

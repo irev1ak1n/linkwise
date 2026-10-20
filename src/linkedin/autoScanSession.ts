@@ -25,6 +25,8 @@ export interface AutoScanSession {
   currentIndex: number;
   status: ScanSessionStatus;
   startedAt: number;
+  /** Which details-page reader filled it, so a crawl read by an older reader can be redone. */
+  readerVersion?: number;
 }
 
 export interface DiscoveredSectionInput {
@@ -109,6 +111,22 @@ export function markCurrentSectionFailed(session: AutoScanSession, maxAttempts =
   }
   const sections = session.sections.map((s, i) => (i === session.currentIndex ? { ...s, status: "failed" as const, attempts } : s));
   return advance({ ...session, sections });
+}
+
+// A finished session that meets pages it never queued (a "Show all" link that rendered late, or a
+// section it used to skip) queues just those, after everything it already has. Done pages are
+// never queued again, so repeated discovery can't make the crawl loop.
+export function extendSession(session: AutoScanSession, discovered: DiscoveredSectionInput[], now = Date.now()): AutoScanSession {
+  const known = new Set(session.sections.map((s) => s.normalizedUrl));
+  const added = discovered.filter((d) => !known.has(d.normalizedUrl) && known.add(d.normalizedUrl));
+  if (added.length === 0) return session;
+  return {
+    ...session,
+    sections: [...session.sections, ...added.map((section) => ({ ...section, status: "pending" as const, attempts: 0 }))],
+    currentIndex: session.sections.length,
+    status: "scanning",
+    startedAt: now,
+  };
 }
 
 export function isSessionComplete(session: AutoScanSession): boolean {

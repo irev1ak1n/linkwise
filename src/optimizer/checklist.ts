@@ -86,8 +86,12 @@ function present(label: string, noun: string): CriterionDefinition {
     verification: "deterministic",
     advice: label,
     check: (c) => {
-      const count = c.presence.itemCount;
-      return { status: "pass", explanation: count ? `${plural(count, "entry", "entries")} listed.` : "The section is on your profile." };
+      const total = c.presence.itemCount;
+      // How much of the list LinkWise actually read, next to what LinkedIn says it holds.
+      const list = (c.profile as unknown as Record<string, unknown>)[noun];
+      const read = Array.isArray(list) ? list.length : 0;
+      if (total && read > 0) return { status: "pass", explanation: `${read} of ${plural(total, "entry", "entries")} read.` };
+      return { status: "pass", explanation: total ? `${plural(total, "entry", "entries")} listed.` : "The section is on your profile." };
     },
   };
 }

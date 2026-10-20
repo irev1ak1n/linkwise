@@ -627,6 +627,24 @@ describe("extractDetailsPageProfile", () => {
     expect(profile.extracted).toBe(true);
   });
 
+  it("reads every skill when LinkedIn renders a long list in separate chunks", () => {
+    Object.defineProperty(document, "URL", { value: "https://www.linkedin.com/in/jordan/details/skills/", configurable: true });
+    const skill = (i: number) => `<div componentkey="s${i}"><div><p>Skill ${i}</p><p>Used at Robotics Club</p></div></div>`;
+    // As LinkedIn renders it: each separator is an <hr> inside its own empty wrapper.
+    const chunk = (from: number, to: number) => `<div>${Array.from({ length: to - from }, (_, k) => skill(from + k)).join('<div><div><hr role="presentation"></div></div>')}</div>`;
+    setBody(`
+      <main role="main">
+        <div componentkey="com.linkedin.sdui.profile.card.refABC"><div>
+          <div data-testid="lazy-column"><div><p>All</p><p>Tools &amp; Technologies</p></div>${chunk(0, 20)}<hr role="presentation">${chunk(20, 40)}<hr role="presentation">${chunk(40, 50)}</div>
+        </div></div>
+      </main>
+    `);
+    const skills = extractDetailsPageProfile(document).skills;
+    expect(skills).toHaveLength(50);
+    expect(skills[0]).toBe("Skill 0");
+    expect(skills[49]).toBe("Skill 49");
+  });
+
   it("maps list sections to name and description", () => {
     setDetailsPage("https://www.linkedin.com/in/jordan/details/honors/", "profile_HonorsDetailsSection_jordan", [["2nd Place - Webmaster", "Issued by TSA", "Earned 2nd place at regionals"]]);
     expect(extractDetailsPageProfile(document).honors).toEqual([{ name: "2nd Place - Webmaster", description: "Issued by TSA · Earned 2nd place at regionals" }]);

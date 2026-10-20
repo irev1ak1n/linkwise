@@ -95,10 +95,15 @@ export function discoverProfileSections(doc: Document = document): DiscoveredSec
 // is low-value for matching and only lengthens the scan.
 const EXCLUDED_FROM_CRAWL_QUEUE = new Set(["skills", "interests"]);
 
+// The Optimizer reads the whole profile, so it also opens Skills: the main page shows only a
+// preview of a long skills list.
+const EXCLUDED_FROM_OPTIMIZER_CRAWL = new Set(["interests"]);
+
 // A section left out here is simply absent from the queue, never a queued-then-failed entry.
-export function excludeFromAutoScanQueue(sections: DiscoveredSection[]): DiscoveredSection[] {
+export function excludeFromAutoScanQueue(sections: DiscoveredSection[], options: { forOptimizer?: boolean } = {}): DiscoveredSection[] {
+  const excluded = options.forOptimizer ? EXCLUDED_FROM_OPTIMIZER_CRAWL : EXCLUDED_FROM_CRAWL_QUEUE;
   return sections.filter((section) => {
     const slug = detailsPageSlug(section.normalizedUrl);
-    return !slug || !EXCLUDED_FROM_CRAWL_QUEUE.has(slug);
+    return !slug || !excluded.has(slug);
   });
 }

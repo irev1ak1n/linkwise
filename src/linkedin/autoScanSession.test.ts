@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  extendSession,
   forceCompleteSession,
   hasExceededOverallTimeout,
   isSessionComplete,
@@ -147,5 +148,20 @@ describe("autoScanSession - overall scan timeout", () => {
     expect(session.status).toBe("complete");
     expect(session.sections.map((s) => s.status)).toEqual(["done", "failed", "failed"]);
     expect(nextPendingSection(session)).toBeNull();
+  });
+});
+
+describe("extendSession", () => {
+  it("queues only pages a finished session never had, after everything it already read", () => {
+    let session = startAutoScanSession("irev1ak1n", "https://www.linkedin.com/in/irev1ak1n/", [section("experience", "Experience"), section("education", "Education")], 0);
+    session = markCurrentSectionDone(markCurrentSectionDone(session));
+    expect(isSessionComplete(session)).toBe(true);
+    const extended = extendSession(session, [section("experience", "Experience"), section("skills", "Skills"), section("skills", "Skills")], 5);
+    expect(extended.sections.map((s) => `${s.heading}:${s.status}`)).toEqual(["Experience:done", "Education:done", "Skills:pending"]);
+    expect(nextPendingSection(extended)?.heading).toBe("Skills");
+    expect(extended.startedAt).toBe(5);
+    // Once Skills is read, the same discovery adds nothing, so the crawl can't loop.
+    const finished = markCurrentSectionDone(extended);
+    expect(extendSession(finished, [section("experience", "Experience"), section("skills", "Skills")])).toBe(finished);
   });
 });
