@@ -75,10 +75,10 @@ describe("ProfileScore", () => {
   });
 
   it("keeps a long summary to its first sentences, with the rest a tap away", () => {
-    const summary = "One. Two is here. Three! Four? Five.";
+    const summary = "One. Two is here. Three! Four? Five. Six.";
     const html = renderToStaticMarkup(<ProfileScore state={{ ...ready, result: { ...ready.result, summary } }} onRetry={() => {}} pageRead isFinal onAnalyzeNow={() => {}} />);
-    expect(html).toContain(">One. Two is here.<");
-    expect(html).not.toContain("Three!");
+    expect(html).toContain(">One. Two is here. Three! Four?<");
+    expect(html).not.toContain("Five.");
     expect(html).toContain("Show full analysis");
   });
 

@@ -123,34 +123,40 @@ describe("validateDraft", () => {
 });
 
 describe("overall summary", () => {
-  const evaluation =
-    "This profile has a credible foundation, but its presentation is not yet focused enough for a visitor to scan quickly. The content is mostly complete, and descriptions include concrete, measurable results. Some areas repeat general wording instead of stating a clear professional direction. Tighter prioritization and more concise writing would make the profile feel cohesive and polished.";
+  // The request has Headline and Experience; Projects, Certifications, and Featured are missing.
+  const plain =
+    "Your profile shows clear role history and a focused headline. The biggest gap is that your work is hard to find because there is no Projects or Featured section. Add a Projects section with your best work so visitors can see it quickly.";
+  const summaryOf = (summary: string) => validateOptimizerResponse({ summary, assessments: [] }, requestWith()).summary;
 
-  it("keeps a three-to-four sentence, general evaluation of the profile", () => {
-    expect(evaluation.split(/\s+/).length).toBeGreaterThanOrEqual(55);
-    expect(validateOptimizerResponse({ summary: evaluation, assessments: [] }, requestWith()).summary).toBe(evaluation);
+  it("keeps a short, plain summary that names real sections and real problems", () => {
+    expect(plain.split(/\s+/).length).toBeLessThanOrEqual(60);
+    expect(summaryOf(plain)).toBe(plain);
   });
 
-  it("allows a common word at the start of a sentence", () => {
-    const opening = evaluation.replace("Some areas repeat", "Experience entries repeat");
-    expect(validateOptimizerResponse({ summary: opening, assessments: [] }, requestWith()).summary).toBe(opening);
+  it("rewrites semicolons and dashes between clauses into plain sentences", () => {
+    const dashed = plain.replace("headline. The biggest", "headline; the biggest").replace("hard to find because", "hard to find \u2014 because");
+    const cleaned = summaryOf(dashed);
+    expect(cleaned).not.toMatch(/[;\u2014\u2013]/);
+    expect(cleaned).toContain("headline. The biggest gap");
   });
 
-  it("drops a summary that names sections, which the rows below already show", () => {
-    const named = evaluation.replace("Some areas repeat", "The Headline and About repeat");
-    expect(validateOptimizerResponse({ summary: named, assessments: [] }, requestWith()).summary).toBe("");
-    const lower = evaluation.replace("Some areas repeat", "The headline and banner repeat");
-    expect(validateOptimizerResponse({ summary: lower, assessments: [] }, requestWith()).summary).toBe("");
+  it("trims a long summary to whole leading sentences, never mid-sentence", () => {
+    const extra = " Your experience entries could also lead with the result before the task, which makes each role faster to read.";
+    const long = plain + extra + extra;
+    const cleaned = summaryOf(long);
+    expect(cleaned.split(/\s+/).length).toBeLessThanOrEqual(60);
+    expect(long.startsWith(cleaned)).toBe(true);
+    expect(cleaned).toMatch(/[.!?]$/);
   });
 
-  it("drops a summary that lists the person's achievements instead", () => {
-    const dump = "Built a club website with 300 monthly visitors. Led the Robotics Club web team. Placed 2nd at a regional event.";
-    expect(validateOptimizerResponse({ summary: dump, assessments: [] }, requestWith()).summary).toBe("");
-    expect(validateOptimizerResponse({ summary: evaluation.replace("measurable results", "results like 300 monthly visitors"), assessments: [] }, requestWith()).summary).toBe("");
+  it("drops a summary that calls a present section missing", () => {
+    expect(summaryOf(plain.replace("no Projects or Featured section", "no Experience section"))).toBe("");
+    expect(summaryOf(plain.replace("Add a Projects section", "Add a Headline section"))).toBe("");
+    expect(summaryOf("Your profile is missing a headline entirely. It needs one before anything else. Add a short line about what you do.")).toBe("");
   });
 
-  it("drops a summary too short or too long to read as an evaluation", () => {
-    expect(validateOptimizerResponse({ summary: "A focused profile. Add more. Polish it.", assessments: [] }, requestWith()).summary).toBe("");
-    expect(validateOptimizerResponse({ summary: `${evaluation} ${evaluation}`, assessments: [] }, requestWith()).summary).toBe("");
+  it("drops a summary that lists numbers or achievements, or is too short to help", () => {
+    expect(summaryOf(plain.replace("clear role history", "300 monthly visitors"))).toBe("");
+    expect(summaryOf("A focused profile. Add more.")).toBe("");
   });
 });

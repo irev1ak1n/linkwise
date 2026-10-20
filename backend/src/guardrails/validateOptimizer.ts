@@ -89,19 +89,58 @@ function genericAdd(assessment: SectionAssessment): ValidatedAssessment {
   return { section: assessment.section, state: "add", impact: assessment.impact, reason: GENERIC_ADD[assessment.section], sourceType: "general_best_practice", evidenceIds: [], suggestions: [] };
 }
 
-// Section names as LinkedIn capitalizes them, which the overall summary leaves to the rows below it.
-const SECTION_NAMES = /\b(Headline|Banner|About|Featured|Experience|Education|Projects|Skills|Licenses|Certifications|Volunteer|Volunteering|Honors|Awards|Organizations|Languages|Location|Open to Work|LinkedIn URL)\b/;
-// Names that only ever mean a section, in any case.
-const SECTION_ONLY_NAMES = /\b(headline|banner|featured|about section|open to work|linkedin url)\b/i;
+const MAX_SUMMARY_WORDS = 60;
+const sentencesOf = (text: string) => text.split(/(?<=[.!?])\s+/).filter((sentence) => sentence.trim().length > 0);
+const wordsIn = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
-// The overall summary judges the profile in a few general sentences; it isn't a list of achievements or sections.
-export function isProfileEvaluation(summary: string): boolean {
-  const sentences = summary.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
-  const words = summary.split(/\s+/).length;
-  const numbers = summary.match(/\d[\d,.]*\+?/g)?.length ?? 0;
-  // A sentence may start with a capitalized common word ("Experience is...").
-  const namesSection = SECTION_ONLY_NAMES.test(summary) || sentences.some((s) => SECTION_NAMES.test(s.replace(/^\S+/, "")));
-  return sentences.length >= 3 && sentences.length <= 5 && words >= 40 && words <= 110 && /\bprofile\b/i.test(summary) && numbers === 0 && !namesSection;
+// How the summary may name each section, for catching a claim that a present section is missing.
+const SECTION_WORDS: Partial<Record<OptimizerSection, string>> = {
+  headline: "headline",
+  about: "about",
+  featured: "featured",
+  experience: "experience",
+  education: "education",
+  projects: "projects?",
+  skills: "skills?",
+  certifications: "certifications?|licenses?",
+  volunteering: "volunteer(?:ing)?",
+  honors: "honors?|awards?",
+  organizations: "organizations?",
+  languages: "languages?",
+};
+
+function claimsMissing(summary: string, section: OptimizerSection): boolean {
+  const name = SECTION_WORDS[section];
+  if (!name) return false;
+  const text = summary.toLowerCase();
+  // "no Projects section", "missing a Featured or Projects section", "add a Projects section".
+  const sectionPhrase = new RegExp(`\\b(?:no|missing|without|lacks?|lacking|add(?:ing)?|create)\\b[^.,]{0,40}?\\b(?:${name})\\b[^.,]{0,25}?\\bsections?\\b`);
+  const bare = new RegExp(`\\b(?:no|missing|without)\\s+(?:a\\s+|an\\s+|any\\s+)?(?:${name})\\b`);
+  return sectionPhrase.test(text) || bare.test(text);
+}
+
+/**
+ * The overall summary, held to its plain style: two to four short sentences, at most 60 words, no
+ * semicolons or dashes between clauses, no numbers, and never calling a present section missing.
+ * A long one keeps its leading whole sentences; one that can't be repaired is dropped.
+ */
+export function cleanOptimizerSummary(raw: string, present: ReadonlySet<OptimizerSection>): string {
+  let summary = raw
+    .trim()
+    .replace(/\s*[\u2014\u2013]\s*|\s+-\s+/g, ", ")
+    .replace(/;\s*(\w)/g, (_, next: string) => `. ${next.toUpperCase()}`)
+    .replace(/\s+/g, " ");
+  const sentences = sentencesOf(summary);
+  const kept: string[] = [];
+  for (const sentence of sentences) {
+    if (wordsIn([...kept, sentence].join(" ")) > MAX_SUMMARY_WORDS) break;
+    kept.push(sentence);
+  }
+  summary = kept.join(" ");
+  if (kept.length < 2 || wordsIn(summary) < 15) return "";
+  if (/\d/.test(summary)) return "";
+  if ([...present].some((section) => claimsMissing(summary, section))) return "";
+  return summary;
 }
 
 export function validateOptimizerResponse(response: OptimizerResponse, request: OptimizeProfileRequest): ValidatedOptimizerResult {
@@ -148,8 +187,9 @@ export function validateOptimizerResponse(response: OptimizerResponse, request: 
     sections.push({ section: raw.section, state: raw.state, impact: raw.state === "strong" ? "low" : raw.impact, reason, sourceType, evidenceIds, suggestions });
   }
 
-  const summary = response.summary.trim();
-  const summaryOk = summary.length <= MAX_SUMMARY_LENGTH && isProfileEvaluation(summary) && isGrounded(summary, sourcesFor.user_context);
+  const presentSections = new Set(request.sections.filter((p) => p.present).map((p) => p.section));
+  const summary = cleanOptimizerSummary(response.summary, presentSections);
+  const summaryOk = summary.length > 0 && summary.length <= MAX_SUMMARY_LENGTH && isGrounded(summary, sourcesFor.user_context);
   return { summary: summaryOk ? summary : "", sections };
 }
 

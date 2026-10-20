@@ -198,8 +198,9 @@ export function TopPriorities({ sections }: { sections: SectionAssessmentDTO[] }
   );
 }
 
-// The review's summary at a glance: its first few sentences, with the rest a tap away.
-const SUMMARY_SENTENCES = 2;
+// The review's summary at a glance. It is written to be three or four short sentences, so it shows
+// in full; anything longer keeps its first few, with the rest a tap away.
+const SUMMARY_SENTENCES = 4;
 function splitSentences(text: string): string[] {
   return text.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
 }

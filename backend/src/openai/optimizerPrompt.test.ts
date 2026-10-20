@@ -4,12 +4,12 @@ import { optimizerResponseSchema } from "./optimizerSchema";
 import { SYSTEM_PROMPT } from "./prompt";
 
 describe("optimizer summary prompt", () => {
-  it("asks for an evaluation of the profile itself, opening with an overall claim", () => {
-    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("judges how well the LinkedIn profile itself is built and presented, not what the person has accomplished");
-    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Three or four sentences, about 55 to 85 words");
-    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Sentence 1 is an overall claim");
-    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Never name a section");
-    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("never restate it");
+  it("asks for a short, plain, specific summary built from the assessments", () => {
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Three or four short sentences, at most 60 words");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Name the actual section and the actual problem");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Never call a present section missing, never call a \"strong\" section weak");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("No semicolons");
+    expect(OPTIMIZER_SYSTEM_PROMPT).not.toContain("Never name a section");
   });
 
   it("has the summary written after, and from, the section assessments", () => {
@@ -18,6 +18,6 @@ describe("optimizer summary prompt", () => {
   });
 
   it("leaves the Profile Analyzer summary about the person", () => {
-    expect(SYSTEM_PROMPT).not.toContain("how well the LinkedIn profile itself is built");
+    expect(SYSTEM_PROMPT).not.toContain("like a smart friend explaining the profile");
   });
 });

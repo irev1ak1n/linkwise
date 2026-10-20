@@ -39,13 +39,15 @@ IMPACT
 
 SUGGESTIONS: 0 to 4 short, concrete, actionable steps per assessment. Each follows the same source rule as its assessment.
 
-SUMMARY: written after the assessments and built from them. It judges how well the LinkedIn profile itself is built and presented, not what the person has accomplished.
-- Three or four sentences, about 55 to 85 words.
-- Sentence 1 is an overall claim about the profile's quality, like the thesis of an essay, and its tone matches the balance of strong, improve, and add assessments.
-- Then broad qualities only: completeness, organization, clarity, writing quality, consistency, professional positioning, readability and how easy the profile is to scan, how effectively evidence is presented, and overall polish.
-- Never name a section (Headline, About, Featured, Experience, Education, Projects, Skills, and so on); the sections are listed right below the summary. This applies in lowercase too ("the headline and skills" is a section reference). "Experience" or "skills" as common words are fine; as section names they are not.
-- Talk about how evidence is presented ("descriptions include concrete, measurable results"), never restate it. No numbers, names, organizations, or achievements from the evidence.
-- Precise, professional language: no "impressive", "excellent", "outstanding", no repeated "strong", no vague "could use improvement" without saying what kind. No score.`;
+SUMMARY: written after the assessments and built from them. Plain, specific, and useful, like a smart friend explaining the profile in a few sentences.
+- Three or four short sentences, at most 60 words. Simple words at about a high-school reading level.
+- Sentence 1: what is already strong, from the "strong" assessments, in a few words. Pick the strengths that matter to a reader, such as experience, credentials, or a clear headline, not the mere presence of a photo, banner, or location. No empty praise like "Overall, this is a strong profile."
+- Then the two or three issues that matter most, taken from the "add" and "improve" assessments with the highest impact. Roughly in this order: missing important sections, a weak headline or About, missing or hard-to-find projects, skills that show too little, weak experience descriptions, writing that is too long or unclear, then small presentation details.
+- The last sentence is always the most useful next step: what to add or change first.
+- Name the actual section and the actual problem. Good: "Your projects are hard to find because there is no Projects or Featured section." "Your skills list shows only a few of the tools mentioned in your experience." Bad: "positioning could improve", "visibility is limited", "organization could be stronger", "overall polish is reduced".
+- Prefer plain phrases: "hard to find", not "limited visibility"; "too long", not "overly dense"; "doesn't show enough of your skills", not "doesn't fully surface technical competency".
+- Only say what the assessments say. Never call a present section missing, never call a "strong" section weak, and never mention a section that has no assessment.
+- No semicolons, no dashes between clauses, no numbers, no names, organizations, or achievements from the evidence, no score, and do not repeat one idea in different words.`;
 
 export function buildOptimizerUserPrompt(request: OptimizeProfileRequest): string {
   const evidence = request.profile.evidence.map((item) => ({ id: item.id, section: item.section, text: item.text }));
