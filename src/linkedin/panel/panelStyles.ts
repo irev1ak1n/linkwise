@@ -1246,8 +1246,8 @@ export function getPanelStyles(widthPx: number): string {
     left: 19.9%;
   }
   .lw-art-hero--optimizer .lw-art-hero__hotspot {
-    top: 8%;
-    height: 22.1%;
+    top: 15.2%;
+    height: 20.4%;
   }
   .lw-art-hero--optimizer .lw-art-hero__hotspot--menu {
     left: 5.5%;
@@ -1259,19 +1259,27 @@ export function getPanelStyles(widthPx: number): string {
     width: 11.7%;
     border-radius: 50%;
   }
-  /* Kept to the left of the drawn profile card and chart, which start a little past half width. */
+  /* Between the menu and the planet's rim, ending just left of the orb, sparkle and chart tile
+     (which start past 53% of the width): one-line title, two-line subtitle. */
   .lw-art-hero--optimizer .lw-art-hero__copy {
     left: 5.5%;
-    top: 34%;
-    max-width: 46%;
+    top: 39%;
+    max-width: none;
   }
   .lw-art-hero--optimizer .lw-art-hero__title {
-    font-size: 7cqw;
+    font-size: 6.4cqw;
+    line-height: 1.1;
+    white-space: nowrap;
   }
   .lw-art-hero--optimizer .lw-art-hero__subtitle {
-    max-width: 46cqw;
-    margin-top: 1.5cqw;
-    font-size: 3.2cqw;
+    margin-top: 1.8cqw;
+    font-size: 3.6cqw;
+    line-height: 1.32;
+    color: #f2f4ff;
+  }
+  .lw-art-hero--optimizer .lw-art-hero__subtitle > span {
+    display: block;
+    white-space: nowrap;
   }
   /* Live text laid over artwork, sized in container widths so it scales with the image the way
      the Analyzer artwork's drawn title does, and placed where that title sits. */

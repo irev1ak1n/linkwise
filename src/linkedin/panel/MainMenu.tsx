@@ -169,7 +169,7 @@ export function OptimizerHero() {
       name="optimizer"
       path="content/assets/profile-optimizer-hero.webp"
       width={1689}
-      height={876}
+      height={950}
       alt=""
       hotspots={[
         { label: "Open LinkWise menu", modifier: "menu", onClick: () => panelToolPreference.set("menu") },
@@ -178,7 +178,9 @@ export function OptimizerHero() {
     >
       <div className="lw-art-hero__copy">
         <h2 className="lw-art-hero__title">Profile Optimizer</h2>
-        <p className="lw-art-hero__subtitle">Improve your LinkedIn profile with AI-powered suggestions.</p>
+        <p className="lw-art-hero__subtitle">
+          <span>Improve your LinkedIn profile</span> <span>with AI-powered suggestions.</span>
+        </p>
       </div>
     </ArtworkHero>
   );

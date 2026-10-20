@@ -10,7 +10,7 @@ describe("OptimizerHero", () => {
     const html = renderToStaticMarkup(<OptimizerHero />);
     expect(html).toContain("content/assets/profile-optimizer-hero.webp");
     expect(html).toMatch(/<h2 class="lw-art-hero__title">Profile Optimizer<\/h2>/);
-    expect(html).toContain("Improve your LinkedIn profile with AI-powered suggestions.");
+    expect(html).toContain("<span>Improve your LinkedIn profile</span> <span>with AI-powered suggestions.</span>");
     expect(html).toContain('aria-label="Open LinkWise menu"');
     expect(html).toContain('aria-label="Open LinkWise settings"');
   });
