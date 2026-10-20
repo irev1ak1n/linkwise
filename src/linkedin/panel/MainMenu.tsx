@@ -169,7 +169,7 @@ export function OptimizerHero() {
       name="optimizer"
       path="content/assets/profile-optimizer-hero.webp"
       width={1689}
-      height={1060}
+      height={962}
       alt=""
       hotspots={[
         { label: "Open LinkWise menu", modifier: "menu", onClick: () => panelToolPreference.set("menu") },

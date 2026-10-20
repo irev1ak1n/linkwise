@@ -1246,8 +1246,8 @@ export function getPanelStyles(widthPx: number): string {
     left: 19.9%;
   }
   .lw-art-hero--optimizer .lw-art-hero__hotspot {
-    top: 10%;
-    height: 20.8%;
+    top: 15.6%;
+    height: 22.9%;
   }
   .lw-art-hero--optimizer .lw-art-hero__hotspot--menu {
     left: 4.8%;
@@ -1263,7 +1263,7 @@ export function getPanelStyles(widthPx: number): string {
      Analyzer's scale. The artwork's illustration sits right of 61%, where the one-line title ends. */
   .lw-art-hero--optimizer .lw-art-hero__copy {
     left: 5.5%;
-    top: 38.5%;
+    top: 47%;
     max-width: none;
   }
   .lw-art-hero--optimizer .lw-art-hero__title {
