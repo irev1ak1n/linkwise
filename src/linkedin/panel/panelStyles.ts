@@ -1847,56 +1847,52 @@ export function getPanelStyles(widthPx: number): string {
     display: flex;
     flex-direction: column;
   }
-  .lw-od-top {
+  .lw-od-nav {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-  }
-  .lw-od-count {
-    font-size: 12px;
-    color: #8a949c;
-    font-variant-numeric: tabular-nums;
-  }
-  .lw-od-pager {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-top: 10px;
+    gap: 6px;
     padding-bottom: 12px;
     border-bottom: 1px solid #e8ecef;
   }
-  .lw-od-pager button {
-    font: inherit;
-    font-size: 12px;
-    color: #0a66c2;
-    background: none;
-    border: 1px solid #d0d7dd;
-    border-radius: 14px;
-    padding: 3px 10px;
-    cursor: pointer;
+  .lw-od-nav > .lw-nav-button:first-child {
+    margin-right: 2px;
   }
-  .lw-od-pager button:disabled {
-    color: #b0b8bf;
-    cursor: default;
-  }
-  .lw-od-pager__title {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+  .lw-od-nav__center {
+    flex: 1;
     min-width: 0;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: #38434f;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 0 2px;
+    text-align: center;
   }
-  .lw-od-pager__icon {
-    width: 16px;
-    height: 16px;
+  .lw-od-nav__title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    max-width: 100%;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1d2226;
+  }
+  .lw-od-nav__name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lw-od-nav__icon {
     flex-shrink: 0;
-    color: #0a66c2;
+    width: 18px;
+    height: 18px;
+    color: #3f67d8;
+  }
+  .lw-od-count {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #8a949c;
+    font-variant-numeric: tabular-nums;
   }
   .lw-od-head {
     display: flex;
@@ -2743,6 +2739,15 @@ export function getPanelStyles(widthPx: number): string {
   .lw-nav-button:active {
     transform: scale(0.96);
     background: #e8eefc;
+  }
+  .lw-nav-button:disabled,
+  .lw-nav-button:disabled:hover {
+    background: #f4f6f8;
+    border-color: #e6eaee;
+    box-shadow: none;
+    color: #c2c9d0;
+    cursor: default;
+    transform: none;
   }
   .lw-nav-button:focus-visible {
     outline: none;

@@ -58,7 +58,12 @@ describe("every overview item has a detail page", () => {
   it("gives each one a title, status, checklist, guidance, navigation, and actions", () => {
     DETAIL_SECTIONS.forEach((section, index) => {
       const html = renderToStaticMarkup(<SectionPage section={section} context={context()} />);
-      expect(html).toContain("← Back to Profile Optimizer");
+      expect(html).toContain('aria-label="Profile Optimizer overview"');
+      expect(html).not.toMatch(/Back to Profile Optimizer|‹ Prev|Next ›/);
+      // The arrows stay in place at either end, disabled.
+      expect(html.match(/class="lw-nav-button"/g)).toHaveLength(3);
+      expect(html.includes('aria-label="No previous section" disabled=""')).toBe(index === 0);
+      expect(html.includes('aria-label="No next section" disabled=""')).toBe(index === DETAIL_SECTIONS.length - 1);
       expect(html).toContain(`${index + 1} / 18`);
       expect(html).toContain(`<h3 class="lw-od-title">${SECTION_GUIDANCE[section].title.replace("&", "&amp;")}</h3>`);
       expect(html).toContain('aria-label="Checklist"');

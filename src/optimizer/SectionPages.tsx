@@ -306,10 +306,51 @@ export function summaryText(summary: ChecklistSummary): string {
   return [`${summary.passed} of ${summary.verifiable} verifiable checks passed${summary.checking ? " so far" : ""}`, toReview].filter(Boolean).join(" · ");
 }
 
-export function SectionPage({ section, context }: { section: OptimizerSection; context: SectionContext }) {
-  const guidance = SECTION_GUIDANCE[section];
+function NavSquare({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className="lw-nav-button" aria-label={label} title={disabled ? undefined : label} disabled={disabled} onClick={onClick}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {children}
+      </svg>
+    </button>
+  );
+}
+
+// One bar at the top of every detail page: overview, previous, the section and where it sits in the
+// list, next. Only navigates: the analysis and the user's answers stay as they are. An arrow with
+// nowhere to go stays in place, disabled, so the bar never shifts.
+function SectionNav({ section }: { section: OptimizerSection }) {
   const { prev, next } = neighborSections(section);
   const position = DETAIL_SECTIONS.indexOf(section) + 1;
+  return (
+    <nav className="lw-od-nav" aria-label="Profile Optimizer sections">
+      <NavSquare label="Profile Optimizer overview" onClick={() => openOptimizerPage({ name: "home" })}>
+        <rect x="4" y="4" width="6.5" height="6.5" rx="1.6" />
+        <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6" />
+        <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6" />
+        <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6" />
+      </NavSquare>
+      <NavSquare label={prev ? `Previous: ${SECTION_GUIDANCE[prev].title}` : "No previous section"} disabled={!prev} onClick={() => prev && openOptimizerPage({ name: "section", section: prev })}>
+        <path d="M19 12H5m6-6-6 6 6 6" />
+      </NavSquare>
+      <span className="lw-od-nav__center">
+        <span className="lw-od-nav__title">
+          <SectionIcon section={section} className="lw-od-nav__icon" />
+          <span className="lw-od-nav__name">{SECTION_GUIDANCE[section].title}</span>
+        </span>
+        <span className="lw-od-count">
+          {position} / {DETAIL_SECTIONS.length}
+        </span>
+      </span>
+      <NavSquare label={next ? `Next: ${SECTION_GUIDANCE[next].title}` : "No next section"} disabled={!next} onClick={() => next && openOptimizerPage({ name: "section", section: next })}>
+        <path d="M5 12h14m-6-6 6 6-6 6" />
+      </NavSquare>
+    </nav>
+  );
+}
+
+export function SectionPage({ section, context }: { section: OptimizerSection; context: SectionContext }) {
+  const guidance = SECTION_GUIDANCE[section];
   const { presence } = useMemo(() => presenceOf(section, context), [section, context]);
   const request = presence.present && context.body ? buildChecklistRequest(section, context.body) : null;
   const { state: live, retry } = useChecklistAssessment(request);
@@ -323,26 +364,7 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
 
   return (
     <article className="lw-od">
-      <div className="lw-od-top">
-        <button type="button" className="lw-opt-back" onClick={() => openOptimizerPage({ name: "home" })}>
-          ← Back to Profile Optimizer
-        </button>
-        <span className="lw-od-count">
-          {position} / {DETAIL_SECTIONS.length}
-        </span>
-      </div>
-      <div className="lw-od-pager">
-        <button type="button" disabled={!prev} onClick={() => prev && openOptimizerPage({ name: "section", section: prev })}>
-          ‹ Prev
-        </button>
-        <span className="lw-od-pager__title">
-          <SectionIcon section={section} className="lw-od-pager__icon" />
-          {guidance.title}
-        </span>
-        <button type="button" disabled={!next} onClick={() => next && openOptimizerPage({ name: "section", section: next })}>
-          Next ›
-        </button>
-      </div>
+      <SectionNav section={section} />
 
       <header className="lw-od-head">
         <h3 className="lw-od-title">{guidance.title}</h3>
