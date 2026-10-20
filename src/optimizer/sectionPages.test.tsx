@@ -112,7 +112,7 @@ describe("overview rows", () => {
   it("keep the compact design: icon, title, status circle, chevron, and nothing else", () => {
     const html = renderToStaticMarkup(<SectionCards context={context({ overall: [overall("featured", "add", "high")] })} />);
     const row = rowOf(html, "Featured");
-    expect(row).toMatch(/<svg class="lw-opt-card__icon"[\s\S]*<span class="lw-opt-card__title">Featured<\/span><span class="lw-opt-status is-add" aria-hidden="true">!<\/span><span class="lw-opt-card__chevron"/);
+    expect(row).toMatch(/<span class="lw-opt-card__tile" aria-hidden="true"><svg class="lw-opt-card__icon"[\s\S]*<span class="lw-opt-card__title">Featured<\/span><span class="lw-opt-status is-add" aria-hidden="true">–<\/span><svg class="lw-opt-card__chevron"/);
     expect(html).not.toMatch(/High impact<\/span>|lw-opt-card__meta|lw-opt-badge/);
   });
 
@@ -121,7 +121,7 @@ describe("overview rows", () => {
     const html = renderToStaticMarkup(<SectionCards context={ctx} />);
     expect(rowOf(html, "Network")).toContain('lw-opt-status is-strong" aria-hidden="true">✓<');
     expect(rowOf(html, "Headline")).toContain('lw-opt-status is-improve" aria-hidden="true">!<');
-    expect(rowOf(html, "Featured")).toContain('lw-opt-status is-add" aria-hidden="true">!<');
+    expect(rowOf(html, "Featured")).toContain('lw-opt-status is-add" aria-hidden="true">–<');
     expect(rowOf(html, "Profile Photo")).toContain('lw-opt-status is-partial" aria-hidden="true">–<');
     expect(rowOf(html, "Open to Work")).toContain('lw-opt-status is-unverifiable" aria-hidden="true">–<');
   });

@@ -30,3 +30,10 @@ export function computeOptimizerScore(presence: SectionPresence[], assessments: 
   }
   return possible === 0 ? 0 : Math.round((100 * earned) / possible);
 }
+
+/** A short reading of the score, from the score alone so the two can never disagree. */
+export function scoreBand(score: number): string {
+  if (score >= 80) return "Strong profile";
+  if (score >= 60) return "Good foundation";
+  return "Needs improvement";
+}

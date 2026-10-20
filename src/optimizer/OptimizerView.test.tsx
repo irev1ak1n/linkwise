@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NOT_OWN_PROFILE_MESSAGE, OptimizerView, ProfileScore } from "./OptimizerView";
+import { NOT_OWN_PROFILE_MESSAGE, OptimizerView, ProfileScore, TopPriorities, topPriorities } from "./OptimizerView";
+import { scoreBand } from "./score";
 import { setProfileShell } from "./profileShellStore";
 import { EMPTY_PROFILE } from "../models/profile";
 import type { OptimizerReady } from "./optimizerController";
@@ -66,12 +67,49 @@ describe("ProfileScore", () => {
   it("shows the score and the summary", () => {
     const html = renderToStaticMarkup(<ProfileScore state={ready} onRetry={() => {}} pageRead isFinal onAnalyzeNow={() => {}} />);
     expect(html).toContain(">72<");
-    expect(html).toContain("/ 100 profile score");
+    expect(html).toContain(">/ 100<");
+    expect(html).toContain(">Profile score<");
+    expect(html).toContain(">Good foundation<");
     expect(html.indexOf(">72<")).toBeLessThan(html.indexOf("A focused profile."));
+    expect(html).not.toContain("Show full analysis");
+  });
+
+  it("keeps a long summary to its first sentences, with the rest a tap away", () => {
+    const summary = "One. Two is here. Three! Four? Five.";
+    const html = renderToStaticMarkup(<ProfileScore state={{ ...ready, result: { ...ready.result, summary } }} onRetry={() => {}} pageRead isFinal onAnalyzeNow={() => {}} />);
+    expect(html).toContain(">One. Two is here.<");
+    expect(html).not.toContain("Three!");
+    expect(html).toContain("Show full analysis");
+  });
+
+  it("labels the score band from the score alone", () => {
+    expect([scoreBand(95), scoreBand(80), scoreBand(79), scoreBand(60), scoreBand(59), scoreBand(0)]).toEqual(["Strong profile", "Strong profile", "Good foundation", "Good foundation", "Needs improvement", "Needs improvement"]);
   });
 
   it("offers a retry when unavailable", () => {
     const html = renderToStaticMarkup(<ProfileScore state={{ status: "unavailable", reason: "timeout" }} onRetry={() => {}} pageRead isFinal onAnalyzeNow={() => {}} />);
     expect(html).toContain("Try again");
+  });
+});
+
+describe("topPriorities", () => {
+  const dto = (section: SectionAssessmentDTO["section"], state: SectionAssessmentDTO["state"], impact: SectionAssessmentDTO["impact"]): SectionAssessmentDTO => ({ section, state, impact, reason: "", sourceType: "linkedin_profile", evidenceIds: [], suggestions: [] });
+
+  it("takes sections with something to do, highest impact first, at most three", () => {
+    const top = topPriorities([dto("headline", "strong", "high"), dto("projects", "add", "low"), dto("about", "improve", "medium"), dto("featured", "add", "high"), dto("skills", "improve", "high"), dto("photo", "improve", "high")]);
+    expect(top.map((t) => t.section)).toEqual(["featured", "skills", "photo"]);
+  });
+
+  it("is empty when every section is strong", () => {
+    expect(topPriorities([dto("headline", "strong", "high")])).toEqual([]);
+  });
+
+  it("renders numbered rows that say what to do and how much it matters", () => {
+    const html = renderToStaticMarkup(<TopPriorities sections={sections} />);
+    expect(html).toContain(">Top priorities<");
+    expect(html.match(/class="lw-opt-card"/g)).toHaveLength(2);
+    expect(html.indexOf("Improve About")).toBeLessThan(html.indexOf("Add Projects"));
+    expect(html).toContain(">High impact<");
+    expect(renderToStaticMarkup(<TopPriorities sections={[sections[0]]} />)).toBe("");
   });
 });

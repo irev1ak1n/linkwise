@@ -850,9 +850,6 @@ export function getPanelStyles(widthPx: number): string {
     line-height: 1.45;
     color: #38434f;
   }
-  .lw-optimizer__context .lw-keywords__input {
-    min-height: 0;
-  }
 
   .lw-opt-cards {
     display: flex;
@@ -1247,6 +1244,34 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-art-hero--settings .lw-art-hero__hotspot--menu {
     left: 19.9%;
+  }
+  .lw-art-hero--optimizer .lw-art-hero__hotspot {
+    top: 8%;
+    height: 22.1%;
+  }
+  .lw-art-hero--optimizer .lw-art-hero__hotspot--menu {
+    left: 5.5%;
+    width: 12.1%;
+    border-radius: 24%;
+  }
+  .lw-art-hero--optimizer .lw-art-hero__hotspot--settings {
+    right: 5.8%;
+    width: 11.7%;
+    border-radius: 50%;
+  }
+  /* Kept to the left of the drawn profile card and chart, which start a little past half width. */
+  .lw-art-hero--optimizer .lw-art-hero__copy {
+    left: 5.5%;
+    top: 34%;
+    max-width: 46%;
+  }
+  .lw-art-hero--optimizer .lw-art-hero__title {
+    font-size: 7cqw;
+  }
+  .lw-art-hero--optimizer .lw-art-hero__subtitle {
+    max-width: 46cqw;
+    margin-top: 1.5cqw;
+    font-size: 3.2cqw;
   }
   /* Live text laid over artwork, sized in container widths so it scales with the image the way
      the Analyzer artwork's drawn title does, and placed where that title sits. */
@@ -2015,38 +2040,171 @@ export function getPanelStyles(widthPx: number): string {
     text-transform: uppercase;
     color: var(--lw-section-label);
   }
-  .lw-opt-group .lw-opt-cards {
-    gap: 4px;
+  /* The Optimizer's section lists read as one grouped module, like the highlight categories:
+     one bordered container, flat rows divided by hairlines that start after the icon tile. */
+  .lw-opt-groups .lw-opt-cards {
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid #e0e6ef;
+    border-radius: 15px;
+    overflow: hidden;
   }
-  .lw-opt-group .lw-opt-card {
-    padding: 12px;
+  .lw-opt-groups .lw-opt-card {
+    position: relative;
+    gap: 12px;
+    padding: 11px 14px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+  }
+  .lw-opt-groups .lw-opt-cards > :not(:last-child)::after,
+  .lw-opt-groups .lw-opt-cards > li:not(:last-child) > .lw-opt-card::after {
+    content: "";
+    position: absolute;
+    left: 64px;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: #e8ecf3;
+  }
+  .lw-opt-groups .lw-opt-cards > li:not(:last-child)::after {
+    content: none;
+  }
+  .lw-opt-groups .lw-opt-card:hover {
+    background: #f8faff;
     box-shadow: none;
   }
-  .lw-opt-group .lw-opt-card:hover {
-    background: #f7f9fb;
-    border-color: #c9d6e2;
-    box-shadow: none;
+  .lw-opt-groups .lw-opt-card:focus-visible {
+    outline: 2px solid #2f5be0;
+    outline-offset: -2px;
+  }
+  .lw-opt-card__tile,
+  .lw-opt-priority__rank {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #eef3fe;
+    color: #2f5be0;
+  }
+  .lw-opt-card__tile .lw-opt-card__icon {
+    width: 20px;
+    height: 20px;
+    color: inherit;
+  }
+  .lw-opt-priority__rank {
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .lw-opt-groups .lw-opt-card__title {
+    font-size: 14px;
+    color: #1d2226;
   }
   .lw-opt-card__title {
     min-width: 0;
+  }
+  svg.lw-opt-card__chevron {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    color: #9aa3b2;
   }
   .lw-opt-status {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 11.5px;
+    font-weight: 800;
     color: #fff;
   }
-  .lw-opt-status.is-strong { background: #1e7b34; }
-  .lw-opt-status.is-improve { background: #c37d0d; }
-  .lw-opt-status.is-add { background: #b24020; }
+  /* Strong, needs work, or missing / not verified: green, amber, quiet gray. Never red. */
+  .lw-opt-status.is-strong { background: #1f9d55; }
+  .lw-opt-status.is-improve { background: #e3a008; }
+  .lw-opt-status.is-add,
   .lw-opt-status.is-partial,
-  .lw-opt-status.is-unverifiable { background: #9aa5ad; }
+  .lw-opt-status.is-unverifiable { background: #e6e9ef; color: #6b7585; }
+
+  /* White functional cards under the dark hero: the score and the user's own context. */
+  .lw-opt-block-card {
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e0e6ef;
+    border-radius: 15px;
+  }
+  .lw-optimizer .lw-optimizer__result {
+    gap: 6px;
+  }
+  .lw-optimizer__result .lw-optimizer__score {
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+  .lw-optimizer__result .lw-optimizer__score-value {
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #1d2226;
+  }
+  .lw-optimizer__result .lw-optimizer__score-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: #6b7585;
+  }
+  .lw-optimizer__band {
+    margin-left: auto;
+    align-self: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #eef3fe;
+    color: #2f5be0;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .lw-opt-score__more {
+    align-self: flex-start;
+  }
+  .lw-opt-context__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2226;
+  }
+  .lw-opt-context__input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    padding: 9px 11px;
+    font: inherit;
+    font-size: 13.5px;
+    color: #1d2226;
+    background: #f8fafc;
+    border: 1px solid #dbe2ec;
+    border-radius: 10px;
+  }
+  .lw-opt-context__input:focus {
+    outline: none;
+    border-color: #2f5be0;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(47, 91, 224, 0.15);
+  }
+  .lw-opt-context__help {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #6b7585;
+  }
+  .lw-opt-priorities {
+    gap: 6px;
+  }
   .lw-dash {
     gap: 14px;
   }

@@ -6,12 +6,14 @@ import { getProfileShell, subscribeProfileShell } from "./profileShellStore";
 import { optimizerContextPreference } from "./optimizerPreferences";
 import { OptimizerController, buildOptimizerRequest, type OptimizerViewState } from "./optimizerController";
 import { readWholeProfile } from "./profileReader";
-import { getOptimizerPage, subscribeOptimizerPage } from "./optimizerNav";
-import { SectionCards, SectionPage, reconcileAssessments, type SectionContext } from "./SectionPages";
+import { getOptimizerPage, openOptimizerPage, subscribeOptimizerPage } from "./optimizerNav";
+import { Chevron, SectionCards, SectionPage, reconcileAssessments, type SectionContext } from "./SectionPages";
 import { buildChecklistRequest, loadChecklist, whenChecklistCacheReady } from "./checklistAssessment";
 import { buildSectionRequest, loadSectionAnalysis, whenSectionCacheReady } from "./sectionAnalysis";
-import { DETAIL_SECTIONS } from "./sectionGuidance";
-import { computeOptimizerScore } from "./score";
+import { DETAIL_SECTIONS, SECTION_GUIDANCE } from "./sectionGuidance";
+import { computeOptimizerScore, scoreBand } from "./score";
+import { SECTION_GROUPS, type OptimizerSection } from "./sections";
+import type { SectionAssessmentDTO } from "./optimizerTypes";
 import { HeadlineGenerator } from "./HeadlineGenerator";
 
 export const NOT_OWN_PROFILE_MESSAGE = "Profile Optimizer is available on your own LinkedIn profile.";
@@ -119,29 +121,99 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   return (
     <div className="lw-optimizer" ref={rootRef}>
       <ProfileScore state={shownState} onRetry={() => controllerRef.current!.retry()} pageRead={pageRead} isFinal={isFinal} onAnalyzeNow={onAnalyzeNow} />
+      {shownState.status === "ready" && <TopPriorities sections={shownState.result.sections} />}
       <ContextInput committed={userContext} />
       {pageRead && <SectionCards context={context} />}
     </div>
   );
 }
 
+// What the user tells LinkWise themselves. It stays their own context: the analysis is told it did
+// not come from LinkedIn, and nothing here is shown as if it were found on the profile.
 function ContextInput({ committed }: { committed: string }) {
   const [text, setText] = useState(committed);
   useEffect(() => setText(committed), [committed]);
   const changed = text.trim() !== committed.trim();
   return (
-    <div className="lw-optimizer__context">
-      <label className="lw-keywords__label" htmlFor="lw-optimizer-context">
+    <section className="lw-opt-block-card lw-optimizer__context" aria-label="Additional context">
+      <h4 className="lw-opt-group__title">Additional context</h4>
+      <label className="lw-opt-context__label" htmlFor="lw-optimizer-context">
         Anything not on your LinkedIn profile?
       </label>
-      <textarea id="lw-optimizer-context" className="lw-keywords__input" rows={2} maxLength={2000} value={text} onChange={(event) => setText(event.target.value)} />
-      <p className="lw-scan-mode__hint">{CONTEXT_HELP}</p>
+      <textarea id="lw-optimizer-context" className="lw-opt-context__input" rows={2} maxLength={2000} value={text} onChange={(event) => setText(event.target.value)} />
+      <p className="lw-opt-context__help">{CONTEXT_HELP}</p>
       {changed && (
         <button type="button" className="lw-button lw-button--secondary" onClick={() => optimizerContextPreference.set(text.trim())}>
           Update analysis
         </button>
       )}
-    </div>
+    </section>
+  );
+}
+
+const IMPACT_RANK = { high: 0, medium: 1, low: 2 } as const;
+const IMPACT_TEXT = { high: "High impact", medium: "Medium impact", low: "Low impact" } as const;
+const LISTED_SECTIONS = new Set<OptimizerSection>(SECTION_GROUPS.flatMap((group) => group.sections));
+
+/** The few sections worth doing first: from the review's own section states and impacts, never a
+ * new request. Missing or improvable sections, highest impact first, then in profile order. */
+export function topPriorities(sections: SectionAssessmentDTO[], limit = 3): SectionAssessmentDTO[] {
+  return sections
+    .map((assessment, index) => ({ assessment, index }))
+    .filter(({ assessment }) => assessment.state !== "strong" && LISTED_SECTIONS.has(assessment.section))
+    .sort((a, b) => IMPACT_RANK[a.assessment.impact] - IMPACT_RANK[b.assessment.impact] || a.index - b.index)
+    .slice(0, limit)
+    .map(({ assessment }) => assessment);
+}
+
+export function TopPriorities({ sections }: { sections: SectionAssessmentDTO[] }) {
+  const top = topPriorities(sections);
+  if (top.length === 0) return null;
+  return (
+    <section className="lw-opt-groups lw-opt-priorities" aria-label="Top priorities">
+      <h4 className="lw-opt-group__title">Top priorities</h4>
+      <ol className="lw-opt-cards">
+        {top.map((assessment, i) => {
+          const title = SECTION_GUIDANCE[assessment.section].title;
+          return (
+            <li key={assessment.section}>
+              <button type="button" className="lw-opt-card" onClick={() => openOptimizerPage({ name: "section", section: assessment.section })}>
+                <span className="lw-opt-priority__rank" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <span className="lw-opt-card__text">
+                  <span className="lw-opt-card__title">{assessment.state === "add" ? `Add ${title}` : `Improve ${title}`}</span>
+                  <span className="lw-opt-card__subtitle">{IMPACT_TEXT[assessment.impact]}</span>
+                </span>
+                <Chevron />
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+// The review's summary at a glance: its first few sentences, with the rest a tap away.
+const SUMMARY_SENTENCES = 2;
+function splitSentences(text: string): string[] {
+  return text.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
+}
+
+function ConciseSummary({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const sentences = splitSentences(text);
+  const long = sentences.length > SUMMARY_SENTENCES;
+  return (
+    <>
+      <p className="lw-optimizer__summary">{open || !long ? text : sentences.slice(0, SUMMARY_SENTENCES).join(" ")}</p>
+      {long && (
+        <button type="button" className="lw-scan__link lw-opt-score__more" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {open ? "Show less" : "Show full analysis"}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -178,12 +250,14 @@ export function ProfileScore({ state, onRetry, pageRead, isFinal, onAnalyzeNow }
     );
   }
   return (
-    <header className="lw-optimizer__result">
+    <header className="lw-opt-block-card lw-optimizer__result" aria-label="Profile score">
+      <h4 className="lw-opt-group__title">Profile score</h4>
       <div className="lw-optimizer__score">
         <span className="lw-optimizer__score-value">{state.score}</span>
-        <span className="lw-optimizer__score-label">/ 100 profile score</span>
+        <span className="lw-optimizer__score-label">/ 100</span>
+        <span className="lw-optimizer__band">{scoreBand(state.score)}</span>
       </div>
-      {state.result.summary && <p className="lw-optimizer__summary">{state.result.summary}</p>}
+      {state.result.summary && <ConciseSummary text={state.result.summary} />}
       {state.updating && <p className="lw-scan-mode__hint">Updating…</p>}
       {state.updateError && (
         <p className="lw-scan-mode__hint">

@@ -161,6 +161,29 @@ export function AnalyzerHero() {
   );
 }
 
+// The Optimizer artwork draws the menu and settings buttons but no words; the title and subtitle
+// are live text laid over its empty left side.
+export function OptimizerHero() {
+  return (
+    <ArtworkHero
+      name="optimizer"
+      path="content/assets/profile-optimizer-hero.webp"
+      width={1689}
+      height={876}
+      alt=""
+      hotspots={[
+        { label: "Open LinkWise menu", modifier: "menu", onClick: () => panelToolPreference.set("menu") },
+        { label: "Open LinkWise settings", modifier: "settings", onClick: openSettings },
+      ]}
+    >
+      <div className="lw-art-hero__copy">
+        <h2 className="lw-art-hero__title">Profile Optimizer</h2>
+        <p className="lw-art-hero__subtitle">Improve your LinkedIn profile with AI-powered suggestions.</p>
+      </div>
+    </ArtworkHero>
+  );
+}
+
 export function SettingsHero() {
   return (
     <ArtworkHero

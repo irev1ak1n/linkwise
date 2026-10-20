@@ -32,7 +32,7 @@ import { getHighlightRule, subscribeHighlightRule } from "./settingsNav";
 import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
-import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, MainMenu, ToolHead } from "./MainMenu";
+import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, MainMenu, OptimizerHero } from "./MainMenu";
 
 const openMenu = () => panelToolPreference.set("menu");
 
@@ -223,7 +223,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
           <JobFiltersPage settings={jobsSettings} onChange={setJobsSettings} onBack={openMenu} />
         ) : tool === "optimizer" ? (
           <>
-            {optimizerPage.name === "home" && <ToolHead title="Profile Optimizer" />}
+            {optimizerPage.name === "home" && <OptimizerHero />}
             <OptimizerView profileKey={profileKey} profile={profile} isFinal={isFinal} onAnalyzeNow={handleAnalyzeNow} />
           </>
         ) : !goalsLoaded ? (

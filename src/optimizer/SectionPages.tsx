@@ -165,9 +165,17 @@ function SectionIcon({ section, className = "lw-opt-card__icon" }: { section: Op
   );
 }
 
-const STATUS_MARK: Record<DisplayStatus, string> = { strong: "✓", improve: "!", add: "!", partial: "–", unverifiable: "–" };
+const STATUS_MARK: Record<DisplayStatus, string> = { strong: "✓", improve: "!", add: "–", partial: "–", unverifiable: "–" };
 // Spoken and tooltip names for the row's status circle.
 export const MARK_LABEL: Record<DisplayStatus, string> = { strong: "Strong", improve: "Needs improvement", add: "Missing section", partial: "Partly verified", unverifiable: "Can't verify" };
+
+export function Chevron() {
+  return (
+    <svg className="lw-opt-card__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
 
 export function SectionCards({ context }: { context: SectionContext }) {
   return (
@@ -182,16 +190,16 @@ export function SectionCards({ context }: { context: SectionContext }) {
               const label = status ? [MARK_LABEL[status], impact].filter(Boolean).join(" · ") : "Checking";
               return (
                 <button key={section} type="button" className="lw-opt-card" aria-label={`${title}. ${label}.`} title={label} onClick={() => openOptimizerPage({ name: "section", section })}>
-                  <SectionIcon section={section} />
+                  <span className="lw-opt-card__tile" aria-hidden="true">
+                    <SectionIcon section={section} />
+                  </span>
                   <span className="lw-opt-card__title">{title}</span>
                   {status && (
                     <span className={`lw-opt-status is-${status}`} aria-hidden="true">
                       {STATUS_MARK[status]}
                     </span>
                   )}
-                  <span className="lw-opt-card__chevron" aria-hidden="true">
-                    ›
-                  </span>
+                  <Chevron />
                 </button>
               );
             })}
