@@ -287,13 +287,15 @@ export function getPanelStyles(widthPx: number): string {
   }
 
   /* The selected mode's settings: clean white rows under the chooser. */
-  /* One grouped container of rows, like Highlight categories: a single outer border, and dividers
-     that start after the icon. */
+  /* One grouped container of rows, like Highlight categories: the group owns the card (border,
+     radius, shadow, clipping); rows are flat and separated by dividers that start after the icon. */
   .lw-scan-options {
     display: flex;
     flex-direction: column;
+    gap: 0;
     border: 1px solid #e0e6ef;
     border-radius: 15px;
+    overflow: hidden;
     background: #fff;
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
   }
@@ -303,8 +305,12 @@ export function getPanelStyles(widthPx: number): string {
     align-items: center;
     gap: 12px;
     min-height: 64px;
+    margin: 0;
     padding: 11px 12px;
-    box-sizing: border-box;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
     cursor: pointer;
     transition: background-color 0.12s ease;
   }
@@ -316,14 +322,6 @@ export function getPanelStyles(widthPx: number): string {
     bottom: 0;
     height: 1px;
     background: #e8ecf3;
-  }
-  .lw-scan-option:first-child {
-    border-top-left-radius: 14px;
-    border-top-right-radius: 14px;
-  }
-  .lw-scan-option:last-child {
-    border-bottom-left-radius: 14px;
-    border-bottom-right-radius: 14px;
   }
   .lw-scan-option:hover {
     background: #f8faff;
