@@ -5,7 +5,7 @@ import { SYSTEM_PROMPT } from "./prompt";
 
 describe("optimizer summary prompt", () => {
   it("asks for a short, plain, specific summary built from the assessments", () => {
-    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Three or four short sentences, at most 60 words");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Four to six complete sentences, 80 to 100 words");
     expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Name the actual section and the actual problem");
     expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Never call a present section missing, never call a \"strong\" section weak");
     expect(OPTIMIZER_SYSTEM_PROMPT).toContain("No semicolons");

@@ -125,11 +125,12 @@ describe("validateDraft", () => {
 describe("overall summary", () => {
   // The request has Headline and Experience; Projects, Certifications, and Featured are missing.
   const plain =
-    "Your profile shows clear role history and a focused headline. The biggest gap is that your work is hard to find because there is no Projects or Featured section. Add a Projects section with your best work so visitors can see it quickly.";
+    "Your profile shows clear role history and a focused headline. The biggest gap is that your work is hard to find because there is no Projects or Featured section. That matters because visitors judge your skills by what they can open and see. Your experience entry also puts its strongest result at the very end, where people may skip it. Add a Projects section with your best work so visitors can see it quickly. Then move the most important result to the start of each role.";
   const summaryOf = (summary: string) => validateOptimizerResponse({ summary, assessments: [] }, requestWith()).summary;
 
-  it("keeps a short, plain summary that names real sections and real problems", () => {
-    expect(plain.split(/\s+/).length).toBeLessThanOrEqual(60);
+  it("keeps an 80 to 100 word plain summary that names real sections and real problems", () => {
+    expect(plain.split(/\s+/).length).toBeGreaterThanOrEqual(80);
+    expect(plain.split(/\s+/).length).toBeLessThanOrEqual(100);
     expect(summaryOf(plain)).toBe(plain);
   });
 
@@ -144,7 +145,8 @@ describe("overall summary", () => {
     const extra = " Your experience entries could also lead with the result before the task, which makes each role faster to read.";
     const long = plain + extra + extra;
     const cleaned = summaryOf(long);
-    expect(cleaned.split(/\s+/).length).toBeLessThanOrEqual(60);
+    expect(cleaned.split(/\s+/).length).toBeLessThanOrEqual(105);
+    expect(cleaned.length).toBeLessThan(long.length);
     expect(long.startsWith(cleaned)).toBe(true);
     expect(cleaned).toMatch(/[.!?]$/);
   });
@@ -158,5 +160,6 @@ describe("overall summary", () => {
   it("drops a summary that lists numbers or achievements, or is too short to help", () => {
     expect(summaryOf(plain.replace("clear role history", "300 monthly visitors"))).toBe("");
     expect(summaryOf("A focused profile. Add more.")).toBe("");
+    expect(summaryOf("Your profile shows clear role history. Your work is hard to find. Add a Projects section.")).toBe("");
   });
 });

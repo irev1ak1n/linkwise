@@ -89,7 +89,7 @@ function genericAdd(assessment: SectionAssessment): ValidatedAssessment {
   return { section: assessment.section, state: "add", impact: assessment.impact, reason: GENERIC_ADD[assessment.section], sourceType: "general_best_practice", evidenceIds: [], suggestions: [] };
 }
 
-const MAX_SUMMARY_WORDS = 60;
+const MAX_SUMMARY_WORDS = 105;
 const sentencesOf = (text: string) => text.split(/(?<=[.!?])\s+/).filter((sentence) => sentence.trim().length > 0);
 const wordsIn = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
@@ -120,7 +120,7 @@ function claimsMissing(summary: string, section: OptimizerSection): boolean {
 }
 
 /**
- * The overall summary, held to its plain style: two to four short sentences, at most 60 words, no
+ * The overall summary, held to its plain style: three to six sentences, at most 105 words, no
  * semicolons or dashes between clauses, no numbers, and never calling a present section missing.
  * A long one keeps its leading whole sentences; one that can't be repaired is dropped.
  */
@@ -137,7 +137,7 @@ export function cleanOptimizerSummary(raw: string, present: ReadonlySet<Optimize
     kept.push(sentence);
   }
   summary = kept.join(" ");
-  if (kept.length < 2 || wordsIn(summary) < 15) return "";
+  if (kept.length < 3 || wordsIn(summary) < 40) return "";
   if (/\d/.test(summary)) return "";
   if ([...present].some((section) => claimsMissing(summary, section))) return "";
   return summary;
