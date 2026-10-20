@@ -20,13 +20,15 @@ import {
   type SemanticState,
 } from "./checklist";
 import { sectionActions } from "./sectionActions";
+import { setManualAnswer } from "./manualChecks";
 import { SectionDrafts } from "./SectionDrafts";
 import { SECTION_GROUPS, buildSectionMap, sectionInfo, type OptimizerSection, type SectionPresence } from "./sections";
 import type { SectionAssessmentDTO } from "./optimizerTypes";
 
-// What the overview row and the detail page both show for a section.
-export type DisplayStatus = "strong" | "improve" | "add" | "partial" | "unverifiable";
-export const STATUS_LABEL: Record<DisplayStatus, string> = { strong: "Looking Good", improve: "Needs Improvement", add: "Missing", partial: "Partly verified", unverifiable: "Can't verify" };
+// What the overview row and the detail page both show for a section. "review": nothing is wrong so
+// far, but some checks are waiting for the user.
+export type DisplayStatus = "strong" | "improve" | "add" | "review" | "partial" | "unverifiable";
+export const STATUS_LABEL: Record<DisplayStatus, string> = { strong: "Looking Good", improve: "Needs Improvement", add: "Missing", review: "Needs your review", partial: "Partly verified", unverifiable: "Can't verify" };
 const IMPACT_LABEL = { high: "High impact", medium: "Medium impact", low: "Low impact" } as const;
 
 export interface SectionContext {
@@ -36,13 +38,15 @@ export interface SectionContext {
   // Null until the profile has been fully read, which AI analysis needs.
   body: OptimizeProfileRequestBody | null;
   overall: SectionAssessmentDTO[];
+  /** The user's answers to checks only they can make, already matched to the current photo and banner. */
+  answers?: Record<string, boolean>;
 }
 
 function presenceOf(section: OptimizerSection, context: SectionContext): { presence: SectionPresence; checklist: ChecklistContext } {
   const evidence = context.body?.profile.evidence ?? buildEvidencePayload(context.profile);
   const sections = context.body?.sections ?? buildSectionMap(context.profile, context.shell, evidence);
   const presence = sections.find((p) => p.section === section) ?? { section, present: SETTING_SECTIONS.includes(section), itemCount: null, evidenceIds: [] };
-  return { presence, checklist: { profile: context.profile, presence, evidence, shell: context.shell, profileKey: context.profileKey ?? null } };
+  return { presence, checklist: { profile: context.profile, presence, evidence, shell: context.shell, profileKey: context.profileKey ?? null, answers: context.answers } };
 }
 
 // What the section's semantic criteria can rely on: their AI verdicts, or why there are none.
@@ -77,8 +81,9 @@ export function reconcileAssessments(context: SectionContext): SectionAssessment
   return context.overall.map((assessment) => reconcile(assessment, sectionChecklist(assessment.section, context).summary.state));
 }
 
-// "Strong" only when most of the checklist could actually be verified; otherwise "Partial".
-export function sectionDisplay(section: OptimizerSection, context: SectionContext, checked = sectionChecklist(section, context)): { status: DisplayStatus | null; impact: string | null } {
+// "Strong" only when most of the checklist could actually be verified; otherwise "Partial". Checks
+// waiting for the user make it "Needs your review" instead: never Strong, never a failure.
+export function sectionDisplay(section: OptimizerSection, context: SectionContext, checked = sectionChecklist(section, context)): { status: DisplayStatus | null; impact: string | null; toReview?: number } {
   const { summary, criteria } = checked;
   const overall = context.overall.find((a) => a.section === section);
   const state = summary.state ?? (summary.checking && overall ? (overall.state === "add" ? "missing" : overall.state) : null);
@@ -87,6 +92,7 @@ export function sectionDisplay(section: OptimizerSection, context: SectionContex
     const impact = overall ? reconcile(overall, "improve").impact : null;
     return { status: "improve", impact: impact ? IMPACT_LABEL[impact] : null };
   }
+  if (summary.needsUser > 0 && !summary.checking) return { status: "review", impact: null, toReview: summary.needsUser };
   const unverifiable = criteria.filter((c) => c.status === "unverifiable").length;
   if (state === "strong") return { status: unverifiable > summary.verifiable ? "partial" : "strong", impact: null };
   if (criteria.length > 0 && !summary.checking && summary.verifiable === 0) return { status: "unverifiable", impact: null };
@@ -165,9 +171,9 @@ function SectionIcon({ section, className = "lw-opt-card__icon" }: { section: Op
   );
 }
 
-const STATUS_MARK: Record<DisplayStatus, string> = { strong: "✓", improve: "!", add: "–", partial: "–", unverifiable: "–" };
+const STATUS_MARK: Record<DisplayStatus, string> = { strong: "✓", improve: "!", add: "–", review: "", partial: "–", unverifiable: "–" };
 // Spoken and tooltip names for the row's status circle.
-export const MARK_LABEL: Record<DisplayStatus, string> = { strong: "Strong", improve: "Needs improvement", add: "Missing section", partial: "Partly verified", unverifiable: "Can't verify" };
+export const MARK_LABEL: Record<DisplayStatus, string> = { strong: "Strong", improve: "Needs improvement", add: "Missing section", review: "Needs your review", partial: "Partly verified", unverifiable: "Can't verify" };
 
 export function Chevron() {
   return (
@@ -186,17 +192,22 @@ export function SectionCards({ context }: { context: SectionContext }) {
           <div className="lw-opt-cards">
             {group.sections.map((section) => {
               const title = SECTION_GUIDANCE[section].title;
-              const { status, impact } = sectionDisplay(section, context);
-              const label = status ? [MARK_LABEL[status], impact].filter(Boolean).join(" · ") : "Checking";
+              const { status, impact, toReview } = sectionDisplay(section, context);
+              const label = status ? [MARK_LABEL[status], impact, toReview ? `${toReview} ${toReview === 1 ? "check" : "checks"} left` : null].filter(Boolean).join(" · ") : "Checking";
               return (
                 <button key={section} type="button" className="lw-opt-card" aria-label={`${title}. ${label}.`} title={label} onClick={() => openOptimizerPage({ name: "section", section })}>
                   <span className="lw-opt-card__tile" aria-hidden="true">
                     <SectionIcon section={section} />
                   </span>
                   <span className="lw-opt-card__title">{title}</span>
+                  {toReview ? (
+                    <span className="lw-opt-card__note" aria-hidden="true">
+                      {toReview} to review
+                    </span>
+                  ) : null}
                   {status && (
                     <span className={`lw-opt-status is-${status}`} aria-hidden="true">
-                      {STATUS_MARK[status]}
+                      {status === "review" ? <ReviewIcon /> : STATUS_MARK[status]}
                     </span>
                   )}
                   <Chevron />
@@ -210,36 +221,89 @@ export function SectionCards({ context }: { context: SectionContext }) {
   );
 }
 
-const CRITERION_MARK: Record<EvaluatedCriterion["status"], string> = { pass: "✓", improve: "!", unverifiable: "○", not_applicable: "—", checking: "" };
+const CRITERION_MARK: Record<EvaluatedCriterion["status"], string> = { pass: "✓", improve: "!", needs_user: "", unverifiable: "○", not_applicable: "—", checking: "" };
 const CRITERION_STATE: Record<EvaluatedCriterion["status"], string> = {
   pass: "Meets criterion",
   improve: "Needs improvement",
+  needs_user: "Needs your review",
   unverifiable: "Can't verify automatically",
   not_applicable: "Not applicable",
   checking: "Checking",
 };
 
-export function ChecklistRows({ criteria }: { criteria: EvaluatedCriterion[] }) {
+function stateOf(criterion: EvaluatedCriterion): string {
+  if (criterion.userValue === true) return "Confirmed by you";
+  if (criterion.userValue === false) return "Marked by you as needing improvement";
+  return CRITERION_STATE[criterion.status];
+}
+
+// A person with a check: "this one is yours to check".
+export function ReviewIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c.9-3.4 3.4-5 6.5-5 1.4 0 2.6.3 3.6 1M15 18l2.2 2.2L22 15.5" />
+    </svg>
+  );
+}
+
+export function ChecklistRows({ criteria, onAnswer }: { criteria: EvaluatedCriterion[]; onAnswer?: (criterionId: string, value: boolean | null) => void }) {
   return (
     <ul className="lw-od-checks">
-      {criteria.map((criterion) => (
-        <li key={criterion.id} className={`lw-od-check is-${criterion.status}`} aria-label={`${criterion.label}: ${CRITERION_STATE[criterion.status]}`}>
-          <span className="lw-od-check__mark" aria-hidden="true">
-            {CRITERION_MARK[criterion.status]}
-          </span>
-          <span className="lw-od-check__text">
-            <span className="lw-od-check__label">{criterion.label}</span>
-            <span className="lw-od-check__detail">{criterion.explanation}</span>
-          </span>
-        </li>
-      ))}
+      {criteria.map((criterion) => {
+        const own = criterion.verification === "user";
+        return (
+          <li key={criterion.id} className={`lw-od-check is-${criterion.status}${own ? " is-own" : ""}`} aria-label={`${criterion.label}: ${stateOf(criterion)}`}>
+            <span className="lw-od-check__mark" aria-hidden="true">
+              {criterion.status === "needs_user" ? <ReviewIcon /> : CRITERION_MARK[criterion.status]}
+            </span>
+            <span className="lw-od-check__text">
+              <span className="lw-od-check__label">{criterion.label}</span>
+              <span className="lw-od-check__detail">{criterion.explanation}</span>
+            </span>
+            {own && onAnswer && <AnswerButtons criterion={criterion} onAnswer={onAnswer} />}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
+// "Looks good" and "Needs work" for a check only the user can make. Pressing the active one again
+// clears the answer, so every answer can be changed or withdrawn later.
+function AnswerButtons({ criterion, onAnswer }: { criterion: EvaluatedCriterion; onAnswer: (criterionId: string, value: boolean | null) => void }) {
+  const value = criterion.userValue ?? null;
+  const { id, label } = criterion;
+  return (
+    <span className="lw-od-answer" role="group" aria-label={`Your check: ${label}`}>
+      <button
+        type="button"
+        className="lw-od-answer__btn is-yes"
+        aria-pressed={value === true}
+        aria-label={value === true ? `Remove your confirmation of ${label}` : `Mark ${label} as confirmed`}
+        title={value === true ? "Confirmed by you. Click to undo." : "Looks good"}
+        onClick={() => onAnswer(id, value === true ? null : true)}
+      >
+        ✓
+      </button>
+      <button
+        type="button"
+        className="lw-od-answer__btn is-no"
+        aria-pressed={value === false}
+        aria-label={value === false ? `Clear needs improvement for ${label}` : `Mark ${label} as needs improvement`}
+        title={value === false ? "Marked as needing improvement. Click to undo." : "Needs improvement"}
+        onClick={() => onAnswer(id, value === false ? null : false)}
+      >
+        !
+      </button>
+    </span>
+  );
+}
+
 export function summaryText(summary: ChecklistSummary): string {
-  if (summary.verifiable === 0) return summary.checking ? "Checking…" : "Nothing LinkWise can verify automatically";
-  return `${summary.passed} of ${summary.verifiable} verifiable checks passed${summary.checking ? " so far" : ""}`;
+  const toReview = summary.needsUser ? `${summary.needsUser} ${summary.needsUser === 1 ? "needs" : "need"} your review` : null;
+  if (summary.verifiable === 0) return toReview ?? (summary.checking ? "Checking…" : "Nothing LinkWise can verify automatically");
+  return [`${summary.passed} of ${summary.verifiable} verifiable checks passed${summary.checking ? " so far" : ""}`, toReview].filter(Boolean).join(" · ");
 }
 
 export function SectionPage({ section, context }: { section: OptimizerSection; context: SectionContext }) {
@@ -293,7 +357,13 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
       <section className="lw-od-section" aria-label="Checklist">
         <h4 className="lw-od-heading">Checklist</h4>
         {presence.present && !context.body && semanticCriteria(section).length > 0 && <p className="lw-scan-mode__hint">Reading your profile before the AI checks run…</p>}
-        <ChecklistRows criteria={rows} />
+        {criteria.some((c) => c.verification === "user") && (
+          <p className="lw-od-review-note">
+            <ReviewIcon />
+            {summary.needsUser > 0 ? "Some visual details need your check. Your answers update this assessment." : "You've checked every visual detail. Change an answer any time."}
+          </p>
+        )}
+        <ChecklistRows criteria={rows} onAnswer={(id, value) => setManualAnswer(context.profileKey, id, value, context.shell)} />
         {live.status === "unavailable" && request && (
           <button type="button" className="lw-scan__link" onClick={retry}>
             Try the AI checks again

@@ -975,6 +975,7 @@ export function getPanelStyles(widthPx: number): string {
   .lw-opt-badge.is-strong { background: #e6f4ea; color: #1e7b34; }
   .lw-opt-badge.is-improve { background: #e8f1fb; color: #0a5aa8; }
   .lw-opt-badge.is-add { background: #fff4e5; color: #915907; }
+  .lw-opt-badge.is-review { background: #eaf0fe; color: #2f5be0; }
   .lw-opt-badge.is-partial,
   .lw-opt-badge.is-unverifiable { background: #eef1f3; color: #56687a; }
   .lw-opt-quote {
@@ -1983,6 +1984,79 @@ export function getPanelStyles(widthPx: number): string {
     gap: 2px;
     min-width: 0;
   }
+  /* Checks only the user can make: a quiet "yours to check" mark, never an error. */
+  .lw-od-check.is-needs_user .lw-od-check__mark {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    border-radius: 50%;
+    background: #f2f5fe;
+    box-shadow: inset 0 0 0 1.5px #b9c8f5;
+    color: #2f5be0;
+  }
+  .lw-od-check.is-own .lw-od-check__text {
+    flex: 1;
+  }
+  .lw-od-answer {
+    display: flex;
+    align-self: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .lw-od-answer__btn {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid #dbe2ec;
+    border-radius: 8px;
+    background: #fff;
+    color: #8a94a3;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .lw-od-answer__btn:hover {
+    border-color: #b9c8f5;
+    background: #f5f8ff;
+    color: #2f5be0;
+  }
+  .lw-od-answer__btn:focus-visible {
+    outline: 2px solid #2f5be0;
+    outline-offset: 1px;
+  }
+  .lw-od-answer__btn.is-yes[aria-pressed="true"] {
+    border-color: #1f9d55;
+    background: #e7f6ec;
+    color: #1a7f45;
+  }
+  .lw-od-answer__btn.is-no[aria-pressed="true"] {
+    border-color: #e3a008;
+    background: #fff6e0;
+    color: #a86f00;
+  }
+  .lw-od-review-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 4px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #f2f5fe;
+    color: #2f4fb0;
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .lw-od-review-note svg {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+  }
   .lw-od-check__label {
     font-weight: 600;
     color: #1a1a1a;
@@ -2138,6 +2212,13 @@ export function getPanelStyles(widthPx: number): string {
   /* Strong, needs work, or missing / not verified: green, amber, quiet gray. Never red. */
   .lw-opt-status.is-strong { background: #1f9d55; }
   .lw-opt-status.is-improve { background: #e3a008; }
+  .lw-opt-status.is-review { background: #eaf0fe; color: #2f5be0; box-shadow: inset 0 0 0 1.5px #b9c8f5; }
+  .lw-opt-card__note {
+    flex-shrink: 0;
+    font-size: 11.5px;
+    color: #5b6b85;
+    white-space: nowrap;
+  }
   .lw-opt-status.is-add,
   .lw-opt-status.is-partial,
   .lw-opt-status.is-unverifiable { background: #e6e9ef; color: #6b7585; }

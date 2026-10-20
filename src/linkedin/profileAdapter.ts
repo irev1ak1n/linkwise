@@ -610,6 +610,10 @@ export interface ProfileShell {
   isOwnProfile: boolean;
   hasPhoto: boolean;
   hasBanner: boolean;
+  /** LinkedIn's ID for the photo and banner images, stable across sizes and link tokens, so answers
+   * given about an image can tell when it has been replaced. */
+  photoId?: string | null;
+  bannerId?: string | null;
   sections: Partial<Record<ProfileSectionName | "featured", number | null>>;
   /** As LinkedIn shows it, e.g. "500+" or "128". */
   connections?: string | null;
@@ -652,16 +656,26 @@ export function extractProfileShell(doc: Document = document): ProfileShell {
   const followers = /(\d[\d,]*)\s*followers?\b/i.exec(text)?.[1];
   const openToControl = !!findOpenToControl(main);
   const openToWorkShown = /\bopen to work\b/i.test(text) && !/(show|let) recruiters (know )?you.re open to work/i.test(text);
+  const photo = main.querySelector<HTMLImageElement>('img[src*="profile-displayphoto"], img[src*="profile-framedphoto"]');
+  const banner = main.querySelector<HTMLImageElement>('img[src*="profile-displaybackgroundimage"]');
   return {
     isOwnProfile: isOwnProfileView(main, profileIdentityKey(doc.URL)),
-    hasPhoto: !!main.querySelector('img[src*="profile-displayphoto"], img[src*="profile-framedphoto"]'),
-    hasBanner: !!main.querySelector('img[src*="profile-displaybackgroundimage"]'),
+    hasPhoto: !!photo,
+    hasBanner: !!banner,
+    photoId: photo ? imageAssetId(photo.getAttribute("src")) : null,
+    bannerId: banner ? imageAssetId(banner.getAttribute("src")) : null,
     sections,
     connections,
     followers: followers ? Number(followers.replace(/,/g, "")) : null,
     openToWork: openToWorkShown ? "shown" : openToControl ? "not_shown" : null,
     publicProfileSettingsUrl: main.querySelector<HTMLAnchorElement>('a[href*="/public-profile/settings"]')?.href ?? null,
   };
+}
+
+// The asset segment of a LinkedIn media URL ("/dms/image/v2/<id>/profile-displayphoto-..."): the same
+// for every size of one upload, while the expiry and token query parameters keep changing.
+export function imageAssetId(src: string | null | undefined): string | null {
+  return /\/dms\/image\/(?:v\d+\/)?([A-Za-z0-9_-]{8,})\//.exec(src ?? "")?.[1] ?? null;
 }
 
 // Visible text with a space between elements; textContent runs "500+ connections" into the next label.

@@ -1,15 +1,16 @@
-// Profile Optimizer checklists that LinkWise evaluates itself. Every criterion says how it can be
-// known: checked locally from the profile's evidence, judged by AI from that evidence, or not
-// knowable from what LinkWise can see (an image's quality, for example). Only the first two ever
-// produce a pass or an improvement; the rest say so honestly.
+// Profile Optimizer checklists. Every criterion says how it can be known: checked locally from the
+// profile's evidence, judged by AI from that evidence, confirmed by the user (what a photo or banner
+// looks like, which only a person can judge), or not knowable from what LinkWise can see. The user's
+// answers count like any other result, but always as theirs: "Confirmed by you", never a detection.
 import type { LinkedInProfile, ProfileListEntry } from "../models/profile";
 import type { EvidencePayloadItem } from "../ai/evidencePayload";
 import type { ProfileShell } from "../linkedin/profileAdapter";
 import { extractMetrics } from "../savedProfiles/textCompare";
 import type { OptimizerSection, SectionPresence } from "./sections";
 
-export type VerificationType = "deterministic" | "semantic" | "visual" | "unverifiable";
-export type CriterionStatus = "pass" | "improve" | "unverifiable" | "not_applicable";
+export type VerificationType = "deterministic" | "semantic" | "user" | "unverifiable";
+/** "needs_user": waiting for the user's own check; it never counts as a pass or a failure. */
+export type CriterionStatus = "pass" | "improve" | "needs_user" | "unverifiable" | "not_applicable";
 
 export interface ChecklistContext {
   profile: LinkedInProfile;
@@ -18,6 +19,8 @@ export interface ChecklistContext {
   /** What the page shows beyond profile text: connections, Open to Work, and so on. */
   shell?: ProfileShell;
   profileKey?: string | null;
+  /** The user's own answers to "user" criteria, by criterion id; missing means not answered yet. */
+  answers?: Record<string, boolean>;
 }
 
 interface CheckResult {
@@ -30,7 +33,8 @@ export interface CriterionDefinition {
   id: string;
   label: string;
   verification: VerificationType;
-  /** What good looks like, sent to the AI with semantic criteria and shown when LinkWise can't check it. */
+  /** What good looks like: sent to the AI with semantic criteria, and for "user" criteria the
+   * instruction telling the user what to look at. */
   advice: string;
   check?: (context: ChecklistContext) => CheckResult;
 }
@@ -43,6 +47,8 @@ export interface EvaluatedCriterion {
   status: CriterionStatus | "checking";
   explanation: string;
   evidenceIds: string[];
+  /** For "user" criteria: the answer, or null while unanswered. */
+  userValue?: boolean | null;
 }
 
 export interface SemanticResult {
@@ -114,7 +120,7 @@ function datedEntries(entries: ProfileListEntry[], noun: string, sectionLabel: s
     : { status: "improve", explanation: `${quoteList(undated.map((e) => e.name ?? "untitled"))} ${undated.length === 1 ? "has" : "have"} no date.` };
 }
 
-const visual = (id: string, label: string, advice: string): CriterionDefinition => ({ id, label, verification: "visual", advice });
+const userCheck = (id: string, label: string, advice: string): CriterionDefinition => ({ id, label, verification: "user", advice });
 const semantic = (id: string, label: string, advice: string): CriterionDefinition => ({ id, label, verification: "semantic", advice });
 const unverifiable = (id: string, label: string, advice: string): CriterionDefinition => ({ id, label, verification: "unverifiable", advice });
 
@@ -152,12 +158,12 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
       advice: "Use a clear, recent photo of yourself.",
       check: () => ({ status: "pass", explanation: "Your profile shows your own photo, not LinkedIn's default placeholder." }),
     },
-    visual("photo-face", "Face is clear and easy to see", "Your face should be clear and fill most of the frame."),
-    visual("photo-lighting", "Good lighting", "Even, natural light works best."),
-    visual("photo-background", "Simple background", "Choose a background that doesn't compete with you."),
-    visual("photo-solo", "Only you in the photo", "Avoid group photos or crops where it's unclear which person is you."),
-    visual("photo-professional", "Professional appearance", "Dress the way you would for the work you want."),
-    visual("photo-crop", "Works in the circular crop", "Check the crop inside LinkedIn's circular frame."),
+    userCheck("photo-face", "Face is clear and easy to see", "Check that your face is clearly visible at normal profile size."),
+    userCheck("photo-lighting", "Good lighting", "Check that your face is evenly lit, without heavy shadows."),
+    userCheck("photo-background", "Simple background", "Check that the background is clean and doesn't distract from you."),
+    userCheck("photo-solo", "Only you in the photo", "Check that you're the only clearly featured person."),
+    userCheck("photo-professional", "Professional appearance", "Check that it fits how you want to present yourself professionally."),
+    userCheck("photo-crop", "Works in the circular crop", "Check that your face stays clearly visible in LinkedIn's circular crop."),
   ],
   banner: [
     {
@@ -167,10 +173,11 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
       advice: "Replace LinkedIn's default background with your own image.",
       check: () => ({ status: "pass", explanation: "Your profile uses its own banner image." }),
     },
-    visual("banner-relevant", "Supports your professional positioning", "Make it relevant to your field, work, or interests."),
-    visual("banner-clean", "Visually clean, with little text", "Keep it simple, with little or no text."),
-    visual("banner-photo-area", "Nothing important behind your photo", "Keep important details away from the lower-left area your photo covers."),
-    visual("banner-quality", "Sharp, high-resolution image", "LinkedIn recommends 1584 × 396 pixels."),
+    userCheck("banner-quality", "Sharp, clear image", "Check that it looks crisp, not blurry or stretched (LinkedIn recommends 1584 × 396)."),
+    userCheck("banner-photo-area", "Nothing important behind your photo", "Check that key text or graphics stay visible next to your profile photo."),
+    userCheck("banner-text", "Any text is easy to read", "Check that any text in the banner is easy to read at a glance."),
+    userCheck("banner-clean", "Clean, uncluttered design", "Check that the design is simple and doesn't feel busy."),
+    userCheck("banner-relevant", "Supports your professional direction", "Check that it fits your field, work, or professional identity."),
   ],
   headline: [
     {
@@ -468,10 +475,12 @@ export function semanticCriteria(section: OptimizerSection): CriterionDefinition
   return CHECKLISTS[section].filter((criterion) => criterion.verification === "semantic");
 }
 
-const CANT_VERIFY: Record<Exclude<VerificationType, "deterministic" | "semantic">, string> = {
-  visual: "Can't verify automatically: LinkWise doesn't analyze the image itself.",
-  unverifiable: "Can't verify automatically from what LinkedIn shows.",
-};
+const CANT_VERIFY = "Can't verify automatically from what LinkedIn shows.";
+
+/** Criteria only the user can check: what an image looks like, for example. */
+export function userCriteria(section: OptimizerSection): CriterionDefinition[] {
+  return CHECKLISTS[section].filter((criterion) => criterion.verification === "user");
+}
 
 // The reason given when a section has no text for AI to read.
 export const NO_SECTION_TEXT = "no_section_text";
@@ -496,7 +505,13 @@ export function evaluateChecklist(section: OptimizerSection, context: ChecklistC
       }
       return { ...base, status: "checking", explanation: "Checking…" };
     }
-    const advice = criterion.verification === "unverifiable" && /^(LinkWise|Can.t)/.test(criterion.advice) ? criterion.advice : CANT_VERIFY[criterion.verification];
+    if (criterion.verification === "user") {
+      const answer = context.answers?.[criterion.id];
+      if (answer === true) return { ...base, status: "pass", explanation: "Confirmed by you.", userValue: true };
+      if (answer === false) return { ...base, status: "improve", explanation: "You marked this as needing improvement.", userValue: false };
+      return { ...base, status: "needs_user", explanation: criterion.advice, userValue: null };
+    }
+    const advice = /^(LinkWise|Can.t)/.test(criterion.advice) ? criterion.advice : CANT_VERIFY;
     return { ...base, status: "unverifiable", explanation: advice };
   });
 }
@@ -508,6 +523,9 @@ export interface ChecklistSummary {
   passed: number;
   verifiable: number;
   checking: boolean;
+  /** Checks waiting for the user's answer. They stay out of the state, so an unanswered check never
+   * lowers a section, while an answer counts like any other result. */
+  needsUser: number;
 }
 
 // The section's status, from its checklist alone. Criteria LinkWise can't verify never count.
@@ -515,9 +533,10 @@ export function summarizeChecklist(present: boolean, criteria: EvaluatedCriterio
   const passed = criteria.filter((c) => c.status === "pass").length;
   const verifiable = passed + criteria.filter((c) => c.status === "improve").length;
   const checking = criteria.some((c) => c.status === "checking");
-  if (!present) return { state: "missing", passed, verifiable, checking: false };
+  const needsUser = criteria.filter((c) => c.status === "needs_user").length;
+  if (!present) return { state: "missing", passed, verifiable, checking: false, needsUser: 0 };
   const state: ChecklistState | null = passed < verifiable ? "improve" : checking ? null : verifiable > 0 ? "strong" : null;
-  return { state, passed, verifiable, checking };
+  return { state, passed, verifiable, checking, needsUser };
 }
 
 // Evidence a section's AI assessment reads: the section itself plus what shows the person's direction.

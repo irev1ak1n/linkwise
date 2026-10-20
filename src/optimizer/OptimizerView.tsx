@@ -4,6 +4,7 @@ import { useStoredPreference } from "../linkedin/panel/useStoredPreference";
 import { LoadingView } from "../linkedin/panel/LoadingView";
 import { getProfileShell, subscribeProfileShell } from "./profileShellStore";
 import { optimizerContextPreference } from "./optimizerPreferences";
+import { currentAnswers, manualChecksPreference } from "./manualChecks";
 import { OptimizerController, buildOptimizerRequest, type OptimizerViewState } from "./optimizerController";
 import { readWholeProfile } from "./profileReader";
 import { getOptimizerPage, openOptimizerPage, subscribeOptimizerPage } from "./optimizerNav";
@@ -29,6 +30,8 @@ interface OptimizerViewProps {
 export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: OptimizerViewProps) {
   const shellData = useSyncExternalStore(subscribeProfileShell, getProfileShell, getProfileShell);
   const { value: userContext, loaded: contextLoaded } = useStoredPreference(optimizerContextPreference);
+  // Answers to the checks only the user can make; changing one re-scores locally, with no request.
+  const { value: manualStore } = useStoredPreference(manualChecksPreference);
   const [state, setState] = useState<OptimizerViewState>({ status: "idle" });
   const controllerRef = useRef<OptimizerController | null>(null);
   if (!controllerRef.current) controllerRef.current = new OptimizerController({ onChange: setState });
@@ -99,7 +102,7 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   if (profileKey === null || (shell !== null && !shell.isOwnProfile)) return <p className="lw-empty">{NOT_OWN_PROFILE_MESSAGE}</p>;
   if (!shell || !profile) return <p className="lw-empty">Loading profile…</p>;
 
-  const context: SectionContext = { profileKey, shell, profile, body, overall: state.status === "ready" ? state.result.sections : [] };
+  const context: SectionContext = { profileKey, shell, profile, body, overall: state.status === "ready" ? state.result.sections : [], answers: currentAnswers(manualStore, profileKey, shell) };
   // The overview's states come from the same checklists as the detail pages.
   const reconciled = reconcileAssessments(context);
   const shownState: OptimizerViewState = state.status === "ready" ? { ...state, result: { ...state.result, sections: reconciled }, score: computeOptimizerScore(state.body.sections, reconciled) } : state;

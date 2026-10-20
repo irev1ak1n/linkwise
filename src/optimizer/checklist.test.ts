@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_PROFILE, type LinkedInProfile } from "../models/profile";
 import { buildEvidencePayload } from "../ai/evidencePayload";
 import type { ProfileShell } from "../linkedin/profileAdapter";
-import { CHECKLISTS, evaluateChecklist, evaluateNetwork, evaluateProfileUrl, semanticCriteria, summarizeChecklist, type ChecklistContext, type SemanticState } from "./checklist";
+import { CHECKLISTS, evaluateChecklist, userCriteria, evaluateNetwork, evaluateProfileUrl, semanticCriteria, summarizeChecklist, type ChecklistContext, type SemanticState } from "./checklist";
 import { buildSectionMap, type OptimizerSection } from "./sections";
 import { DETAIL_SECTIONS } from "./sectionGuidance";
 
@@ -72,8 +72,8 @@ describe("deterministic criteria", () => {
 
 describe("unverifiable criteria", () => {
   it("never claims what it cannot see: images, links, and paragraph breaks", () => {
-    expect(status("photo", profile)).toMatchObject({ "photo-present": "pass", "photo-face": "unverifiable", "photo-lighting": "unverifiable", "photo-crop": "unverifiable" });
-    expect(status("banner", profile)).toMatchObject({ "banner-custom": "pass", "banner-relevant": "unverifiable", "banner-quality": "unverifiable" });
+    expect(status("photo", profile)).toMatchObject({ "photo-present": "pass", "photo-face": "needs_user", "photo-lighting": "needs_user", "photo-crop": "needs_user" });
+    expect(status("banner", profile)).toMatchObject({ "banner-custom": "pass", "banner-relevant": "needs_user", "banner-quality": "needs_user", "banner-text": "needs_user" });
     expect(status("about", profile)["about-paragraphs"]).toBe("unverifiable");
     expect(status("projects", { ...profile, projects: [{ name: "Yearbook site" }] })["projects-links"]).toBe("unverifiable");
     expect(status("experience", profile)["experience-media"]).toBe("unverifiable");
@@ -141,7 +141,7 @@ describe("semantic criteria", () => {
 
 describe("summarizeChecklist", () => {
   it("counts only verifiable criteria and derives the section state from them", () => {
-    expect(summarizeChecklist(true, evaluateChecklist("photo", context("photo", profile), { status: "idle" }))).toEqual({ state: "strong", passed: 1, verifiable: 1, checking: false });
+    expect(summarizeChecklist(true, evaluateChecklist("photo", context("photo", profile), { status: "idle" }))).toEqual({ state: "strong", passed: 1, verifiable: 1, checking: false, needsUser: 6 });
     const about = evaluateChecklist("about", context("about", profile), {
       status: "ready",
       results: semanticCriteria("about").map((c, i) => ({ criterionId: c.id, status: i < 3 ? "pass" : "improve", explanation: "Your About section mentions Python.", evidenceIds: [] })),
@@ -157,5 +157,38 @@ describe("summarizeChecklist", () => {
 
   it("reports a missing section as missing", () => {
     expect(summarizeChecklist(false, [])).toMatchObject({ state: "missing" });
+  });
+});
+
+describe("checks only the user can make", () => {
+  const photo = (answers: Record<string, boolean> = {}) => evaluateChecklist("photo", { ...context("photo", profile), answers }, { status: "idle" });
+  const visualIds = userCriteria("photo").map((c) => c.id);
+
+  it("asks for photo and banner judgments instead of claiming LinkWise can't see them, keeping presence automatic", () => {
+    expect(CHECKLISTS.photo.find((c) => c.id === "photo-present")?.verification).toBe("deterministic");
+    expect(userCriteria("photo")).toHaveLength(6);
+    expect(userCriteria("banner")).toHaveLength(5);
+    const text = JSON.stringify(photo()) + JSON.stringify(evaluateChecklist("banner", context("banner", profile), { status: "idle" }));
+    expect(text).not.toMatch(/doesn.t analyze|can.t verify|unable to/i);
+    for (const criterion of [...userCriteria("photo"), ...userCriteria("banner")]) expect(criterion.advice).toMatch(/^Check that /);
+  });
+
+  it("A: unanswered checks need review and never count as failures", () => {
+    const criteria = photo();
+    expect(criteria.filter((c) => c.status === "needs_user").map((c) => c.id)).toEqual(visualIds);
+    expect(criteria.find((c) => c.id === "photo-lighting")).toMatchObject({ userValue: null, explanation: "Check that your face is evenly lit, without heavy shadows." });
+    expect(summarizeChecklist(true, criteria)).toMatchObject({ state: "strong", passed: 1, verifiable: 1, needsUser: 6 });
+  });
+
+  it("B: confirmed checks pass, credited to the user", () => {
+    const criteria = photo(Object.fromEntries(visualIds.map((id) => [id, true])));
+    expect(criteria.find((c) => c.id === "photo-lighting")).toMatchObject({ status: "pass", userValue: true, explanation: "Confirmed by you." });
+    expect(summarizeChecklist(true, criteria)).toMatchObject({ state: "strong", passed: 7, verifiable: 7, needsUser: 0 });
+  });
+
+  it("C: a check marked as needing improvement makes the section need improvement", () => {
+    const criteria = photo({ "photo-face": true, "photo-lighting": false });
+    expect(criteria.find((c) => c.id === "photo-lighting")).toMatchObject({ status: "improve", userValue: false, explanation: "You marked this as needing improvement." });
+    expect(summarizeChecklist(true, criteria)).toMatchObject({ state: "improve", passed: 2, verifiable: 3, needsUser: 4 });
   });
 });

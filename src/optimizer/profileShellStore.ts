@@ -30,6 +30,8 @@ export function mergeShells(previous: ProfileShell, next: ProfileShell): Profile
     isOwnProfile: previous.isOwnProfile || next.isOwnProfile,
     hasPhoto: previous.hasPhoto || next.hasPhoto,
     hasBanner: previous.hasBanner || next.hasBanner,
+    photoId: next.photoId ?? previous.photoId ?? null,
+    bannerId: next.bannerId ?? previous.bannerId ?? null,
     sections,
     connections: next.connections ?? previous.connections ?? null,
     followers: next.followers ?? previous.followers ?? null,

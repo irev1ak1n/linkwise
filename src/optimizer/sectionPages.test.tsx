@@ -4,6 +4,7 @@ import { getOptimizerPage, neighborSections, openOptimizerPage } from "./optimiz
 import { SectionCards, SectionPage, reconcileAssessments, sectionDisplay, summaryText, type SectionContext } from "./SectionPages";
 import { SECTION_GUIDANCE, DETAIL_SECTIONS, DOCUMENTED_NUMBERS } from "./sectionGuidance";
 import { SECTION_GROUPS } from "./sections";
+import { computeOptimizerScore } from "./score";
 import { EMPTY_PROFILE } from "../models/profile";
 import type { ProfileShell } from "../linkedin/profileAdapter";
 
@@ -78,10 +79,13 @@ describe("section assessment", () => {
   it("renders evaluated rows and counts only verifiable checks", () => {
     const html = renderToStaticMarkup(<SectionPage section="photo" context={context()} />);
     expect(html).toContain('aria-label="Profile photo added: Meets criterion"');
-    expect(html).toContain('aria-label="Face is clear and easy to see: Can&#x27;t verify automatically"');
-    expect(html).toContain("1 of 1 verifiable checks passed");
-    expect(html).toContain("Partly verified");
-    expect(html).not.toContain("Looking Good");
+    expect(html).toContain('aria-label="Face is clear and easy to see: Needs your review"');
+    expect(html).toContain('aria-label="Mark Good lighting as confirmed"');
+    expect(html).toContain('aria-label="Mark Good lighting as needs improvement"');
+    expect(html).toContain("1 of 1 verifiable checks passed · 6 need your review");
+    expect(html).toContain("Needs your review");
+    expect(html.match(/Some visual details need your check/g)).toHaveLength(1);
+    expect(html).not.toMatch(/Looking Good|doesn&#x27;t analyze|Can&#x27;t verify/);
   });
 
   it("shows a missing section as one row, not a wall of failures", () => {
@@ -122,7 +126,8 @@ describe("overview rows", () => {
     expect(rowOf(html, "Network")).toContain('lw-opt-status is-strong" aria-hidden="true">✓<');
     expect(rowOf(html, "Headline")).toContain('lw-opt-status is-improve" aria-hidden="true">!<');
     expect(rowOf(html, "Featured")).toContain('lw-opt-status is-add" aria-hidden="true">–<');
-    expect(rowOf(html, "Profile Photo")).toContain('lw-opt-status is-partial" aria-hidden="true">–<');
+    expect(rowOf(html, "Profile Photo")).toContain('lw-opt-status is-review" aria-hidden="true"><svg');
+    expect(rowOf(html, "Profile Photo")).toContain(">6 to review<");
     expect(rowOf(html, "Open to Work")).toContain('lw-opt-status is-unverifiable" aria-hidden="true">–<');
   });
 
@@ -131,11 +136,25 @@ describe("overview rows", () => {
     expect(rowOf(html, "Featured")).toContain('aria-label="Featured. Missing section · High impact." title="Missing section · High impact"');
     expect(rowOf(html, "Network")).toContain('aria-label="Network. Strong."');
     expect(rowOf(html, "Open to Work")).toContain('aria-label="Open to Work. Can&#x27;t verify."');
-    expect(rowOf(html, "Profile Photo")).toContain('aria-label="Profile Photo. Partly verified."');
+    expect(rowOf(html, "Profile Photo")).toContain('aria-label="Profile Photo. Needs your review · 6 checks left."');
   });
 
-  it("never calls a section Strong when most of its checklist can't be verified", () => {
-    expect(sectionDisplay("photo", context())).toEqual({ status: "partial", impact: null });
+  it("D: a photo is never Strong just for existing, and never Bad for unanswered checks", () => {
+    const all = (value: boolean) => Object.fromEntries(["photo-face", "photo-lighting", "photo-background", "photo-solo", "photo-professional", "photo-crop"].map((id) => [id, value]));
+    expect(sectionDisplay("photo", context())).toEqual({ status: "review", impact: null, toReview: 6 });
+    expect(sectionDisplay("photo", context({ answers: { "photo-face": true } }))).toEqual({ status: "review", impact: null, toReview: 5 });
+    expect(sectionDisplay("photo", context({ answers: all(true) })).status).toBe("strong");
+    expect(sectionDisplay("photo", context({ answers: { ...all(true), "photo-crop": false } })).status).toBe("improve");
+    // Withdrawing the answers puts it back to review.
+    expect(sectionDisplay("photo", context({ answers: {} })).status).toBe("review");
+  });
+
+  it("scores from the answers: unanswered and confirmed equal, a failure lowers it", () => {
+    const presence = [{ section: "photo" as const, present: true, itemCount: null, evidenceIds: [] }, { section: "headline" as const, present: true, itemCount: null, evidenceIds: [] }];
+    const overallPhoto = { ...overall("headline", "strong", "low"), section: "photo" as const };
+    const score = (answers: Record<string, boolean>) => computeOptimizerScore(presence, reconcileAssessments(context({ overall: [overallPhoto], answers })));
+    expect(score({})).toBe(score({ "photo-face": true }));
+    expect(score({ "photo-face": false })).toBeLessThan(score({}));
   });
 
   it("shows Open to Work as Can't verify, never Strong or Improve", () => {
@@ -206,7 +225,8 @@ describe("static guidance", () => {
   });
 
   it("states the denominator without unverifiable checks", () => {
-    expect(summaryText({ state: "improve", passed: 3, verifiable: 5, checking: false })).toBe("3 of 5 verifiable checks passed");
-    expect(summaryText({ state: null, passed: 0, verifiable: 0, checking: false })).toBe("Nothing LinkWise can verify automatically");
+    expect(summaryText({ state: "improve", passed: 3, verifiable: 5, checking: false, needsUser: 0 })).toBe("3 of 5 verifiable checks passed");
+    expect(summaryText({ state: null, passed: 0, verifiable: 0, checking: false, needsUser: 0 })).toBe("Nothing LinkWise can verify automatically");
+    expect(summaryText({ state: "strong", passed: 1, verifiable: 1, checking: false, needsUser: 1 })).toBe("1 of 1 verifiable checks passed · 1 needs your review");
   });
 });
