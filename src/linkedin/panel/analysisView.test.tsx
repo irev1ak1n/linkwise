@@ -324,7 +324,8 @@ describe("why they match: explanations", () => {
       expect(dev!.detail).toMatch(/^The profile supports this through .*work as Website Developer/);
       expect(dev!.detail).toContain("the Prom Ticketing Site project");
       expect(dev!.detail).toContain("studies at IT STEP Academy");
-      expect(dev!.detail).toContain(".NET Core");
+      // Stronger evidence (a project, work, studies) is already there, so no list of technologies is added.
+      expect(dev!.detail).not.toMatch(/\.NET Core|Python|C\+\+|skills such as/);
       expect(dev!.detail).not.toMatch(/Customer Service|[;\u2014]/);
       expect(dev!.detail!.split(/\s+/).length).toBeLessThanOrEqual(45);
     }
@@ -336,6 +337,15 @@ describe("why they match: explanations", () => {
     expect(firstSentences("Uses C# and .NET Core. Also builds sites with Node.js and React. More.", 2)).toBe("Uses C# and .NET Core. Also builds sites with Node.js and React.");
     const [dev] = confirmedCriteria(developmentGoal, scored(reasonFor("dev", full, ".NET Core")), 4, devProfile);
     expect(dev!.detail).toBe(full);
+  });
+
+  it("PRIORITY: projects and work lead, with their own results, and skills only fill in when little else exists", () => {
+    const rich: LinkedInProfile = { ...devProfile, projects: [{ name: "Yearbook", description: "Web development project: a yearbook website for a 4,000+ student school." }] };
+    const [dev] = confirmedCriteria(developmentGoal, scored(reasonFor("dev", "Assessed by LinkWise's local deterministic matcher.", ".NET Core")), 4, rich);
+    expect(dev!.detail).toMatch(/^The profile supports this through the Yearbook project \(4,000\+ student school\), work as Website Developer/);
+    const thin: LinkedInProfile = { ...profile, skills: [".NET Core", "Python", "C#"], experience: [], projects: [], education: [] };
+    const [sparse] = confirmedCriteria(developmentGoal, scored(reasonFor("dev", "Assessed by LinkWise's local deterministic matcher.", ".NET Core")), 4, thin);
+    expect(sparse!.detail).toContain("skills such as .NET Core");
   });
 
   it("CASE 2: a real explanation, such as the TSA one, is kept as written", () => {

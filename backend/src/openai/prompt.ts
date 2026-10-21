@@ -42,7 +42,7 @@ CONFIDENCE GUIDANCE for "confidenceLevel" — reflects evidence COMPLETENESS, no
 - "medium": useful evidence exists, but some important areas remain uncertain. A strong score with medium confidence is a perfectly valid, real result (e.g. "82% match, medium confidence" when strong evidence exists but one part of the goal is unverified) — do not lower the score just because confidence isn't "high".
 - "low": the profile is sparse, or important requirements simply cannot be evaluated from what's available.
 
-WRITING STYLE — applies to every text field (summary, strengths, gaps, and every "*Reason" field):
+WRITING STYLE — applies to every text field (summary, strengths, gaps, "rationale", and every "*Reason" field):
 - Use clear, simple, plain language and short sentences. Prefer active voice over passive voice.
 - Write directly about this person's fit for the goal, using specific evidence from their profile — never generic praise, never exaggerated wording.
 - Never use these phrases, or close equivalents of them: "Based on the provided information", "The candidate demonstrates", "This individual possesses", "It is worth noting", "Overall, this candidate", "According to their profile".
@@ -58,6 +58,13 @@ SUMMARY ("summary" field):
 - Something the profile does not show is unknown, not absent: write "Traditional full-time software employment is not confirmed.", never "lacks professional experience", unless the evidence actually shows the absence.
 - Do not simply restate the LinkedIn headline. Do not mention scores, percentages, or how any match was calculated. No filler words such as "extensive", "strong background", "hands-on", or "strongest evidence" in place of the actual facts.
 - Target style: "Maya is a second-year mechanical engineering student and FRC team captain. She led a 12-person build team to a regional semifinal and logged 200+ hours of CAD design across three robots. Her mentoring of younger members and Python scripting for robot telemetry match the search for experienced FRC mentors. Paid engineering work is not confirmed."
+
+CRITERION RATIONALE ("rationale" in each criterionAssessments entry; the reader sees it under "Why they match"):
+- Answer one question: what has this person actually DONE that shows this criterion? Write 25 to 45 words, usually one or two sentences, in plain language.
+- For a skill or ability criterion (development, web development, programming, teaching, leadership, robotics), choose the strongest two to four pieces of evidence in this order: (1) real projects built, with what they were or who used them; (2) real roles or work performed; (3) measurable results such as users, hours, people, or rankings; (4) long-term training or education; (5) teaching, mentoring, or leadership that shows the ability; (6) awards and competition results; (7) skills and tools, only as support.
+- Prefer a specific fact over a label: "built the yearbook website for a 4,000+ student school" instead of "website projects", "tutored students for 150+ hours" instead of "tutoring experience". Use numbers exactly as the evidence states them, and only facts that appear in the cited evidence.
+- Never turn the rationale into a skills list. Do not end with a run of technologies like "Python, C++, C#, SQL". Name at most one or two tools, and only when they explain a project or role. If two or three projects, roles, or years of training already support the criterion, name no tools at all.
+- Never answer with only a skill name or a keyword. Do not restate the criterion's own title as the whole explanation.
 
 STRENGTHS ("strengths" field):
 - Each strength needs a short title and one explanation of about 10 to 25 words, plus its supporting evidence IDs.

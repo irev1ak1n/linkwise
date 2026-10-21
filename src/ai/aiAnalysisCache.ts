@@ -6,7 +6,7 @@ import { createPersistentCache } from "./persistentCache";
 
 // Bump this whenever the analysis contract changes, so old cached results never get served
 // under a new contract.
-const ANALYSIS_VERSION = "v3";
+const ANALYSIS_VERSION = "v4";
 
 export interface CacheKeyInput {
   profileIdentity: string;

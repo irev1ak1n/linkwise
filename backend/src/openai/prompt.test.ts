@@ -4,6 +4,16 @@
 import { describe, expect, it } from "vitest";
 import { SYSTEM_PROMPT } from "./prompt";
 
+describe("criterion rationale instructions", () => {
+  it("ranks projects, work, results, and training above skills, and forbids skill lists", () => {
+    expect(SYSTEM_PROMPT).toContain('CRITERION RATIONALE ("rationale"');
+    expect(SYSTEM_PROMPT).toContain("what has this person actually DONE");
+    expect(SYSTEM_PROMPT.indexOf("real projects built")).toBeLessThan(SYSTEM_PROMPT.indexOf("skills and tools, only as support"));
+    expect(SYSTEM_PROMPT).toContain("Never turn the rationale into a skills list");
+    expect(SYSTEM_PROMPT).toContain("25 to 45 words");
+  });
+});
+
 describe("SYSTEM_PROMPT - summary writing rules", () => {
   it("specifies the 3-4 sentence requirement", () => {
     expect(SYSTEM_PROMPT).toMatch(/3 or 4 sentences/);

@@ -86,7 +86,13 @@ function isRealExplanation(text: string | undefined): text is string {
 const GENERIC_WORDS = new Set(["skills", "skill", "experience", "experienced", "strong", "ability", "abilities", "knowledge", "background", "member", "with", "and", "the", "for", "using", "work", "working"]);
 const stems = (text: string) => [...new Set((text.toLowerCase().match(/[\p{L}\d+#.]{4,}/gu) ?? []).filter((w) => !GENERIC_WORDS.has(w)).map((w) => w.slice(0, 5)))];
 
-const SECTION_ORDER = ["experience", "projects", "education", "certifications", "organizations", "volunteering", "honors", "about", "skills", "languages", "headline"];
+// What a person has done comes first: projects built, then work, then training, then teaching,
+// leadership and awards. Skills and tools are supporting evidence, so they come last.
+const SECTION_ORDER = ["projects", "experience", "education", "volunteering", "organizations", "honors", "certifications", "about", "headline", "skills", "languages"];
+// Skills only join the sentence when fewer than this many stronger pieces were found.
+const SKILLS_ONLY_BELOW = 2;
+// A measurable result in an entry's own description, such as "4,000+ student school" or "500+ people".
+const METRIC = /\b\d[\d,.]*\+?\s+(?:[a-z-]+\s+){0,1}[a-z-]+/i;
 
 const joinList = (items: string[]) => (items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`);
 const plain = (text: string) => text.replace(/[;\u2014\u2013]/g, ",").replace(/\s+/g, " ").trim();
@@ -107,10 +113,14 @@ export function supportSentence(label: string, profile: LinkedInProfile | undefi
   for (const sectionName of SECTION_ORDER) {
     const hit = hits.find((h) => h.field.section === sectionName);
     if (!hit) continue;
+    // Skills are support, not the answer: left out while stronger evidence already explains it.
+    if (sectionName === "skills" && phrases.length >= SKILLS_ONLY_BELOW) continue;
     const name = plain(hit.field.label.split(": ").slice(1).join(": "));
+    const result = hit.field.text.split(" — ").slice(1).join(" ").match(METRIC)?.[0];
+    const withResult = (text: string) => (result ? `${text} (${plain(result)})` : text);
     const text =
-      sectionName === "experience" ? (name ? `work as ${name}` : "work experience")
-      : sectionName === "projects" ? (name ? `the ${name} project` : "project work")
+      sectionName === "experience" ? withResult(name ? `work as ${name}` : "work experience")
+      : sectionName === "projects" ? withResult(name ? `the ${name} project` : "project work")
       : sectionName === "education" ? (name ? `studies at ${name}` : "education")
       : sectionName === "certifications" ? (name ? `the ${name} certification` : "certifications")
       : sectionName === "about" ? "the About section"
