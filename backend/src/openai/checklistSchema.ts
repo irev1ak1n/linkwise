@@ -27,7 +27,9 @@ Rules:
 - Judge only the target section's own text. Surrounding evidence is only for understanding the person's direction.
 - Mention only facts, names, numbers, skills, and organizations that appear in the evidence. Never assume the person has anything the evidence doesn't show.
 - userContext is not on LinkedIn. You may say "you mentioned ..." for an improvement, but never count it toward a pass.
-- Be fair: a short student profile can still pass a criterion it genuinely meets.`;
+- Be fair: a short student profile can still pass a criterion it genuinely meets.
+- Impact does not need a number. Credit what was built, who used it, what changed, or what result happened, in words, and count a number as a bonus. Duties alone ("helped students", "worked on a project") are not impact.
+- A criterion that says "when supported", or asks for leadership or ownership, applies only if the evidence contains something it could apply to. If the evidence shows none, mark it "pass" and say there is nothing it needs to show.`;
 
 export function buildChecklistUserPrompt(request: ChecklistRequest): string {
   const evidence = request.profile.evidence.map((item) => ({ id: item.id, section: item.section, text: item.text }));

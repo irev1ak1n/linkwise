@@ -146,7 +146,7 @@ describe("summarizeChecklist", () => {
       status: "ready",
       results: semanticCriteria("about").map((c, i) => ({ criterionId: c.id, status: i < 3 ? "pass" : "improve", explanation: "Your About section mentions Python.", evidenceIds: [] })),
     });
-    expect(summarizeChecklist(true, about)).toMatchObject({ state: "improve", passed: 4, verifiable: 9 });
+    expect(summarizeChecklist(true, about)).toMatchObject({ state: "improve", passed: 4, verifiable: 11 });
     expect(about.filter((c) => c.status === "needs_user")).toHaveLength(1);
   });
 
@@ -220,5 +220,38 @@ describe("overrides", () => {
   it("never asks a question that sounds like a limitation", () => {
     const text = (["about", "featured", "experience", "projects", "certifications", "location", "openToWork", "network"] as const).flatMap((section) => evaluateChecklist(section, context(section, profile, { ...baseShell, openToWork: null }), { status: "idle" })).map((c) => c.explanation).join(" ");
     expect(text).not.toMatch(/can.t (verify|see|evaluate|judge)|doesn.t (read|know|analyze)|LinkWise (can|doesn)/i);
+  });
+});
+
+describe("measurable impact", () => {
+  const impact = (experience: LinkedInProfile["experience"], answers: Record<string, boolean> = {}) =>
+    evaluateChecklist("experience", { ...context("experience", { ...profile, experience }), answers }, { status: "idle" }).find((c) => c.id === "experience-metrics")!;
+  const long = (text: string) => ({ title: "Developer", company: "School", description: text });
+
+  it("passes on a number, or on an outcome described in words, and never needs every role to have one", () => {
+    expect(impact([long("Built the yearbook website, used by 4,000+ students each month."), { title: "Tutor", company: "Club" }])).toMatchObject({ label: "Measurable impact is shown", status: "pass" });
+    const words = impact([long("Built a dashboard that allowed the adviser to manage yearbook content independently.")]);
+    expect(words).toMatchObject({ status: "pass" });
+    expect(words.explanation).toContain("what the work led to");
+  });
+
+  it("flags duty-only descriptions, asks when there is nothing to judge, and lets the user override either", () => {
+    const duties = impact([long("Worked on the website and helped with various tasks for the club.")]);
+    expect(duties).toMatchObject({ status: "improve" });
+    expect(duties.explanation).toContain("list duties");
+    // Nothing described: LinkWise asks instead of marking it down.
+    expect(impact([{ title: "Developer", company: "School" }])).toMatchObject({ status: "needs_user" });
+    // The user can still overrule a result, in either direction.
+    expect(impact([long("Worked on the website and helped with various tasks for the club.")], { "experience-metrics": true })).toMatchObject({ status: "pass", userValue: true });
+    expect(impact([long("Built the yearbook website, used by 4,000+ students each month.")], { "experience-metrics": false })).toMatchObject({ status: "improve", userValue: false });
+  });
+
+  it("adds the About, Projects and Featured impact checks without making any missing number a failure", () => {
+    const ids = (section: "about" | "projects" | "featured") => CHECKLISTS[section].map((c) => c.id);
+    expect(ids("about")).toEqual(expect.arrayContaining(["about-evidence", "about-measurable", "about-leadership", "about-connection"]));
+    expect(ids("projects")).toEqual(expect.arrayContaining(["projects-audience", "projects-result"]));
+    expect(CHECKLISTS.featured.find((c) => c.id === "featured-impact")?.verification).toBe("user");
+    // Leadership applies "when supported": the advice tells the AI to pass when there is nothing to show.
+    expect(CHECKLISTS.about.find((c) => c.id === "about-leadership")!.advice).toContain("If the evidence shows none, this is met.");
   });
 });

@@ -70,6 +70,10 @@ const YEAR = /\b(19|20)\d{2}\b/;
 // Filler that tells a reader nothing about what the person does.
 const FILLER = ["hardworking", "hard-working", "motivated", "passionate", "driven", "results-driven", "go-getter", "self-starter", "dynamic", "enthusiastic", "detail-oriented", "team player", "guru", "ninja", "rockstar", "visionary"];
 
+// Wording that describes a result, even without a number: what changed or what came of the work.
+const OUTCOME_LANGUAGE = /\b(resulting in|resulted in|led to|allowing|allowed|enabling|enabled|so that|used by|served|reached|increased|reduced|improved|grew|saved|raised|launched|delivered|generated|won|placed|ranked|qualified|achieved|independently|adopted|helped (?:\w+\s){1,3}(?:to|achieve|learn|improve|get|win))\b/i;
+const hasOutcomeLanguage = (text: string | undefined) => OUTCOME_LANGUAGE.test(text ?? "");
+
 function fillerIn(text: string): string[] {
   const lower = text.toLowerCase();
   return FILLER.filter((word) => new RegExp(`(^|[^a-z-])${word.replace("-", "\\-")}($|[^a-z-])`).test(lower));
@@ -234,8 +238,10 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     semantic("about-who", "Explains who you are", "Opens with who the person is."),
     semantic("about-direction", "Communicates your direction", "Says what the person is working toward."),
     semantic("about-expertise", "Mentions relevant expertise", "Names the skills and areas the person wants to be known for."),
-    semantic("about-evidence", "Includes concrete evidence", "Shows what the person has done rather than only describing themselves."),
-    semantic("about-measurable", "Includes measurable results where available", "Uses a number for a result the text already describes, when one is available."),
+    semantic("about-evidence", "Includes concrete accomplishments", "Shows what the person has actually done or built rather than only describing themselves."),
+    semantic("about-measurable", "Shows measurable impact", "Names a result, scale, or outcome from the person's work, with a number where one exists. Impact described in words counts too."),
+    semantic("about-leadership", "Demonstrates leadership or ownership when supported", "If the evidence shows the person led, owned, taught, or captained something, the About says what they led and what happened. If the evidence shows none, this is met."),
+    semantic("about-connection", "Connects experience to current direction", "Links the person's background to what they are working toward now."),
     semantic("about-differentiator", "Contains differentiating information", "Says what makes the background or approach different."),
     semantic("about-adjectives", "Avoids excessive generic adjectives", "Relies on specifics rather than adjectives like passionate or driven."),
     semantic("about-readable", "Easy to read at its length", "Is focused and easy to scan for its length; not padded and not too thin to be useful."),
@@ -257,6 +263,7 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     userCheck("featured-direction", "Items support your direction", "Check that your featured items support what you want to be known for."),
     userCheck("featured-strongest", "Your strongest work is represented", "Check that your strongest, most relevant item comes first."),
     userCheck("featured-media", "Useful links or media", "Check that people can open useful projects, links, articles, or presentations from it."),
+    userCheck("featured-impact", "Shows proof of impact", "Check that your featured items show measurable accomplishments or other proof of impact."),
   ],
   experience: [
     present("Experience section added", "experience"),
@@ -276,19 +283,24 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     },
     {
       id: "experience-metrics",
-      label: "Measurable impact appears",
+      label: "Measurable impact is shown",
       verification: "deterministic",
-      advice: "Numbers such as people reached, results, or scale make impact concrete.",
+      advice: "Strong entries explain results, scale, or outcomes instead of only listing responsibilities. Check that yours do.",
       check: (c) => {
         if (c.profile.experience.length === 0) return notRead("Experience");
-        const found = metricsIn(c.profile.experience.map((entry) => entry.description ?? ""));
-        return found.length > 0
-          ? { status: "pass", explanation: `Your roles mention ${quoteList(found)}.`, evidenceIds: idsOf(c, "experience") }
-          : { status: "improve", explanation: "None of your role descriptions include a measurable result.", evidenceIds: idsOf(c, "experience") };
+        // Entries with real text to judge; no single entry needs a number.
+        const described = c.profile.experience.filter((entry) => (entry.description ?? "").trim().length >= 40);
+        if (described.length === 0) return { status: "unverifiable", explanation: "" };
+        const found = metricsIn(described.map((entry) => entry.description ?? ""));
+        if (found.length > 0) return { status: "pass", explanation: `Your roles mention ${quoteList(found)}.`, evidenceIds: idsOf(c, "experience") };
+        const outcomes = described.filter((entry) => hasOutcomeLanguage(entry.description)).length;
+        return outcomes > 0
+          ? { status: "pass", explanation: `${plural(outcomes, "role")} explain what the work led to, not only the duties.`, evidenceIds: idsOf(c, "experience") }
+          : { status: "improve", explanation: "Your role descriptions list duties but not what they led to: who used the work, what changed, or the result.", evidenceIds: idsOf(c, "experience") };
       },
     },
     semantic("experience-responsibilities", "Responsibilities are specific", "Descriptions say what the person was responsible for, specifically."),
-    semantic("experience-accomplishments", "Accomplishments are included", "Descriptions include what was achieved, not only duties."),
+    semantic("experience-accomplishments", "Accomplishments are included", "Descriptions say what was built, who used it, what changed, or what result happened, not only duties like \"helped students\" or \"worked on a project\". A clear result without a number counts."),
     semantic("experience-ownership", "Your contribution is clear", "Makes clear what the person did or owned, not only what the team did."),
     semantic("experience-technical", "Tools and technologies are specific", "Names the tools, technologies, or methods used, where relevant to the role."),
     semantic("experience-not-generic", "Avoids generic job-description wording", "Avoids generic duties that could appear in any job posting."),
@@ -332,8 +344,9 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     present("Projects section added", "projects"),
     semantic("projects-purpose", "Purpose is understandable", "Says what each project does and why."),
     semantic("projects-contribution", "Your contribution is clear", "Makes the person's own part clear."),
-    semantic("projects-technologies", "Technologies are identifiable", "Names the languages, frameworks, or tools used."),
-    semantic("projects-result", "Result or impact is stated where possible", "States who used it, what it achieved, or what came of it."),
+    semantic("projects-audience", "Says who it is for or what problem it solves", "Says who the project was built for or what problem it solved."),
+    semantic("projects-technologies", "Technologies are identifiable where useful", "Names the languages, frameworks, or tools used where that helps explain the project. A list of tools does not replace saying what was built."),
+    semantic("projects-result", "Result or impact is stated where possible", "States who used it, what it achieved, or what came of it, with a number where one exists."),
     semantic("projects-direction", "Strongest projects support your direction", "The most prominent projects relate to the person's direction."),
     userCheck("projects-links", "Links, demo, or repository", "Check that your projects link to a demo, repository, or write-up where you have one."),
   ],
