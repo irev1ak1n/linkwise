@@ -2085,74 +2085,144 @@ export function getPanelStyles(widthPx: number): string {
     color: #a86f00;
   }
   /* The writing pages (Headline, About) share the Optimizer's look: white rounded cards, blue accent. */
-  .lw-opt-page .lw-opt-page__title {
-    margin: 2px 0 0;
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-    color: #1d2226;
+  .lw-gen {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
-  .lw-opt-page .lw-opt-page__description {
+  .lw-gen-nav__spacer {
+    flex: none;
+    width: 42px;
+  }
+  .lw-gen-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lw-gen-block__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .lw-gen-block .lw-opt-group__title {
+    margin: 0;
+  }
+  .lw-gen-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .lw-gen-current {
+    margin: 0;
     font-size: 13.5px;
+    line-height: 1.5;
+    color: #1d2226;
+    white-space: pre-wrap;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  .lw-gen-current.is-empty,
+  .lw-gen-help,
+  .lw-gen-note {
+    margin: 0;
+    font-size: 12.5px;
     line-height: 1.45;
     color: #56687a;
   }
-  .lw-opt-page .lw-opt-form {
-    gap: 12px;
-    padding: 14px 16px;
-    background: #fff;
-    border: 1px solid #e0e6ef;
-    border-radius: 15px;
-  }
-  .lw-opt-page .lw-opt-form label {
-    gap: 5px;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: #1d2226;
-  }
-  .lw-opt-page .lw-keywords__input {
+  .lw-gen-input {
     width: 100%;
     box-sizing: border-box;
     padding: 9px 11px;
     font: inherit;
     font-size: 13.5px;
-    font-weight: 400;
     color: #1d2226;
     background: #f8fafc;
     border: 1px solid #dbe2ec;
     border-radius: 10px;
+    resize: vertical;
   }
-  .lw-opt-page .lw-keywords__input:focus {
+  .lw-gen-input:focus {
     outline: none;
     border-color: #2f5be0;
     background: #fff;
     box-shadow: 0 0 0 3px rgba(47, 91, 224, 0.15);
   }
-  .lw-opt-page .lw-opt-form > .lw-button {
-    align-self: stretch;
-    min-height: 42px;
-    border: 0;
-    border-radius: 12px;
-    background: #2f5be0;
-    color: #fff;
-    font-weight: 700;
+  .lw-gen-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .lw-gen-chip {
+    padding: 6px 12px;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #1d2226;
+    background: #f8fafc;
+    border: 1px solid #dbe2ec;
+    border-radius: 999px;
     cursor: pointer;
   }
-  .lw-opt-page .lw-opt-form > .lw-button:disabled {
+  .lw-gen-chip.is-on {
+    color: #2f5be0;
+    background: #eef3fe;
+    border-color: #2f5be0;
+  }
+  .lw-primary-button {
+    min-height: 42px;
+    padding: 0 16px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    background: #2f5be0;
+    border: 0;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .lw-primary-button:hover:not(:disabled) {
+    background: #2650cc;
+  }
+  .lw-primary-button:active:not(:disabled) {
+    background: #1f43b3;
+  }
+  .lw-primary-button:disabled {
     background: #b9c8f5;
     cursor: default;
   }
-  .lw-opt-page .lw-opt-options {
-    gap: 12px;
+  .lw-gen-link {
+    padding: 0;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #2f5be0;
+    background: none;
+    border: 0;
+    cursor: pointer;
   }
-  .lw-opt-page .lw-opt-option {
+  .lw-gen-link:disabled {
+    color: #9aa8c7;
+    cursor: default;
+  }
+  .lw-gen-options {
+    display: flex;
+    flex-direction: column;
     gap: 10px;
-    padding: 14px 16px;
-    background: #fff;
-    border: 1px solid #e0e6ef;
-    border-radius: 15px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
-  .lw-opt-page .lw-opt-option__label {
+  .lw-gen-option {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #e0e6ef;
+    border-radius: 12px;
+  }
+  .lw-gen-option__label {
     align-self: flex-start;
     padding: 3px 10px;
     border-radius: 999px;
@@ -2162,22 +2232,33 @@ export function getPanelStyles(widthPx: number): string {
     font-weight: 700;
     letter-spacing: 0.04em;
   }
-  .lw-opt-page .lw-opt-option__text {
+  .lw-gen-option__text {
     margin: 0;
     font-size: 14px;
     line-height: 1.5;
     color: #1d2226;
   }
-  .lw-opt-option__text--paragraphs {
+  .lw-gen-option__text--paragraphs {
     white-space: pre-wrap;
   }
-  .lw-opt-page .lw-opt-option__meta {
+  .lw-gen-option__meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     font-size: 12px;
     color: #6b7585;
+  }
+  .lw-gen-copy {
+    padding: 5px 12px;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #2f5be0;
+    background: #fff;
+    border: 1px solid #c9d6f6;
+    border-radius: 9px;
+    cursor: pointer;
   }
   .lw-od-note {
     display: flex;

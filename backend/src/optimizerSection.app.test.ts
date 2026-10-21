@@ -62,6 +62,29 @@ describe("POST /api/optimizer-headlines", () => {
   });
 });
 
+describe("simplified generator inputs", () => {
+  it("headlines: passes what to include and the preferred format, and counts them as the user's own words", async () => {
+    const prompts: string[] = [];
+    const client = fakeClient({ options: [{ label: "Impact", headline: "Aspiring Software Engineer | Robotics and Python" }] }, prompts);
+    const res = await request(appWith({ headlineClient: client })).post("/api/optimizer-headlines").send({ profile, currentHeadline: "Student at Westfield High", include: "robotics, Python", format: "Role | Specialty | Proof" });
+    expect(res.body.status).toBe("headlines");
+    expect(prompts[0]).toContain('guidance, not a checklist): "robotics, Python"');
+    expect(prompts[0]).toContain('"Role | Specialty | Proof"');
+    expect(prompts[0]).toContain("never print placeholders");
+    expect(prompts[0]).not.toContain("target role");
+  });
+
+  it("About: a chosen style asks for two options in that style, and 'all' keeps the three", async () => {
+    const prompts: string[] = [];
+    const client = fakeClient({ options: [{ label: "x", text: "too short" }] }, prompts);
+    await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send({ profile, include: "leadership", style: "impact" });
+    await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send({ profile });
+    expect(prompts[0]).toContain("Impact only: write two options");
+    expect(prompts[0]).toContain('"leadership"');
+    expect(prompts[1]).toContain("all three styles");
+  });
+});
+
 describe("POST /api/optimizer-abouts", () => {
   const body = { profile, currentAbout: "", targetRole: "Software Engineer", standOut: "projects", additionalContext: "", language: "English", variation: 2 };
   const text = (extra: string) => `I am a student at Westfield High. ${extra} I studied Python and C++ at Code Academy and enjoy building practical software that other people use. `.repeat(6).trim();

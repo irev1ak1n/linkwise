@@ -39,12 +39,16 @@ Every headline must:
 
 Return the three options; do not repeat the current headline.`;
 
+const optional = (label: string, value: string) => (value.trim() ? [`${label}: ${JSON.stringify(value.trim())}`] : []);
+
 export function buildHeadlineUserPrompt(request: HeadlineGenerationRequest): string {
   return [
     `current headline: ${JSON.stringify(request.currentHeadline)}`,
-    `target role: ${JSON.stringify(request.targetRole)}`,
-    `keywords to include where relevant: ${JSON.stringify(request.keywords)}`,
-    `additional context from the user: ${JSON.stringify(request.additionalContext)}`,
+    ...optional("what the user wants included or emphasized (guidance, not a checklist)", request.include),
+    ...optional("preferred structure (a pattern like \"Role | Specialty | Proof\"; never print placeholders such as X, Y, Z literally)", request.format),
+    ...optional("target role", request.targetRole),
+    ...optional("keywords to include where relevant", request.keywords),
+    ...optional("additional context from the user", request.additionalContext),
     `language: ${request.language}`,
     `evidence:\n${evidenceJson(request)}`,
     `user's own context (NOT on LinkedIn):\n${JSON.stringify(request.userContext)}`,
@@ -76,12 +80,21 @@ Every sentence must be grounded only in the profile evidence and what the user e
 
 Use the "what should stand out" input to choose what to emphasize, not as a list to cram in. Write in the requested language. Avoid filler like "passionate", "innovative", "results-driven", and avoid emoji. If this is a regeneration (variation above 1), take a clearly different approach from the usual one: a different opening, a different order of ideas, and different wording.`;
 
+const STYLE_NOTE: Record<AboutGenerationRequest["style"], string> = {
+  all: "all three styles",
+  balanced: "Balanced only: write two options, both Balanced, labelled \"Balanced\" and \"Balanced, alternate\", with different openings and emphasis",
+  impact: "Impact only: write two options, both Impact, labelled \"Impact\" and \"Impact, alternate\", with different openings and emphasis",
+  technical: "Technical only: write two options, both Technical, labelled \"Technical\" and \"Technical, alternate\", with different openings and emphasis",
+};
+
 export function buildAboutUserPrompt(request: AboutGenerationRequest): string {
   return [
     `current About: ${JSON.stringify(request.currentAbout)}`,
-    `target role: ${JSON.stringify(request.targetRole)}`,
-    `what should stand out: ${JSON.stringify(request.standOut)}`,
-    `additional context from the user: ${JSON.stringify(request.additionalContext)}`,
+    ...optional("what the user wants included or emphasized (guidance, not a checklist)", request.include),
+    `styles wanted (this overrides the three-option rule above): ${STYLE_NOTE[request.style]}`,
+    ...optional("target role", request.targetRole),
+    ...optional("what should stand out", request.standOut),
+    ...optional("additional context from the user", request.additionalContext),
     `language: ${request.language}`,
     `variation: ${request.variation}`,
     `evidence:\n${evidenceJson(request)}`,

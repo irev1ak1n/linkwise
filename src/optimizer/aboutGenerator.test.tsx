@@ -31,7 +31,7 @@ afterEach(() => {
   openOptimizerPage({ name: "home" });
 });
 
-const button = () => container.querySelector<HTMLButtonElement>(".lw-opt-form > .lw-button")!;
+const button = () => container.querySelector<HTMLButtonElement>(".lw-primary-button")!;
 
 describe("About generator", () => {
   it("generates, then generates again: every click is its own request with a new variation", async () => {
@@ -42,10 +42,12 @@ describe("About generator", () => {
       return { requestId: `req_${calls.length}`, promise: new Promise<AboutOptionsOutcome>((resolve) => resolvers.push(resolve)), cancel: () => {} };
     });
     act(() => root.render(<AboutGenerator body={body} currentAbout="I build school websites." request={request} />));
+    expect(container.textContent).toContain("I build school websites.");
+    expect(container.textContent).not.toMatch(/Target role|Language|Additional context/);
     expect(button().textContent).toBe("Generate About");
 
     act(() => button().click());
-    expect(button().textContent).toBe("Generating…");
+    expect(button().textContent).toBe("Generating...");
     expect(button().disabled).toBe(true);
     // A second click while one is running does nothing.
     act(() => button().click());
@@ -57,15 +59,17 @@ describe("About generator", () => {
     expect(container.textContent).toContain("First one");
 
     // Change an input and generate again: a new request, a new variation, and new options on screen.
-    const role = container.querySelector<HTMLInputElement>('input[placeholder="e.g. Software Engineer"]')!;
+    const include = container.querySelector<HTMLTextAreaElement>("textarea")!;
     act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(role, "Software Engineer");
-      role.dispatchEvent(new Event("input", { bubbles: true }));
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(include, "TSA leadership");
+      include.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    act(() => Array.from(container.querySelectorAll<HTMLButtonElement>(".lw-gen-chip")).find((c) => c.textContent === "Impact-focused")!.click());
     act(() => button().click());
     expect(request).toHaveBeenCalledTimes(2);
     expect(calls[1]!.variation).toBe(calls[0]!.variation + 1);
-    expect(calls[1]!.targetRole).toBe("Software Engineer");
+    expect(calls[1]!.include).toBe("TSA leadership");
+    expect(calls[1]!.style).toBe("impact");
     await act(async () => resolvers[1]!({ status: "ok", options: options("Second") }));
     expect(container.textContent).toContain("Second one");
     expect(container.textContent).not.toContain("First one");

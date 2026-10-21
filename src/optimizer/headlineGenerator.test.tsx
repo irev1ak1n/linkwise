@@ -37,29 +37,39 @@ afterEach(() => {
 });
 
 describe("headline generator", () => {
-  it("builds the request from known evidence plus the user's inputs", () => {
-    const request = buildHeadlineRequest(body, "Student developer", { targetRole: " Software Engineer ", keywords: "C++, full-stack, robotics", additionalContext: "", language: "English" });
+  it("builds the request from known evidence plus the one steering field and the format", () => {
+    const request = buildHeadlineRequest(body, "Student developer", { include: " robotics, Python ", format: "Role | Specialty | Proof" });
     expect(request).toEqual({
       profile: body.profile,
       currentHeadline: "Student developer",
-      targetRole: "Software Engineer",
-      keywords: "C++, full-stack, robotics",
-      additionalContext: "",
+      include: "robotics, Python",
+      format: "Role | Specialty | Proof",
       language: "English",
       userContext: "I know Rust",
     });
   });
 
-  it("sends the form and lists the returned options", async () => {
+  it("shows the current headline, drops the old fields, sends the form and lists the returned options", async () => {
     const outcome: HeadlineOptionsOutcome = { status: "ok", options: [{ label: "Technical", headline: "Aspiring Software Engineer | C++" }] };
     const request = vi.fn(() => ({ requestId: "r", promise: Promise.resolve(outcome), cancel: vi.fn() }));
     const container = render(<HeadlineGenerator body={body} currentHeadline="Student developer" request={request} />);
-    const [role, keywords] = Array.from(container.querySelectorAll("input"));
-    act(() => setInput(role, "Software Engineer"));
-    act(() => setInput(keywords, "C++, robotics"));
-    await act(async () => container.querySelector<HTMLButtonElement>(".lw-opt-form .lw-button")!.click());
-    expect(request).toHaveBeenCalledWith(expect.objectContaining({ targetRole: "Software Engineer", keywords: "C++, robotics", language: "English" }));
+    expect(container.textContent).toContain("Student developer");
+    expect(container.textContent).not.toMatch(/Target role|Keywords to include|Additional context|Language/);
+    const include = container.querySelector<HTMLTextAreaElement>("textarea")!;
+    const format = container.querySelector<HTMLInputElement>("input")!;
+    expect(format.placeholder).toBe("X | Y | Z");
+    const button = () => container.querySelector<HTMLButtonElement>(".lw-primary-button")!;
+    expect(button().textContent).toBe("Generate headlines");
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(include, "C++, robotics");
+      include.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => setInput(format, "Role • Proof"));
+    await act(async () => button().click());
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ include: "C++, robotics", format: "Role • Proof", language: "English" }));
     expect(container.textContent).toContain("Aspiring Software Engineer | C++");
+    expect(button().textContent).toBe("Generate again");
+    expect(button().disabled).toBe(false);
   });
 
   it("copies an option and confirms it", async () => {

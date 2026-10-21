@@ -78,12 +78,13 @@ export interface SectionAnalysisRequestBody {
   userContext: string;
 }
 
+export type AboutStyle = "all" | "balanced" | "impact" | "technical";
+
 export interface HeadlineGenerationRequestBody {
   profile: OptimizerProfilePayload;
   currentHeadline: string;
-  targetRole: string;
-  keywords: string;
-  additionalContext: string;
+  include: string;
+  format: string;
   language: string;
   userContext: string;
 }
@@ -91,9 +92,8 @@ export interface HeadlineGenerationRequestBody {
 export interface AboutGenerationRequestBody {
   profile: OptimizerProfilePayload;
   currentAbout: string;
-  targetRole: string;
-  standOut: string;
-  additionalContext: string;
+  include: string;
+  style: AboutStyle;
   language: string;
   variation: number;
   userContext: string;

@@ -1,30 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { hashString } from "../ai/aiAnalysisCache";
 import type { PendingRelayRequest } from "../ai/backgroundRelay";
 import { requestHeadlineOptions, type HeadlineGenerationRequestBody, type OptimizeProfileRequestBody } from "./optimizerClient";
 import { openOptimizerPage } from "./optimizerNav";
 import { copyText } from "./copyText";
+import { CurrentCard, GeneratorBlock, GeneratorNav, PrimaryButton } from "./GeneratorParts";
 import type { HeadlineOption, HeadlineOptionsOutcome } from "./optimizerTypes";
 
-export const LANGUAGES = ["English", "Spanish", "French", "German", "Portuguese", "Italian", "Polish", "Ukrainian", "Russian", "Chinese", "Japanese", "Korean", "Hindi", "Arabic"];
-
 export interface GeneratorForm {
-  targetRole: string;
-  keywords: string;
-  additionalContext: string;
-  language: string;
+  include: string;
+  format: string;
 }
+
+export const FORMAT_PLACEHOLDER = "X | Y | Z";
 
 // Kept for the session, so leaving the generator and coming back keeps what was typed and generated.
-let savedForm: GeneratorForm = { targetRole: "", keywords: "", additionalContext: "", language: "English" };
-const savedResults = new Map<string, HeadlineOption[]>();
+let savedForm: GeneratorForm = { include: "", format: "" };
+let savedOptions: HeadlineOption[] | null = null;
 
 export function buildHeadlineRequest(body: OptimizeProfileRequestBody, currentHeadline: string, form: GeneratorForm): HeadlineGenerationRequestBody {
-  return { profile: body.profile, currentHeadline, ...form, targetRole: form.targetRole.trim(), keywords: form.keywords.trim(), additionalContext: form.additionalContext.trim(), userContext: body.userContext };
-}
-
-function resultKey(request: HeadlineGenerationRequestBody): string {
-  return hashString(JSON.stringify(request));
+  return { profile: body.profile, currentHeadline, include: form.include.trim(), format: form.format.trim(), language: "English", userContext: body.userContext };
 }
 
 type GeneratorState = { status: "idle" } | { status: "loading" } | { status: "ready"; options: HeadlineOption[] } | { status: "unavailable"; reason: string };
@@ -37,8 +31,7 @@ interface HeadlineGeneratorProps {
 
 export function HeadlineGenerator({ body, currentHeadline, request = requestHeadlineOptions }: HeadlineGeneratorProps) {
   const [form, setForm] = useState<GeneratorForm>(savedForm);
-  const initial = body ? savedResults.get(resultKey(buildHeadlineRequest(body, currentHeadline, form))) : undefined;
-  const [state, setState] = useState<GeneratorState>(initial ? { status: "ready", options: initial } : { status: "idle" });
+  const [state, setState] = useState<GeneratorState>(savedOptions ? { status: "ready", options: savedOptions } : { status: "idle" });
   const cancelRef = useRef<(() => void) | null>(null);
   useEffect(() => () => cancelRef.current?.(), []);
 
@@ -48,67 +41,77 @@ export function HeadlineGenerator({ body, currentHeadline, request = requestHead
     setForm(next);
   }
 
+  // Every click is its own request, so the button is never stuck: it only waits while one is running.
   function generate(): void {
-    if (!body) return;
+    if (!body || state.status === "loading") return;
     const payload = buildHeadlineRequest(body, currentHeadline, form);
     setState({ status: "loading" });
     const pending = request(payload);
     cancelRef.current = pending.cancel;
     void pending.promise.then((outcome) => {
       cancelRef.current = null;
-      if (outcome.status === "ok") savedResults.set(resultKey(payload), outcome.options);
+      if (outcome.status === "ok") savedOptions = outcome.options;
       setState(outcome.status === "ok" ? { status: "ready", options: outcome.options } : { status: "unavailable", reason: outcome.reason });
     });
   }
 
+  const loading = state.status === "loading";
+  const label = loading ? "Generating..." : state.status === "ready" ? "Generate again" : "Generate headlines";
   return (
-    <article className="lw-opt-page">
-      <button type="button" className="lw-opt-back" onClick={() => openOptimizerPage({ name: "section", section: "headline" })}>
-        ← Back to Headline
-      </button>
-      <h3 className="lw-opt-page__title">Generate headlines</h3>
-      <p className="lw-opt-page__description">LinkWise already uses your profile. Add a direction or keywords to steer the options.</p>
+    <article className="lw-opt-page lw-gen">
+      <GeneratorNav title="Headline Generator" backLabel="Back to Headline" onBack={() => openOptimizerPage({ name: "section", section: "headline" })} />
 
-      <div className="lw-opt-form">
-        <label>
-          Target role
-          <input className="lw-keywords__input" value={form.targetRole} maxLength={120} placeholder="e.g. Software Engineer" onChange={(e) => update("targetRole", e.target.value)} />
-        </label>
-        <label>
-          Keywords to include
-          <input className="lw-keywords__input" value={form.keywords} maxLength={300} placeholder="e.g. C++, full-stack, robotics" onChange={(e) => update("keywords", e.target.value)} />
-        </label>
-        <label>
-          Additional context
-          <textarea className="lw-keywords__input" rows={2} value={form.additionalContext} maxLength={1000} placeholder="Optional" onChange={(e) => update("additionalContext", e.target.value)} />
-        </label>
-        <label>
-          Language
-          <select className="lw-keywords__input" value={form.language} onChange={(e) => update("language", e.target.value)}>
-            {LANGUAGES.map((language) => (
-              <option key={language}>{language}</option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className="lw-button lw-button--secondary" disabled={!body || state.status === "loading"} onClick={generate}>
-          {state.status === "loading" ? "Writing headlines…" : "Generate headlines"}
-        </button>
-        {!body && <p className="lw-scan-mode__hint">Waiting for LinkWise to finish reading your profile…</p>}
-      </div>
+      <GeneratorBlock title="Current headline">
+        <CurrentCard text={currentHeadline} empty="No headline currently found." />
+      </GeneratorBlock>
 
-      {state.status === "unavailable" && (
-        <p className="lw-scan-mode__hint">
-          {state.reason === "ungrounded_headlines" ? "The options mentioned things not on your profile, so they were discarded. Try again." : `Headlines unavailable (${state.reason}).`}
-        </p>
+      <GeneratorBlock title="What should we include?">
+        <p className="lw-gen-help">Add keywords, achievements, roles, projects, or anything you want emphasized.</p>
+        <textarea
+          className="lw-gen-input"
+          rows={2}
+          aria-label="What should we include?"
+          value={form.include}
+          maxLength={600}
+          placeholder="Software engineering, full-stack projects, TSA, programming tutoring"
+          onChange={(e) => update("include", e.target.value)}
+        />
+      </GeneratorBlock>
+
+      <GeneratorBlock title="Format">
+        <input className="lw-gen-input" aria-label="Format" value={form.format} maxLength={120} placeholder={FORMAT_PLACEHOLDER} onChange={(e) => update("format", e.target.value)} />
+        <p className="lw-gen-help">Optional. Try “Role | Specialty | Proof”, “X • Y • Z” or “Role — Impact — Direction”. Empty lets LinkWise choose.</p>
+      </GeneratorBlock>
+
+      <PrimaryButton disabled={!body || loading} onClick={generate}>
+        {label}
+      </PrimaryButton>
+      {!body && <p className="lw-gen-note">Waiting for LinkWise to finish reading your profile…</p>}
+
+      {(state.status === "ready" || state.status === "unavailable") && (
+        <GeneratorBlock
+          title="Generated headlines"
+          action={
+            state.status === "ready" ? (
+              <button type="button" className="lw-gen-link" disabled={loading} onClick={generate}>
+                Regenerate
+              </button>
+            ) : undefined
+          }
+        >
+          {state.status === "unavailable" && (
+            <p className="lw-gen-note">{state.reason === "ungrounded_headlines" ? "The options mentioned things not on your profile, so they were discarded. Try again." : `Headlines unavailable (${state.reason}).`}</p>
+          )}
+          {state.status === "ready" && (
+            <ol className="lw-gen-options">
+              {state.options.map((option) => (
+                <HeadlineOptionCard key={option.headline} option={option} />
+              ))}
+            </ol>
+          )}
+        </GeneratorBlock>
       )}
-      {state.status === "ready" && (
-        <ol className="lw-opt-options">
-          {state.options.map((option) => (
-            <HeadlineOptionCard key={option.headline} option={option} />
-          ))}
-        </ol>
-      )}
-      {state.status === "ready" && <p className="lw-scan-mode__hint">Options for you to review. LinkWise never changes your profile.</p>}
+      {state.status === "ready" && <p className="lw-gen-note">Options for you to review. LinkWise never changes your profile.</p>}
     </article>
   );
 }
@@ -116,12 +119,12 @@ export function HeadlineGenerator({ body, currentHeadline, request = requestHead
 export function HeadlineOptionCard({ option, copy = copyText }: { option: HeadlineOption; copy?: (text: string) => Promise<boolean> }) {
   const [copied, setCopied] = useState<boolean | null>(null);
   return (
-    <li className="lw-opt-option">
-      <span className="lw-opt-option__label">{option.label}</span>
-      <p className="lw-opt-option__text">{option.headline}</p>
-      <div className="lw-opt-option__meta">
+    <li className="lw-gen-option">
+      <span className="lw-gen-option__label">{option.label}</span>
+      <p className="lw-gen-option__text">{option.headline}</p>
+      <div className="lw-gen-option__meta">
         <span>{option.headline.length} / 220</span>
-        <button type="button" className="lw-button" onClick={() => void copy(option.headline).then(setCopied)}>
+        <button type="button" className="lw-gen-copy" onClick={() => void copy(option.headline).then(setCopied)}>
           {copied ? "Copied ✓" : copied === false ? "Copy failed" : "Copy"}
         </button>
       </div>

@@ -16,6 +16,8 @@ const sectionRequest = (present = true): SectionAnalysisRequest => ({ profile, s
 const generation: HeadlineGenerationRequest = {
   profile,
   currentHeadline: profile.evidence[0].text,
+  include: "",
+  format: "",
   targetRole: "Software Engineer",
   keywords: "C++, full-stack, robotics",
   additionalContext: "",
@@ -103,7 +105,7 @@ describe("headline options: proof over keyword lists, three different headlines"
 });
 
 describe("About options", () => {
-  const aboutRequest: AboutGenerationRequest = { profile, currentAbout: "", targetRole: "Software Engineer", standOut: "projects", additionalContext: "", language: "English", variation: 1, userContext: "" };
+  const aboutRequest: AboutGenerationRequest = { profile, currentAbout: "", include: "", style: "all", targetRole: "Software Engineer", standOut: "projects", additionalContext: "", language: "English", variation: 1, userContext: "" };
   const paragraph = (extra: string) =>
     `I am a student at Westfield High who builds software with Python and C++. ${extra} I studied web development and robotics at Code Academy, and I like turning what I learn into tools other people can use. ` +
     `As the Website Developer for the Robotics Club, I built a site used by 300+ students, and I keep it running as the club grows each year. ` +

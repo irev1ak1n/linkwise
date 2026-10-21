@@ -328,7 +328,7 @@ export function summaryText(summary: ChecklistSummary): string {
   return [`${summary.passed} of ${summary.verifiable} verifiable checks passed${summary.checking ? " so far" : ""}`, toReview].filter(Boolean).join(" · ");
 }
 
-function NavSquare({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
+export function NavSquare({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button type="button" className="lw-nav-button" aria-label={label} title={disabled ? undefined : label} disabled={disabled} onClick={onClick}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

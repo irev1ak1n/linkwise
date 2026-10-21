@@ -21,6 +21,9 @@ export type SectionAnalysisRequest = z.infer<typeof sectionAnalysisRequestSchema
 export const headlineGenerationRequestSchema = z.object({
   profile: profileSchema,
   currentHeadline: z.string().max(400).default(""),
+  // What the user wants emphasized, and the pattern they prefer ("X | Y | Z"). Both are optional steering.
+  include: z.string().max(600).default(""),
+  format: z.string().max(120).default(""),
   targetRole: z.string().max(120).default(""),
   keywords: z.string().max(300).default(""),
   additionalContext: z.string().max(1000).default(""),
@@ -30,9 +33,14 @@ export const headlineGenerationRequestSchema = z.object({
 
 export type HeadlineGenerationRequest = z.infer<typeof headlineGenerationRequestSchema>;
 
+export const ABOUT_STYLES = ["all", "balanced", "impact", "technical"] as const;
+
 export const aboutGenerationRequestSchema = z.object({
   profile: profileSchema,
   currentAbout: z.string().max(2600).default(""),
+  include: z.string().max(600).default(""),
+  // "all" writes the three styles; one of the others writes two options in that style.
+  style: z.enum(ABOUT_STYLES).default("all"),
   targetRole: z.string().max(120).default(""),
   standOut: z.string().max(300).default(""),
   additionalContext: z.string().max(1000).default(""),

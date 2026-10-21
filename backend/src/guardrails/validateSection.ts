@@ -44,7 +44,7 @@ export function validateSectionAnalysis(response: SectionAnalysisResponse, reque
 }
 
 export function isGroundedHeadline(headline: string, request: HeadlineGenerationRequest): boolean {
-  const sources = profileSources(request.profile, request.currentHeadline, request.userContext, request.targetRole, request.keywords, request.additionalContext);
+  const sources = profileSources(request.profile, request.currentHeadline, request.userContext, request.include, request.format, request.targetRole, request.keywords, request.additionalContext);
   const lowered = sources.toLowerCase();
   if (headline.length === 0 || headline.length > MAX_HEADLINE_LENGTH) return false;
   if (CLAIM_WORDS.some((word) => new RegExp(`\\b${word}`, "i").test(headline) && !lowered.includes(word))) return false;
@@ -90,7 +90,7 @@ const MIN_ABOUT_WORDS = 110;
 const MAX_ABOUT_WORDS = 340;
 
 export function validateAboutOptions(response: AboutOptionsResponse, request: AboutGenerationRequest): { label: string; text: string }[] {
-  const sources = profileSources(request.profile, request.currentAbout, request.userContext, request.targetRole, request.standOut, request.additionalContext);
+  const sources = profileSources(request.profile, request.currentAbout, request.userContext, request.include, request.targetRole, request.standOut, request.additionalContext);
   const kept: { label: string; text: string }[] = [];
   for (const raw of response.options) {
     const text = raw.text.trim().replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n");
