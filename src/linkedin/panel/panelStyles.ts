@@ -2084,6 +2084,38 @@ export function getPanelStyles(widthPx: number): string {
   .lw-od-menu__item.is-no span {
     color: #a86f00;
   }
+  .lw-od-note {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .lw-od-note__help {
+    font-size: 12.5px;
+    color: #56687a;
+  }
+  .lw-od-note__actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lw-od-note__status {
+    font-size: 12px;
+    color: #6b7585;
+  }
+  .lw-od-note__visible {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f2f5fe;
+  }
+  .lw-od-note__visible p {
+    margin: 0 0 6px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #1d2226;
+  }
+  .lw-od-note__visible .lw-od-tips {
+    margin: 0;
+  }
   .lw-od-review-note {
     display: flex;
     align-items: center;

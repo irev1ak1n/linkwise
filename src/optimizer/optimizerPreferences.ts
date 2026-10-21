@@ -3,6 +3,9 @@ import { createStoredPreference } from "../linkedin/panel/storedPreference";
 export const OPTIMIZER_CONTEXT_STORAGE_KEY = "finder.optimizerContext.v1";
 export const PANEL_TOOL_STORAGE_KEY = "finder.panelTool.v1";
 
+// The most the backend accepts as the user's own context.
+export const MAX_USER_CONTEXT_CHARS = 2000;
+
 export type PanelTool = "menu" | "analyzer" | "optimizer" | "jobs" | "saved" | "settings";
 
 export const optimizerContextPreference = createStoredPreference<string>(OPTIMIZER_CONTEXT_STORAGE_KEY, "", (stored) =>

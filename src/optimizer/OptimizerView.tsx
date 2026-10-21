@@ -5,6 +5,7 @@ import { LoadingView } from "../linkedin/panel/LoadingView";
 import { getProfileShell, subscribeProfileShell } from "./profileShellStore";
 import { optimizerContextPreference } from "./optimizerPreferences";
 import { currentAnswers, manualChecksPreference } from "./manualChecks";
+import { composeUserContext, sectionNotesPreference } from "./sectionNotes";
 import { OptimizerController, buildOptimizerRequest, type OptimizerViewState } from "./optimizerController";
 import { readWholeProfile } from "./profileReader";
 import { getOptimizerPage, openOptimizerPage, subscribeOptimizerPage } from "./optimizerNav";
@@ -32,6 +33,8 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   const { value: userContext, loaded: contextLoaded } = useStoredPreference(optimizerContextPreference);
   // Answers to the checks only the user can make; changing one re-scores locally, with no request.
   const { value: manualStore } = useStoredPreference(manualChecksPreference);
+  // The user's "Missed something?" notes ride along with the general context, for the one whole-profile analysis.
+  const { value: noteStore, loaded: notesLoaded } = useStoredPreference(sectionNotesPreference);
   const [state, setState] = useState<OptimizerViewState>({ status: "idle" });
   const controllerRef = useRef<OptimizerController | null>(null);
   if (!controllerRef.current) controllerRef.current = new OptimizerController({ onChange: setState });
@@ -39,7 +42,9 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   const shell = shellData && shellData.profileKey === profileKey ? shellData.shell : null;
   const ownProfile = !!shell?.isOwnProfile;
   const pageRead = !!shellData?.complete;
-  const ready = ownProfile && pageRead && isFinal && contextLoaded && profileKey !== null && profile !== null;
+  const ready = ownProfile && pageRead && isFinal && contextLoaded && notesLoaded && profileKey !== null && profile !== null;
+  // What the whole-profile analysis is told the user said. The section checks keep to the general box, so a note re-runs one analysis, not all of them.
+  const analysisContext = useMemo(() => composeUserContext(userContext, profileKey ? noteStore[profileKey] : undefined), [userContext, noteStore, profileKey]);
   const readingFor = useRef<string | null>(null);
 
   // Read again whenever the profile isn't fully read, e.g. after visiting another profile replaced its reading.
@@ -52,8 +57,8 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   }, [ownProfile, pageRead, profileKey]);
 
   useEffect(() => {
-    controllerRef.current!.update(ready ? { profileKey: profileKey!, profile: profile!, shell: shell!, userContext } : null);
-  }, [ready, profileKey, profile, shell, userContext]);
+    controllerRef.current!.update(ready ? { profileKey: profileKey!, profile: profile!, shell: shell!, userContext: analysisContext } : null);
+  }, [ready, profileKey, profile, shell, analysisContext]);
   useEffect(() => () => controllerRef.current?.reset(), []);
 
   const page = useSyncExternalStore(subscribeOptimizerPage, getOptimizerPage, getOptimizerPage);
@@ -102,7 +107,7 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   if (profileKey === null || (shell !== null && !shell.isOwnProfile)) return <p className="lw-empty">{NOT_OWN_PROFILE_MESSAGE}</p>;
   if (!shell || !profile) return <p className="lw-empty">Loading profile…</p>;
 
-  const context: SectionContext = { profileKey, shell, profile, body, overall: state.status === "ready" ? state.result.sections : [], answers: currentAnswers(manualStore, profileKey, shell) };
+  const context: SectionContext = { profileKey, shell, profile, body, overall: state.status === "ready" ? state.result.sections : [], answers: currentAnswers(manualStore, profileKey, shell), analyzing: state.status === "loading" || (state.status === "ready" && !!state.updating) };
   // The overview's states come from the same checklists as the detail pages.
   const reconciled = reconcileAssessments(context);
   const shownState: OptimizerViewState = state.status === "ready" ? { ...state, result: { ...state.result, sections: reconciled }, score: computeOptimizerScore(state.body.sections, reconciled) } : state;

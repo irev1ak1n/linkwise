@@ -12,6 +12,13 @@ describe("optimizer summary prompt", () => {
     expect(OPTIMIZER_SYSTEM_PROMPT).not.toContain("Never name a section");
   });
 
+  it("treats section notes as the user's own word and says where to surface them", () => {
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain('"[Skills] ..."');
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("SURFACING USER CONTEXT");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Never say the profile shows it");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Honors & Awards");
+  });
+
   it("has the summary written after, and from, the section assessments", () => {
     expect(Object.keys(optimizerResponseSchema.shape)).toEqual(["assessments", "summary"]);
     expect(OPTIMIZER_SYSTEM_PROMPT).toContain("written after the assessments and built from them");

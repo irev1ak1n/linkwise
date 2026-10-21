@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LinkedInProfile } from "../models/profile";
 import type { ProfileShell } from "../linkedin/profileAdapter";
 import { buildEvidencePayload } from "../ai/evidencePayload";
@@ -21,6 +21,8 @@ import {
 } from "./checklist";
 import { sectionActions } from "./sectionActions";
 import { setManualAnswer } from "./manualChecks";
+import { MAX_SECTION_NOTE_CHARS, sectionNotesPreference, setSectionNote } from "./sectionNotes";
+import { useStoredPreference } from "../linkedin/panel/useStoredPreference";
 import { SectionDrafts } from "./SectionDrafts";
 import { SECTION_GROUPS, buildSectionMap, sectionInfo, type OptimizerSection, type SectionPresence } from "./sections";
 import type { SectionAssessmentDTO } from "./optimizerTypes";
@@ -40,6 +42,8 @@ export interface SectionContext {
   overall: SectionAssessmentDTO[];
   /** The user's answers to checks only they can make, already matched to the current photo and banner. */
   answers?: Record<string, boolean>;
+  /** True while the whole-profile analysis is running (a saved note triggers exactly one). */
+  analyzing?: boolean;
 }
 
 function presenceOf(section: OptimizerSection, context: SectionContext): { presence: SectionPresence; checklist: ChecklistContext } {
@@ -422,6 +426,8 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
 
       {section === "banner" && presence.present && <BannerIdeas context={context} />}
 
+      <MissedSomething section={section} profileKey={context.profileKey ?? null} assessment={context.overall.find((a) => a.section === section)} analyzing={!!context.analyzing} />
+
       {(section === "about" || section === "experience") && display.status === "improve" && context.body && <SectionDrafts section={section} body={context.body} assessment={context.overall.find((a) => a.section === section)} />}
 
       {section === "headline" && (
@@ -436,6 +442,74 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
 
       <ActionBar actions={actions} />
     </article>
+  );
+}
+
+// What to ask under "Missed something?" for each section.
+export const NOTE_PLACEHOLDER: Record<OptimizerSection, string> = {
+  photo: "Anything about your photo that LinkWise couldn't verify?",
+  banner: "Anything about your banner that LinkWise couldn't detect?",
+  headline: "Anything important about your headline or target role?",
+  about: "Anything important that your About section is meant to communicate?",
+  featured: "Add projects, articles, portfolio links, awards, or other work you want to showcase.",
+  experience: "Add responsibilities, impact, projects, or results LinkWise may have missed.",
+  education: "Add coursework, programs, achievements, or activities LinkWise may have missed.",
+  projects: "Add projects that are missing or difficult to find on your profile.",
+  skills: "Add important skills LinkWise couldn't find in your Skills section.",
+  certifications: "Add certifications or credentials LinkWise may have missed.",
+  volunteering: "Add volunteering, service, or community work LinkWise may have missed.",
+  honors: "Add awards or recognition LinkWise couldn't find.",
+  organizations: "Add clubs, teams, or organizations LinkWise may have missed.",
+  languages: "Add languages or proficiency information LinkWise may have missed.",
+  location: "Add context about where you want to work, study, or find opportunities.",
+  url: "Anything about your profile link or how you share it?",
+  openToWork: "Add the roles, locations, or preferences you currently use.",
+  network: "Add context about the kinds of people or industries in your network.",
+};
+
+// The user's own addition for this section. Nothing is sent while they type: Save keeps the note
+// and starts the one analysis update that follows, and the analysis treats it as their word, not
+// as something found on LinkedIn.
+function MissedSomething({ section, profileKey, assessment, analyzing }: { section: OptimizerSection; profileKey: string | null; assessment: SectionAssessmentDTO | undefined; analyzing: boolean }) {
+  const { value: store } = useStoredPreference(sectionNotesPreference);
+  const saved = (profileKey && store[profileKey]?.[section]) || "";
+  const [draft, setDraft] = useState(saved);
+  useEffect(() => setDraft(saved), [saved]);
+  const changed = draft.trim() !== saved.trim();
+  const inputId = `lw-note-${section}`;
+  // How to make it visible comes from the analysis of what the user said, when it was about this section.
+  const visible = saved && assessment?.sourceType === "user_context" && assessment.state !== "strong" ? assessment : null;
+  return (
+    <section className="lw-od-section lw-od-note" aria-label="Missed something?">
+      <h4 className="lw-od-heading">Missed something?</h4>
+      <label className="lw-od-note__help" htmlFor={inputId}>
+        Add anything LinkWise couldn&apos;t find on your profile.
+      </label>
+      <textarea id={inputId} className="lw-opt-context__input" rows={2} maxLength={MAX_SECTION_NOTE_CHARS} placeholder={NOTE_PLACEHOLDER[section]} value={draft} onChange={(event) => setDraft(event.target.value)} />
+      {(changed || saved) && (
+        <div className="lw-od-note__actions">
+          {changed && (
+            <button type="button" className="lw-button lw-button--secondary" disabled={!profileKey} onClick={() => setSectionNote(profileKey, section, draft)}>
+              {draft.trim() ? "Save and update analysis" : "Remove note"}
+            </button>
+          )}
+          {!changed && saved && <span className="lw-od-note__status">{analyzing ? "Updating your assessment…" : "Saved. This is your own note, not something LinkWise found."}</span>}
+        </div>
+      )}
+      {visible && (
+        <div className="lw-od-note__visible">
+          <h5 className="lw-od-subhead">How to make this visible</h5>
+          <p>{visible.reason}</p>
+          {visible.suggestions.length > 0 && (
+            <ul className="lw-od-tips">
+              {visible.suggestions.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
