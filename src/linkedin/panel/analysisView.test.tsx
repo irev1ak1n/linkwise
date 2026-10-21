@@ -277,7 +277,7 @@ describe("confirmedCriteria", () => {
   const scored = {
     ...result,
     reasons: [
-      reason("a", "strong", "Optional and strong. More."),
+      reason("a", "strong", "Optional and strong, shown across several of the roles listed. More."),
       reason("b", "moderate", "Must-have, partly shown."),
       reason("c", "strong", "Preferred and strong."),
       reason("d", "strong", "An excluded trait."),
@@ -294,9 +294,51 @@ describe("confirmedCriteria", () => {
     expect(confirmedCriteria(many, scored, 10).map((c) => c.id)).not.toContain("d");
   });
 
-  it("explains each with one sentence, falling back to the evidence for engine bookkeeping", () => {
+  it("keeps a real explanation, and for engine bookkeeping gives readable support instead of a bare snippet", () => {
     const [e, , a] = confirmedCriteria(many, scored);
-    expect(e!.detail).toBe("Snippet e");
-    expect(a!.detail).toBe("Optional and strong.");
+    expect(a!.detail).toBe("Optional and strong, shown across several of the roles listed. More.");
+    expect(e!.detail).toBe("The profile shows relevant evidence in experience, such as Snippet e.");
+  });
+});
+
+describe("why they match: explanations", () => {
+  const developmentGoal: Goal = { ...goal, criteria: [{ id: "dev", label: "Development skills", importance: "MUST_HAVE", category: "skill" as const }, { id: "tsa", label: "Technology Student Association member", importance: "PREFERRED", category: "experience" as const }] };
+  const devProfile: LinkedInProfile = {
+    ...profile,
+    experience: [
+      { title: "Website Developer", company: "School Yearbook", description: "Built the yearbook website in React and C#." },
+      { title: "Private Programming Tutor", company: "Self-Employed", description: "Taught Python and JavaScript development." },
+    ],
+    projects: [{ name: "Prom Ticketing Site", description: "Full-stack web development project." }],
+    education: [{ school: "IT STEP Academy", degree: "Software Development", dates: "2017 - 2026" }],
+    skills: [".NET Core", "C++", "Python", "Customer Service"],
+  };
+  const reasonFor = (id: string, explanation: string, snippet: string, section = "skills") => ({ criterion: developmentGoal.criteria.find((c) => c.id === id)!, strength: "strong" as const, evidence: { snippet, sourceSection: section, fieldLabel: section } as never, explanation });
+  const scored = (...reasons: ReturnType<typeof reasonFor>[]) => ({ ...result, reasons });
+
+  it("CASE 1: a development criterion matched on a skill is explained with the broader evidence, never just the skill", () => {
+    for (const explanation of ["Assessed by LinkWise's local deterministic matcher.", 'Direct evidence found: ".NET Core".', ".NET Core."]) {
+      const [dev] = confirmedCriteria(developmentGoal, scored(reasonFor("dev", explanation, ".NET Core")), 4, devProfile);
+      expect(dev!.detail).not.toBe(".NET Core");
+      expect(dev!.detail).not.toBe(".NET Core.");
+      expect(dev!.detail).toMatch(/^The profile supports this through .*work as Website Developer/);
+      expect(dev!.detail).toContain("the Prom Ticketing Site project");
+      expect(dev!.detail).toContain("studies at IT STEP Academy");
+      expect(dev!.detail).toContain(".NET Core");
+      expect(dev!.detail).not.toMatch(/Customer Service|[;\u2014]/);
+      expect(dev!.detail!.split(/\s+/).length).toBeLessThanOrEqual(45);
+    }
+  });
+
+  it("CASE 2: a real explanation, such as the TSA one, is kept as written", () => {
+    const tsa = "He is a Technology Student Association member and team captain of a five-student team that placed 2nd at regionals.";
+    const [row] = confirmedCriteria(developmentGoal, scored(reasonFor("tsa", tsa, "TSA member", "organizations")), 4, devProfile);
+    expect(row!.detail).toBe(tsa);
+  });
+
+  it("CASE 3: without an explanation or a profile, the fallback is still a readable sentence, not a raw keyword", () => {
+    const [row] = confirmedCriteria(developmentGoal, scored(reasonFor("dev", "Assessed by LinkWise's local deterministic matcher.", ".NET Core")));
+    expect(row!.detail).toBe("The profile shows relevant evidence in skills, such as .NET Core.");
+    expect(row!.detail).not.toBe(".NET Core.");
   });
 });

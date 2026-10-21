@@ -1,6 +1,6 @@
 // Read-only views over an analysis that already exists: nothing here scores or asks AI anything.
 import type { CriterionImportance, Goal } from "../../models/goal";
-import type { LinkedInProfile } from "../../models/profile";
+import { profileTextFields, type LinkedInProfile } from "../../models/profile";
 import type { EvidenceStrength } from "../../models/evidence";
 import type { MatchResult } from "../../matching/scoreProfile";
 import type { AiNarrativeDTO } from "../../ai/apiTypes";
@@ -26,6 +26,10 @@ const EXCLUDED_LABEL: Partial<Record<EvidenceStrength, string>> = { strong: "Exc
 
 // Engine bookkeeping that explains nothing to the reader.
 const GENERIC_EXPLANATIONS = new Set(["Assessed by LinkWise's local deterministic matcher."]);
+// The local matcher's own wrapper around a quoted snippet: it names the evidence, not why it counts.
+const SNIPPET_WRAPPER = /^(direct|closely related|only loosely related) (\w+ )?evidence found:/i;
+const MIN_EXPLANATION_WORDS = 7;
+const MAX_DETAIL_WORDS = 45;
 
 export interface CriterionRow {
   id: string;
@@ -64,15 +68,82 @@ export interface ConfirmedCriterion {
   detail?: string;
 }
 
+const wordCount = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
+
+// Whether an explanation actually says why a criterion is met, rather than naming one skill or
+// keyword, or being the engine's own bookkeeping.
+function isRealExplanation(text: string | undefined): text is string {
+  const clean = text?.trim();
+  return !!clean && !GENERIC_EXPLANATIONS.has(clean) && !SNIPPET_WRAPPER.test(clean) && wordCount(clean) >= MIN_EXPLANATION_WORDS;
+}
+
+// Words a criterion or its evidence is about, trimmed to a stem so "development" finds "developer".
+const GENERIC_WORDS = new Set(["skills", "skill", "experience", "experienced", "strong", "ability", "abilities", "knowledge", "background", "member", "with", "and", "the", "for", "using", "work", "working"]);
+const stems = (text: string) => [...new Set((text.toLowerCase().match(/[\p{L}\d+#.]{4,}/gu) ?? []).filter((w) => !GENERIC_WORDS.has(w)).map((w) => w.slice(0, 5)))];
+
+const SECTION_ORDER = ["experience", "projects", "education", "certifications", "organizations", "volunteering", "honors", "about", "skills", "languages", "headline"];
+
+const joinList = (items: string[]) => (items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`);
+const plain = (text: string) => text.replace(/[;\u2014\u2013]/g, ",").replace(/\s+/g, " ").trim();
+
+/**
+ * A grounded sentence for a criterion the engine matched but has no real explanation for: the few
+ * strongest pieces of profile evidence that relate to it, as context (roles, projects, studies,
+ * skills), never one raw keyword. Reads only the profile that was collected.
+ */
+export function supportSentence(label: string, profile: LinkedInProfile | undefined, snippet: string | undefined, section: string | undefined): string {
+  const wanted = stems(`${label} ${snippet ?? ""}`);
+  const fields = profile ? profileTextFields(profile) : [];
+  const hits = fields
+    .map((field) => ({ field, score: wanted.filter((stem) => field.text.toLowerCase().includes(stem)).length }))
+    .filter((hit) => hit.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const phrases: { section: string; text: string }[] = [];
+  for (const sectionName of SECTION_ORDER) {
+    const hit = hits.find((h) => h.field.section === sectionName);
+    if (!hit) continue;
+    const name = plain(hit.field.label.split(": ").slice(1).join(": "));
+    const text =
+      sectionName === "experience" ? (name ? `work as ${name}` : "work experience")
+      : sectionName === "projects" ? (name ? `the ${name} project` : "project work")
+      : sectionName === "education" ? (name ? `studies at ${name}` : "education")
+      : sectionName === "certifications" ? (name ? `the ${name} certification` : "certifications")
+      : sectionName === "about" ? "the About section"
+      : sectionName === "headline" ? "the headline"
+      : sectionName === "skills" ? `skills such as ${joinList((profile?.skills ?? []).filter((skill) => wanted.some((stem) => skill.toLowerCase().includes(stem))).slice(0, 3).map(plain)) || plain(snippet ?? "listed skills")}`
+      : name ? `${sectionName} with ${name}` : sectionName;
+    phrases.push({ section: sectionName, text });
+    if (phrases.length === 4) break;
+  }
+  if (phrases.length > 0) return `The profile supports this through ${joinList(phrases.map((p) => p.text))}.`;
+  const where = section ? ` in ${section}` : "";
+  return snippet ? `The profile shows relevant evidence${where}, such as ${plain(snippet).slice(0, 120)}.` : `The profile shows relevant evidence${where}.`;
+}
+
+// Up to two whole sentences, within the length a reader takes in at a glance.
+function conciseDetail(text: string): string {
+  const sentences = text.trim().match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((s) => s.trim()) ?? [text.trim()];
+  const kept: string[] = [];
+  for (const sentence of sentences.slice(0, 2)) {
+    if (kept.length > 0 && wordCount([...kept, sentence].join(" ")) > MAX_DETAIL_WORDS) break;
+    kept.push(sentence);
+  }
+  return kept.join(" ");
+}
+
 // The "Looking for" criteria the result actually confirmed: strong evidence first, then by importance.
-export function confirmedCriteria(goal: Goal, result: MatchResult, limit = 4): ConfirmedCriterion[] {
+// Each gets a sentence on why it is met: its own explanation when it has a real one, otherwise a
+// grounded one built from the profile.
+export function confirmedCriteria(goal: Goal, result: MatchResult, limit = 4, profile?: LinkedInProfile): ConfirmedCriterion[] {
   return result.reasons
     .filter((reason) => reason.criterion.importance !== "EXCLUDED" && goal.criteria.some((c) => c.id === reason.criterion.id))
     .sort((a, b) => (a.strength === b.strength ? 0 : a.strength === "strong" ? -1 : 1) || IMPORTANCE_RANK[a.criterion.importance] - IMPORTANCE_RANK[b.criterion.importance])
     .slice(0, limit)
     .map((reason) => {
-      const note = reason.explanation && !GENERIC_EXPLANATIONS.has(reason.explanation) ? reason.explanation : reason.evidence?.snippet;
-      return { id: reason.criterion.id, label: reason.criterion.label, detail: note ? firstSentences(note, 1) : undefined };
+      const detail = isRealExplanation(reason.explanation)
+        ? conciseDetail(reason.explanation)
+        : supportSentence(reason.criterion.label, profile, reason.evidence?.snippet, reason.evidence?.sourceSection ?? (reason.evidence as { section?: string } | undefined)?.section);
+      return { id: reason.criterion.id, label: reason.criterion.label, detail };
     });
 }
 

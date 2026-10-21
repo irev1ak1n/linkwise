@@ -80,10 +80,11 @@ export function AnalysisView({ profileKey = null, result, goal, profile, aiState
         <Dashboard
           final={final}
           goal={goal}
+          profile={profile}
           state={state}
           status={status}
           savedBar={savedBar}
-          keyEvidence={signalAnalysis && <KeyEvidence analysis={signalAnalysis} updatingSection={updatingSection} exclude={confirmedCriteria(goal, final.result, TOP_REASONS).flatMap((c) => (c.detail ? [c.detail] : []))} />}
+          keyEvidence={signalAnalysis && <KeyEvidence analysis={signalAnalysis} updatingSection={updatingSection} exclude={confirmedCriteria(goal, final.result, TOP_REASONS, profile).flatMap((c) => (c.detail ? [c.detail] : []))} />}
         />
       )}
     </div>
@@ -151,9 +152,9 @@ function CompactScore({ state }: { state: MatchDisplayState }) {
 }
 
 // The quick read: how strong, who, and why. Full analysis and Evidence stay reachable by route for a later UI.
-function Dashboard({ final, goal, state, status, savedBar, keyEvidence }: { final: FinalAnalysis; goal: Goal; state: MatchDisplayState; status: ReactNode; savedBar?: ReactNode; keyEvidence?: ReactNode }) {
+function Dashboard({ final, goal, profile, state, status, savedBar, keyEvidence }: { final: FinalAnalysis; goal: Goal; profile: LinkedInProfile; state: MatchDisplayState; status: ReactNode; savedBar?: ReactNode; keyEvidence?: ReactNode }) {
   const { analysis } = final;
-  const confirmed = confirmedCriteria(goal, final.result, TOP_REASONS);
+  const confirmed = confirmedCriteria(goal, final.result, TOP_REASONS, profile);
   return (
     <div className="lw-analysis lw-dash">
       <MatchCard final={final} goal={goal} state={state} status={status} savedBar={savedBar} />
