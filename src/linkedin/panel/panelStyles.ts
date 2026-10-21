@@ -2084,6 +2084,101 @@ export function getPanelStyles(widthPx: number): string {
   .lw-od-menu__item.is-no span {
     color: #a86f00;
   }
+  /* The writing pages (Headline, About) share the Optimizer's look: white rounded cards, blue accent. */
+  .lw-opt-page .lw-opt-page__title {
+    margin: 2px 0 0;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: #1d2226;
+  }
+  .lw-opt-page .lw-opt-page__description {
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: #56687a;
+  }
+  .lw-opt-page .lw-opt-form {
+    gap: 12px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e0e6ef;
+    border-radius: 15px;
+  }
+  .lw-opt-page .lw-opt-form label {
+    gap: 5px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #1d2226;
+  }
+  .lw-opt-page .lw-keywords__input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 11px;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 400;
+    color: #1d2226;
+    background: #f8fafc;
+    border: 1px solid #dbe2ec;
+    border-radius: 10px;
+  }
+  .lw-opt-page .lw-keywords__input:focus {
+    outline: none;
+    border-color: #2f5be0;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(47, 91, 224, 0.15);
+  }
+  .lw-opt-page .lw-opt-form > .lw-button {
+    align-self: stretch;
+    min-height: 42px;
+    border: 0;
+    border-radius: 12px;
+    background: #2f5be0;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .lw-opt-page .lw-opt-form > .lw-button:disabled {
+    background: #b9c8f5;
+    cursor: default;
+  }
+  .lw-opt-page .lw-opt-options {
+    gap: 12px;
+  }
+  .lw-opt-page .lw-opt-option {
+    gap: 10px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e0e6ef;
+    border-radius: 15px;
+  }
+  .lw-opt-page .lw-opt-option__label {
+    align-self: flex-start;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #eef3fe;
+    color: #2f5be0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .lw-opt-page .lw-opt-option__text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #1d2226;
+  }
+  .lw-opt-option__text--paragraphs {
+    white-space: pre-wrap;
+  }
+  .lw-opt-page .lw-opt-option__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: #6b7585;
+  }
   .lw-od-note {
     display: flex;
     flex-direction: column;

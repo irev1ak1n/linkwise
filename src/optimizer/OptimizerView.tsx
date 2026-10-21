@@ -17,6 +17,7 @@ import { computeOptimizerScore, scoreBand } from "./score";
 import { SECTION_GROUPS, type OptimizerSection } from "./sections";
 import type { SectionAssessmentDTO } from "./optimizerTypes";
 import { HeadlineGenerator } from "./HeadlineGenerator";
+import { AboutGenerator } from "./AboutGenerator";
 
 export const NOT_OWN_PROFILE_MESSAGE = "Profile Optimizer is available on your own LinkedIn profile.";
 export const CONTEXT_HELP = "Tell LinkWise about projects, certifications, awards, volunteering, or other experience that is not currently listed.";
@@ -121,7 +122,7 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   if (page.name === "generate") {
     return (
       <div className="lw-optimizer" ref={rootRef}>
-        <HeadlineGenerator body={body} currentHeadline={profile.headline ?? ""} />
+        {page.section === "about" ? <AboutGenerator body={body} currentAbout={profile.about ?? ""} /> : <HeadlineGenerator body={body} currentHeadline={profile.headline ?? ""} />}
       </div>
     );
   }

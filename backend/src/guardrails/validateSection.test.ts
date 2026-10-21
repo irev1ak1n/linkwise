@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isGroundedHeadline, validateHeadlineOptions, validateSectionAnalysis } from "./validateSection";
-import type { HeadlineGenerationRequest, SectionAnalysisRequest } from "../validation/sectionRequestSchema";
+import { isGroundedHeadline, isKeywordList, similarity, validateAboutOptions, validateHeadlineOptions, validateSectionAnalysis } from "./validateSection";
+import type { AboutGenerationRequest, HeadlineGenerationRequest, SectionAnalysisRequest } from "../validation/sectionRequestSchema";
 
 const profile = {
   identity: "me",
@@ -67,5 +67,64 @@ describe("headline generation grounding", () => {
       generation,
     );
     expect(options.map((o) => o.label)).toEqual(["Balanced", "Achievement"]);
+  });
+});
+
+describe("headline options: proof over keyword lists, three different headlines", () => {
+  it("rejects a headline that dumps five or more skills, and keeps a proof-led one", () => {
+    expect(isKeywordList("Student | Python, C++, web development, robotics & SQL | Developer")).toBe(true);
+    expect(isKeywordList("Aspiring Software Engineer | Built a site used by 300+ students | Python & C++")).toBe(false);
+    const options = validateHeadlineOptions(
+      {
+        options: [
+          { label: "Technical", headline: "Aspiring Software Engineer | Python, C++, web development, robotics, Code Academy" },
+          { label: "Impact", headline: "Aspiring Software Engineer | Built a site used by 300+ students" },
+        ],
+      },
+      generation,
+    );
+    expect(options.map((o) => o.label)).toEqual(["Impact"]);
+  });
+
+  it("drops an option that is another one reworded, so the three are genuinely different", () => {
+    expect(similarity("Aspiring Software Engineer | Python and C++", "C++ and Python | Aspiring Software Engineer")).toBeGreaterThan(0.6);
+    const options = validateHeadlineOptions(
+      {
+        options: [
+          { label: "Balanced", headline: "Aspiring Software Engineer | Web Development and Robotics" },
+          { label: "Reworded", headline: "Robotics and Web Development | Aspiring Software Engineer" },
+          { label: "Impact", headline: "Website Developer for 300+ students | Code Academy" },
+        ],
+      },
+      generation,
+    );
+    expect(options.map((o) => o.label)).toEqual(["Balanced", "Impact"]);
+  });
+});
+
+describe("About options", () => {
+  const aboutRequest: AboutGenerationRequest = { profile, currentAbout: "", targetRole: "Software Engineer", standOut: "projects", additionalContext: "", language: "English", variation: 1, userContext: "" };
+  const paragraph = (extra: string) =>
+    `I am a student at Westfield High who builds software with Python and C++. ${extra} I studied web development and robotics at Code Academy, and I like turning what I learn into tools other people can use. ` +
+    `As the Website Developer for the Robotics Club, I built a site used by 300+ students, and I keep it running as the club grows each year. ` +
+    `That work taught me how to plan a project, ship it, and listen to the people who rely on it. ` +
+    `Right now I am focused on growing as a software engineer, learning more about web development, and finding projects where I can keep building real things for real users. ` +
+    `Outside class I keep practicing with Python and C++, and I enjoy explaining what I learn to classmates in the robotics club.`;
+  const long = (extra: string) => `${paragraph(extra)}\n\n${paragraph(extra)}`;
+
+  it("keeps grounded options of a sensible length, and drops invented, too short, and repeated ones", () => {
+    const options = validateAboutOptions(
+      {
+        options: [
+          { label: "Balanced", text: long("My goal is steady growth.") },
+          { label: "Invented", text: long("I won a national award and led a team of 40 at Google.") },
+          { label: "Short", text: "I build software." },
+          { label: "Technical", text: "Engineering to me means solving small problems well and shipping the answer. My toolbox is Python and C++, and my favorite problems come from the Robotics Club, where the Website Developer role pushed me to design pages, handle requests, and fix bugs before anyone noticed them. The site I built is now used by 300+ students, which taught me that reliability matters more than clever tricks.\n\nBefore that, Code Academy gave me a base in web development and robotics. I learned to read documentation, write tests, and break a big task into steps that a single afternoon can finish. Today I am looking for a team where I can keep sharpening those habits, take on harder systems, and contribute code that other engineers are glad to maintain. I also like pairing with newer members, because explaining a bug often shows me a cleaner fix." },
+        ],
+      },
+      aboutRequest,
+    );
+    expect(options.map((o) => o.label)).toEqual(["Balanced", "Technical"]);
+    expect(options.every((o) => o.text.split(/\s+/).length >= 110)).toBe(true);
   });
 });

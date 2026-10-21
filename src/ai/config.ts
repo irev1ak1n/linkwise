@@ -37,3 +37,7 @@ export function compareProfileEndpoint(): string {
 export function optimizerHeadlinesEndpoint(): string {
   return `${LINKWISE_API_BASE_URL}/api/optimizer-headlines`;
 }
+
+export function optimizerAboutsEndpoint(): string {
+  return `${LINKWISE_API_BASE_URL}/api/optimizer-abouts`;
+}

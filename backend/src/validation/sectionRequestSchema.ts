@@ -29,3 +29,17 @@ export const headlineGenerationRequestSchema = z.object({
 });
 
 export type HeadlineGenerationRequest = z.infer<typeof headlineGenerationRequestSchema>;
+
+export const aboutGenerationRequestSchema = z.object({
+  profile: profileSchema,
+  currentAbout: z.string().max(2600).default(""),
+  targetRole: z.string().max(120).default(""),
+  standOut: z.string().max(300).default(""),
+  additionalContext: z.string().max(1000).default(""),
+  language: z.string().min(1).max(40).default("English"),
+  // Counts explicit Generate clicks, so a regeneration asks for a different take.
+  variation: z.number().int().min(1).max(50).default(1),
+  userContext: z.string().max(MAX_USER_CONTEXT_LENGTH).default(""),
+});
+
+export type AboutGenerationRequest = z.infer<typeof aboutGenerationRequestSchema>;

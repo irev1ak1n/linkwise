@@ -68,4 +68,17 @@ export type HeadlineOptionsApiResponse =
   | { status: "unavailable"; reason: string }
   | { status: "invalid_request"; message: string };
 
+export interface AboutOption {
+  label: string;
+  text: string;
+}
+
+export type AboutOptionsApiResponse =
+  | { status: "abouts"; model: string; options: AboutOption[] }
+  | { status: "not_configured" }
+  | { status: "unavailable"; reason: string }
+  | { status: "invalid_request"; message: string };
+
+export type AboutOptionsOutcome = { status: "ok"; options: AboutOption[] } | { status: "unavailable"; reason: string };
+
 export type HeadlineOptionsOutcome = { status: "ok"; options: HeadlineOption[] } | { status: "unavailable"; reason: string };

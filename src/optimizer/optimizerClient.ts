@@ -2,6 +2,8 @@ import { sendBackgroundRelayRequest, type PendingRelayRequest } from "../ai/back
 import type { EvidencePayloadItem } from "../ai/evidencePayload";
 import type { SectionPresence } from "./sections";
 import type {
+  AboutOptionsApiResponse,
+  AboutOptionsOutcome,
   DraftOutcome,
   DraftSection,
   HeadlineOptionsApiResponse,
@@ -21,6 +23,8 @@ export const LINKWISE_OPTIMIZER_SECTION = "LINKWISE_OPTIMIZER_SECTION";
 export const LINKWISE_CANCEL_OPTIMIZER_SECTION = "LINKWISE_CANCEL_OPTIMIZER_SECTION";
 export const LINKWISE_OPTIMIZER_HEADLINES = "LINKWISE_OPTIMIZER_HEADLINES";
 export const LINKWISE_CANCEL_OPTIMIZER_HEADLINES = "LINKWISE_CANCEL_OPTIMIZER_HEADLINES";
+export const LINKWISE_OPTIMIZER_ABOUTS = "LINKWISE_OPTIMIZER_ABOUTS";
+export const LINKWISE_CANCEL_OPTIMIZER_ABOUTS = "LINKWISE_CANCEL_OPTIMIZER_ABOUTS";
 
 export interface OptimizerProfilePayload {
   identity: string;
@@ -82,6 +86,28 @@ export interface HeadlineGenerationRequestBody {
   additionalContext: string;
   language: string;
   userContext: string;
+}
+
+export interface AboutGenerationRequestBody {
+  profile: OptimizerProfilePayload;
+  currentAbout: string;
+  targetRole: string;
+  standOut: string;
+  additionalContext: string;
+  language: string;
+  variation: number;
+  userContext: string;
+}
+
+export function requestAboutOptions(payload: AboutGenerationRequestBody): PendingRelayRequest<AboutOptionsOutcome> {
+  return sendBackgroundRelayRequest<AboutOptionsApiResponse, AboutOptionsOutcome>({
+    requestType: LINKWISE_OPTIMIZER_ABOUTS,
+    cancelType: LINKWISE_CANCEL_OPTIMIZER_ABOUTS,
+    idPrefix: "abouts_req",
+    payload,
+    toOutcome: (response) => (response.status === "abouts" ? { status: "ok", options: response.options } : unavailable(response)),
+    unavailable: (reason) => ({ status: "unavailable", reason }),
+  });
 }
 
 export function requestSectionAnalysis(payload: SectionAnalysisRequestBody): PendingRelayRequest<SectionAnalysisOutcome> {

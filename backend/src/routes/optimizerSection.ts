@@ -1,10 +1,10 @@
 import type { Request, Response } from "express";
-import { headlineGenerationRequestSchema, sectionAnalysisRequestSchema } from "../validation/sectionRequestSchema";
+import { aboutGenerationRequestSchema, headlineGenerationRequestSchema, sectionAnalysisRequestSchema } from "../validation/sectionRequestSchema";
 import { trimOptimizerEvidence } from "../validation/optimizerRequestSchema";
-import { headlineOptionsResponseSchema, sectionAnalysisResponseSchema, type HeadlineOptionsResponse, type SectionAnalysisResponse } from "../openai/optimizerSchema";
+import { aboutOptionsResponseSchema, headlineOptionsResponseSchema, sectionAnalysisResponseSchema, type AboutOptionsResponse, type HeadlineOptionsResponse, type SectionAnalysisResponse } from "../openai/optimizerSchema";
 import { createOpenAiStructuredClient, requestStructured } from "../openai/structuredClient";
-import { BANNER_ANALYSIS_PROMPT, HEADLINE_GENERATION_PROMPT, buildHeadlineUserPrompt, buildSectionUserPrompt } from "../openai/sectionPrompt";
-import { validateHeadlineOptions, validateSectionAnalysis } from "../guardrails/validateSection";
+import { ABOUT_GENERATION_PROMPT, BANNER_ANALYSIS_PROMPT, HEADLINE_GENERATION_PROMPT, buildAboutUserPrompt, buildHeadlineUserPrompt, buildSectionUserPrompt } from "../openai/sectionPrompt";
+import { validateAboutOptions, validateHeadlineOptions, validateSectionAnalysis } from "../guardrails/validateSection";
 import { invalidRequest, sendFailure, type OptimizerDeps } from "./optimizeProfile";
 import { checklistRequestSchema } from "../validation/checklistRequestSchema";
 import { CHECKLIST_SYSTEM_PROMPT, buildChecklistUserPrompt, checklistResponseSchema, type ChecklistResponse } from "../openai/checklistSchema";
@@ -45,6 +45,27 @@ export async function handleHeadlineGeneration(req: Request, res: Response, deps
     return;
   }
   res.status(200).json({ status: "headlines", model: deps.config.openAiModel, options });
+}
+
+export async function handleAboutGeneration(req: Request, res: Response, deps: OptimizerDeps): Promise<void> {
+  const parsed = aboutGenerationRequestSchema.safeParse(req.body);
+  if (!parsed.success) return invalidRequest(res);
+  const request = trimOptimizerEvidence(parsed.data);
+
+  const result = await requestStructured<AboutOptionsResponse>(
+    deps.config,
+    () => createOpenAiStructuredClient(deps.config, aboutOptionsResponseSchema, "optimizer_abouts"),
+    ABOUT_GENERATION_PROMPT,
+    buildAboutUserPrompt(request),
+    { timeoutMs: deps.timeoutMs, client: deps.client },
+  );
+  if (result.status !== "ok") return sendFailure(res, "optimizer-abouts", result);
+  const options = validateAboutOptions(result.data, request);
+  if (options.length === 0) {
+    res.status(200).json({ status: "unavailable", reason: "ungrounded_abouts" });
+    return;
+  }
+  res.status(200).json({ status: "abouts", model: deps.config.openAiModel, options });
 }
 
 export async function handleChecklist(req: Request, res: Response, deps: OptimizerDeps): Promise<void> {

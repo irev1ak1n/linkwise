@@ -1,0 +1,102 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
+import { AboutGenerator } from "./AboutGenerator";
+import { SectionPage, type SectionContext } from "./SectionPages";
+import { getOptimizerPage, openOptimizerPage } from "./optimizerNav";
+import { EMPTY_PROFILE } from "../models/profile";
+import type { AboutGenerationRequestBody, OptimizeProfileRequestBody } from "./optimizerClient";
+import type { AboutOption, AboutOptionsOutcome } from "./optimizerTypes";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const body: OptimizeProfileRequestBody = { profile: { identity: "me", evidence: [{ id: "about:0", section: "about", text: "I build school websites.", evidenceType: "about" }] }, sections: [], userContext: "" };
+const options = (tag: string): AboutOption[] => [
+  { label: "Balanced", text: `${tag} one` },
+  { label: "Impact", text: `${tag} two` },
+];
+
+let root: Root;
+let container: HTMLDivElement;
+beforeEach(() => {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+});
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+  openOptimizerPage({ name: "home" });
+});
+
+const button = () => container.querySelector<HTMLButtonElement>(".lw-opt-form > .lw-button")!;
+
+describe("About generator", () => {
+  it("generates, then generates again: every click is its own request with a new variation", async () => {
+    const calls: AboutGenerationRequestBody[] = [];
+    const resolvers: ((outcome: AboutOptionsOutcome) => void)[] = [];
+    const request = vi.fn((payload: AboutGenerationRequestBody) => {
+      calls.push(payload);
+      return { requestId: `req_${calls.length}`, promise: new Promise<AboutOptionsOutcome>((resolve) => resolvers.push(resolve)), cancel: () => {} };
+    });
+    act(() => root.render(<AboutGenerator body={body} currentAbout="I build school websites." request={request} />));
+    expect(button().textContent).toBe("Generate About");
+
+    act(() => button().click());
+    expect(button().textContent).toBe("Generating…");
+    expect(button().disabled).toBe(true);
+    // A second click while one is running does nothing.
+    act(() => button().click());
+    expect(request).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolvers[0]!({ status: "ok", options: options("First") }));
+    expect(button().textContent).toBe("Generate again");
+    expect(button().disabled).toBe(false);
+    expect(container.textContent).toContain("First one");
+
+    // Change an input and generate again: a new request, a new variation, and new options on screen.
+    const role = container.querySelector<HTMLInputElement>('input[placeholder="e.g. Software Engineer"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(role, "Software Engineer");
+      role.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => button().click());
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(calls[1]!.variation).toBe(calls[0]!.variation + 1);
+    expect(calls[1]!.targetRole).toBe("Software Engineer");
+    await act(async () => resolvers[1]!({ status: "ok", options: options("Second") }));
+    expect(container.textContent).toContain("Second one");
+    expect(container.textContent).not.toContain("First one");
+    expect(button().disabled).toBe(false);
+
+    // Even an unchanged third click asks again, and a failure leaves the button clickable.
+    act(() => button().click());
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(calls[2]!.variation).toBe(calls[1]!.variation + 1);
+    await act(async () => resolvers[2]!({ status: "unavailable", reason: "timeout" }));
+    expect(container.textContent).toContain("About options unavailable (timeout)");
+    expect(button().disabled).toBe(false);
+  });
+});
+
+describe("About section page", () => {
+  const context = (): SectionContext => ({
+    profileKey: "me",
+    shell: { isOwnProfile: true, hasPhoto: true, hasBanner: true, sections: {} },
+    profile: { ...EMPTY_PROFILE, headline: "Student", about: "I build school websites.", extracted: true },
+    body: null,
+    overall: [{ section: "about", state: "improve", impact: "high", reason: "", sourceType: "linkedin_profile", evidenceIds: [], suggestions: [] }],
+  });
+
+  it("opens the generator on its own page instead of drafting inline", () => {
+    const html = renderToStaticMarkup(<SectionPage section="about" context={context()} />);
+    expect(html).toContain("AI About writer");
+    expect(html).toContain("Generate using AI");
+    expect(html).not.toMatch(/Generate improved draft|AI draft/);
+    act(() => root.render(<SectionPage section="about" context={context()} />));
+    act(() => Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes("Generate using AI"))!.click());
+    expect(getOptimizerPage()).toEqual({ name: "generate", section: "about" });
+  });
+});

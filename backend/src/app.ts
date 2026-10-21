@@ -7,7 +7,7 @@ import { handleAnalyzeProfile } from "./routes/analyzeProfile";
 import { handleGenerateCriteria } from "./routes/generateCriteria";
 import { handleAnalyzeSignals } from "./routes/analyzeSignals";
 import { handleOptimizeProfile, handleOptimizerDraft } from "./routes/optimizeProfile";
-import { handleChecklist, handleHeadlineGeneration, handleSectionAnalysis } from "./routes/optimizerSection";
+import { handleAboutGeneration, handleChecklist, handleHeadlineGeneration, handleSectionAnalysis } from "./routes/optimizerSection";
 import { handleCompareProfile } from "./routes/compareProfile";
 import type { AnalysisClient } from "./openai/client";
 import type { CriteriaGenerationClient } from "./openai/criteriaClient";
@@ -25,6 +25,7 @@ export interface CreateAppOptions {
   draftClient?: StructuredClient;
   sectionClient?: StructuredClient;
   headlineClient?: StructuredClient;
+  aboutClient?: StructuredClient;
   compareClient?: StructuredClient;
   checklistClient?: StructuredClient;
   timeoutMs?: number;
@@ -68,6 +69,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.post("/api/optimizer-section", (req: Request, res: Response) => {
     void handleSectionAnalysis(req, res, { config, client: options.sectionClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/optimizer-abouts", (req: Request, res: Response) => {
+    void handleAboutGeneration(req, res, { config, client: options.aboutClient, timeoutMs: options.timeoutMs });
   });
 
   app.post("/api/optimizer-headlines", (req: Request, res: Response) => {

@@ -47,5 +47,10 @@ export const headlineOptionsResponseSchema = z.object({
   options: z.array(z.object({ label: z.string(), headline: z.string() })),
 });
 
+export const aboutOptionsResponseSchema = z.object({
+  options: z.array(z.object({ label: z.string(), text: z.string() })),
+});
+
+export type AboutOptionsResponse = z.infer<typeof aboutOptionsResponseSchema>;
 export type SectionAnalysisResponse = z.infer<typeof sectionAnalysisResponseSchema>;
 export type HeadlineOptionsResponse = z.infer<typeof headlineOptionsResponseSchema>;

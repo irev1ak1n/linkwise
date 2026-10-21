@@ -3,7 +3,10 @@
 import type { OptimizerSection } from "./sections";
 import { DETAIL_SECTIONS } from "./sectionGuidance";
 
-export type OptimizerPage = { name: "home" } | { name: "section"; section: OptimizerSection } | { name: "generate"; section: "headline" };
+export type OptimizerPage = { name: "home" } | { name: "section"; section: OptimizerSection } | { name: "generate"; section: GeneratorSection };
+
+/** The sections with their own AI writing page. */
+export type GeneratorSection = "headline" | "about";
 
 let page: OptimizerPage = { name: "home" };
 const listeners = new Set<() => void>();

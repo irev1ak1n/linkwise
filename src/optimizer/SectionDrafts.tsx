@@ -56,18 +56,16 @@ function DraftBox({ body, guidance, section, evidenceId, label }: DraftBoxProps)
   );
 }
 
-export function SectionDrafts({ section, body, assessment }: { section: "about" | "experience"; body: OptimizeProfileRequestBody; assessment: SectionAssessmentDTO | undefined }) {
+export function SectionDrafts({ body, assessment }: { section: "experience"; body: OptimizeProfileRequestBody; assessment: SectionAssessmentDTO | undefined }) {
   const guidance = assessment ? [assessment.reason, ...assessment.suggestions].join("\n") : "";
   const evidence = body.profile.evidence;
-  const entries = section === "experience" ? [...new Set([...(assessment?.evidenceIds ?? []), ...evidence.map((e) => e.id)])].filter((id) => id.startsWith("experience:")).slice(0, 3) : [];
+  const entries = [...new Set([...(assessment?.evidenceIds ?? []), ...evidence.map((e) => e.id)])].filter((id) => id.startsWith("experience:")).slice(0, 3);
   return (
     <section className="lw-od-section" aria-label="AI drafts">
       <h4 className="lw-od-heading">AI draft</h4>
-      {section === "experience" ? (
-        entries.map((id) => <DraftBox key={id} body={body} guidance={guidance} section="experience" evidenceId={id} label={`Draft for ${(evidence.find((e) => e.id === id)?.text ?? id).split(" — ")[0]}`} />)
-      ) : (
-        <DraftBox body={body} guidance={guidance} section="about" evidenceId={null} label="Generate improved draft" />
-      )}
+      {entries.map((id) => (
+        <DraftBox key={id} body={body} guidance={guidance} section="experience" evidenceId={id} label={`Draft for ${(evidence.find((e) => e.id === id)?.text ?? id).split(" — ")[0]}`} />
+      ))}
     </section>
   );
 }

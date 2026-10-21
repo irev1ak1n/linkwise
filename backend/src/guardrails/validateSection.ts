@@ -1,5 +1,5 @@
-import type { HeadlineOptionsResponse, SectionAnalysisResponse } from "../openai/optimizerSchema";
-import type { HeadlineGenerationRequest, SectionAnalysisRequest } from "../validation/sectionRequestSchema";
+import type { AboutOptionsResponse, HeadlineOptionsResponse, SectionAnalysisResponse } from "../openai/optimizerSchema";
+import type { AboutGenerationRequest, HeadlineGenerationRequest, SectionAnalysisRequest } from "../validation/sectionRequestSchema";
 import { ALWAYS_ALLOWED, isGrounded } from "./validateOptimizer";
 
 const MAX_NOTE_LENGTH = 400;
@@ -51,15 +51,54 @@ export function isGroundedHeadline(headline: string, request: HeadlineGeneration
   return isGrounded(headline, sources, HEADLINE_WORDS);
 }
 
+const wordSet = (text: string) => new Set(text.toLowerCase().match(/[\p{L}\d+#.]{3,}/gu) ?? []);
+
+// How alike two texts are, by shared words: 1 is the same words, 0 shares none.
+export function similarity(a: string, b: string): number {
+  const left = wordSet(a);
+  const right = wordSet(b);
+  if (left.size === 0 || right.size === 0) return 0;
+  const shared = [...left].filter((word) => right.has(word)).length;
+  return shared / (left.size + right.size - shared);
+}
+
+// A run of five or more tools or keywords in one part of a headline reads as a keyword list.
+const MAX_LIST_ITEMS = 4;
+// Headlines share a lead ("Aspiring Software Engineer | ..."), so they get more room than About texts.
+const MAX_HEADLINE_SIMILARITY = 0.7;
+const MAX_SIMILARITY = 0.6;
+
+export function isKeywordList(headline: string): boolean {
+  return headline.split(/\s*[|\u2022\u00b7]\s*/).some((part) => part.split(/\s*(?:,|&|\+|\/|\band\b)\s*/i).filter((item) => item.trim().length > 0).length > MAX_LIST_ITEMS);
+}
+
 export function validateHeadlineOptions(response: HeadlineOptionsResponse, request: HeadlineGenerationRequest): { label: string; headline: string }[] {
-  const seen = new Set<string>();
-  return response.options
-    .map((option) => ({ label: option.label.trim().slice(0, 40), headline: option.headline.trim().replace(/\s+/g, " ") }))
-    .filter((option) => {
-      const key = option.headline.toLowerCase();
-      if (seen.has(key) || key === request.currentHeadline.trim().toLowerCase() || !isGroundedHeadline(option.headline, request)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, MAX_OPTIONS);
+  const kept: { label: string; headline: string }[] = [];
+  for (const raw of response.options) {
+    const option = { label: raw.label.trim().slice(0, 40), headline: raw.headline.trim().replace(/\s+/g, " ") };
+    if (option.headline.toLowerCase() === request.currentHeadline.trim().toLowerCase()) continue;
+    if (!isGroundedHeadline(option.headline, request) || isKeywordList(option.headline)) continue;
+    // The options must be different headlines, not one headline reworded.
+    if (kept.some((other) => similarity(other.headline, option.headline) > MAX_HEADLINE_SIMILARITY)) continue;
+    kept.push(option);
+  }
+  return kept.slice(0, MAX_OPTIONS);
+}
+
+const MAX_ABOUT_LENGTH = 2000;
+const MIN_ABOUT_WORDS = 110;
+const MAX_ABOUT_WORDS = 340;
+
+export function validateAboutOptions(response: AboutOptionsResponse, request: AboutGenerationRequest): { label: string; text: string }[] {
+  const sources = profileSources(request.profile, request.currentAbout, request.userContext, request.targetRole, request.standOut, request.additionalContext);
+  const kept: { label: string; text: string }[] = [];
+  for (const raw of response.options) {
+    const text = raw.text.trim().replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n");
+    const words = text.split(/\s+/).filter(Boolean).length;
+    if (text.length > MAX_ABOUT_LENGTH || words < MIN_ABOUT_WORDS || words > MAX_ABOUT_WORDS) continue;
+    if (!isGrounded(text, sources)) continue;
+    if (kept.some((other) => similarity(other.text, text) > MAX_SIMILARITY)) continue;
+    kept.push({ label: raw.label.trim().slice(0, 40), text });
+  }
+  return kept.slice(0, MAX_OPTIONS);
 }

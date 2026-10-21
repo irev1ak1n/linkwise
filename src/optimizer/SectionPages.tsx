@@ -428,7 +428,17 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
 
       <MissedSomething section={section} profileKey={context.profileKey ?? null} assessment={context.overall.find((a) => a.section === section)} analyzing={!!context.analyzing} />
 
-      {(section === "about" || section === "experience") && display.status === "improve" && context.body && <SectionDrafts section={section} body={context.body} assessment={context.overall.find((a) => a.section === section)} />}
+      {section === "experience" && display.status === "improve" && context.body && <SectionDrafts section={section} body={context.body} assessment={context.overall.find((a) => a.section === section)} />}
+
+      {section === "about" && (
+        <section className="lw-od-section">
+          <h4 className="lw-od-heading">AI About writer</h4>
+          <p className="lw-od-description">Get About options built only from your profile and what you tell LinkWise.</p>
+          <button type="button" className="lw-button lw-button--secondary" onClick={() => openOptimizerPage({ name: "generate", section: "about" })}>
+            ✨ Generate using AI
+          </button>
+        </section>
+      )}
 
       {section === "headline" && (
         <section className="lw-od-section">

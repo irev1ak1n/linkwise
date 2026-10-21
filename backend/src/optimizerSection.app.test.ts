@@ -21,7 +21,7 @@ function fakeClient(response: unknown, prompts: string[] = []): StructuredClient
   };
 }
 
-function appWith(clients: { sectionClient?: StructuredClient; headlineClient?: StructuredClient }) {
+function appWith(clients: { sectionClient?: StructuredClient; headlineClient?: StructuredClient; aboutClient?: StructuredClient }) {
   return createApp({ config: loadConfig({ OPENAI_API_KEY: "sk-test" }), ...clients });
 }
 
@@ -59,5 +59,27 @@ describe("POST /api/optimizer-headlines", () => {
     const client = fakeClient({ options: [{ label: "Bad", headline: "Senior Engineer at Google" }] });
     const res = await request(appWith({ headlineClient: client })).post("/api/optimizer-headlines").send(body);
     expect(res.body).toEqual({ status: "unavailable", reason: "ungrounded_headlines" });
+  });
+});
+
+describe("POST /api/optimizer-abouts", () => {
+  const body = { profile, currentAbout: "", targetRole: "Software Engineer", standOut: "projects", additionalContext: "", language: "English", variation: 2 };
+  const text = (extra: string) => `I am a student at Westfield High. ${extra} I studied Python and C++ at Code Academy and enjoy building practical software that other people use. `.repeat(6).trim();
+
+  it("asks for three different styles, passes the regeneration number, and returns grounded options", async () => {
+    const prompts: string[] = [];
+    const client = fakeClient({ options: [{ label: "Balanced", text: text("I keep learning every week.") }, { label: "Impact", text: "I invented a rocket at NASA." }] }, prompts);
+    const res = await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send(body);
+    expect(res.body.status).toBe("abouts");
+    expect(res.body.options.map((o: { label: string }) => o.label)).toEqual(["Balanced"]);
+    expect(prompts[0]).toContain("variation: 2");
+    expect(prompts[0]).toContain("Code Academy");
+  });
+
+  it("says so when nothing survives grounding, and rejects a malformed request", async () => {
+    const client = fakeClient({ options: [{ label: "Bad", text: "I invented a rocket at NASA." }] });
+    const res = await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send(body);
+    expect(res.body).toEqual({ status: "unavailable", reason: "ungrounded_abouts" });
+    expect((await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send({ profile: 3 })).status).toBe(400);
   });
 });
