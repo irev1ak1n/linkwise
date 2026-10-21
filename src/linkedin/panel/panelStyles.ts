@@ -2157,15 +2157,27 @@ export function getPanelStyles(widthPx: number): string {
     line-height: 1.5;
     color: #38434f;
   }
+  /* The action area is exactly as tall as its buttons: it never grows to fill the panel, so a short
+     page ends shortly after the button and any spare room is just empty panel. It stays sticky,
+     which only matters when the page is taller than the panel. */
+  .lw-od,
+  .lw-optimizer {
+    flex: none;
+    min-height: 0;
+  }
   .lw-od-actions {
     position: sticky;
     bottom: -16px;
     z-index: 1;
     display: flex;
+    flex: none;
     flex-wrap: wrap;
+    align-content: flex-start;
     gap: 8px;
+    height: auto;
+    min-height: 0;
     margin: 4px -16px -16px;
-    padding: 12px 16px;
+    padding: 12px 16px 14px;
     background: #fff;
     border-top: 1px solid #e1e6ea;
     box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.04);
