@@ -6,9 +6,8 @@ const MAX_SUMMARY_WORDS = 95;
 
 // Splits on sentence-ending punctuation. Text with none is treated as one sentence.
 function splitSentences(text: string): string[] {
-  const matches = text.match(/[^.!?]+[.!?]+(?:\s+|$)/g);
-  if (matches && matches.length > 0) return matches.map((s) => s.trim()).filter(Boolean);
-  return text ? [text] : [];
+  // Only whitespace after ".", "!" or "?" ends a sentence, so ".NET" or "Node.js" never drops text.
+  return text.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
 }
 
 // Keeps whole leading sentences up to the word cap and drops the rest.

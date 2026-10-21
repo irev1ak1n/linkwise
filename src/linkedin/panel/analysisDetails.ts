@@ -6,10 +6,15 @@ import type { MatchResult } from "../../matching/scoreProfile";
 import type { AiNarrativeDTO } from "../../ai/apiTypes";
 import { buildEvidencePayload } from "../../ai/evidencePayload";
 
+// A sentence ends at ".", "!" or "?" followed by a space, so a dot inside a word (".NET", "Node.js",
+// "e.g.") never ends one and no text is ever dropped. Text with no ending is one sentence.
+export function splitSentences(text: string): string[] {
+  return text.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+}
+
 // Cuts text to its first few sentences, for the dashboard's short summary.
 export function firstSentences(text: string, count: number): string {
-  const sentences = text.trim().match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) ?? [text];
-  return sentences.slice(0, count).join("").trim();
+  return splitSentences(text).slice(0, count).join(" ").trim();
 }
 
 const ASSESSMENT_LABEL: Record<EvidenceStrength, string> = {
@@ -122,9 +127,8 @@ export function supportSentence(label: string, profile: LinkedInProfile | undefi
 
 // Up to two whole sentences, within the length a reader takes in at a glance.
 function conciseDetail(text: string): string {
-  const sentences = text.trim().match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((s) => s.trim()) ?? [text.trim()];
   const kept: string[] = [];
-  for (const sentence of sentences.slice(0, 2)) {
+  for (const sentence of splitSentences(text).slice(0, 2)) {
     if (kept.length > 0 && wordCount([...kept, sentence].join(" ")) > MAX_DETAIL_WORDS) break;
     kept.push(sentence);
   }

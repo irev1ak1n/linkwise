@@ -207,7 +207,7 @@ export function TopPriorities({ sections }: { sections: SectionAssessmentDTO[] }
 // anything longer keeps its first few, with the rest a tap away.
 const SUMMARY_SENTENCES = 6;
 function splitSentences(text: string): string[] {
-  return text.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
+  return text.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
 }
 
 function ConciseSummary({ text }: { text: string }) {

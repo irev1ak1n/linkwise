@@ -55,3 +55,13 @@ describe("dropUngroundedSentences", () => {
     expect(dropUngroundedSentences(summary, sources)).toBe("Jordan led a 5-student team to 2nd place. The yearbook website served 300+ students. Paid work is not confirmed.");
   });
 });
+
+describe("normalizeSummaryLength with dots inside words", () => {
+  it("keeps whole sentences that mention .NET or Node.js instead of dropping the text before the dot", () => {
+    const lead = "He builds web applications with C#, Python, and .NET Core across several school and freelance projects. ";
+    const filler = Array(12).fill("He also tutors younger students in programming every week during the school year.").join(" ");
+    const result = normalizeSummaryLength(lead + filler);
+    expect(result.startsWith("He builds web applications with C#, Python, and .NET Core")).toBe(true);
+    expect(result.split(/\s+/).length).toBeLessThanOrEqual(95);
+  });
+});

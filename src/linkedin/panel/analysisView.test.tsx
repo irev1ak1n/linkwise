@@ -330,6 +330,14 @@ describe("why they match: explanations", () => {
     }
   });
 
+  it("LIVE CASE: a full explanation that ends in '.NET Core.' is shown whole, not cut down to 'NET Core.'", () => {
+    const full = "His software-development background includes long-term technical training, full-stack projects, programming tutoring, and experience with C++, C#, Python, JavaScript, SQL, and .NET Core.";
+    expect(firstSentences(full, 1)).toBe(full);
+    expect(firstSentences("Uses C# and .NET Core. Also builds sites with Node.js and React. More.", 2)).toBe("Uses C# and .NET Core. Also builds sites with Node.js and React.");
+    const [dev] = confirmedCriteria(developmentGoal, scored(reasonFor("dev", full, ".NET Core")), 4, devProfile);
+    expect(dev!.detail).toBe(full);
+  });
+
   it("CASE 2: a real explanation, such as the TSA one, is kept as written", () => {
     const tsa = "He is a Technology Student Association member and team captain of a five-student team that placed 2nd at regionals.";
     const [row] = confirmedCriteria(developmentGoal, scored(reasonFor("tsa", tsa, "TSA member", "organizations")), 4, devProfile);
