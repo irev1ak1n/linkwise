@@ -47,8 +47,10 @@ export interface EvaluatedCriterion {
   status: CriterionStatus | "checking";
   explanation: string;
   evidenceIds: string[];
-  /** For "user" criteria: the answer, or null while unanswered. */
+  /** The user's own answer, which overrides any automatic result; null while they haven't answered. */
   userValue?: boolean | null;
+  /** What LinkWise found by itself, kept when the user's answer overrides it. */
+  automatic?: { status: CriterionStatus | "checking"; explanation: string };
 }
 
 export interface SemanticResult {
@@ -126,7 +128,6 @@ function datedEntries(entries: ProfileListEntry[], noun: string, sectionLabel: s
 
 const userCheck = (id: string, label: string, advice: string): CriterionDefinition => ({ id, label, verification: "user", advice });
 const semantic = (id: string, label: string, advice: string): CriterionDefinition => ({ id, label, verification: "semantic", advice });
-const unverifiable = (id: string, label: string, advice: string): CriterionDefinition => ({ id, label, verification: "unverifiable", advice });
 
 // LinkedIn appends a generated ID to default profile URLs, e.g. "jordan-rivera-834725198" or "-a804a7327".
 const GENERATED_SUFFIX = /-(?=[a-z0-9]*\d)[a-z0-9]{6,}$/i;
@@ -238,7 +239,7 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     semantic("about-differentiator", "Contains differentiating information", "Says what makes the background or approach different."),
     semantic("about-adjectives", "Avoids excessive generic adjectives", "Relies on specifics rather than adjectives like passionate or driven."),
     semantic("about-readable", "Easy to read at its length", "Is focused and easy to scan for its length; not padded and not too thin to be useful."),
-    unverifiable("about-paragraphs", "Uses short paragraphs", "Break the text into short paragraphs so it is easy to scan."),
+    userCheck("about-paragraphs", "Uses short paragraphs", "Check that your About is split into short paragraphs that are easy to scan."),
   ],
   featured: [
     present("Featured section added", "featured"),
@@ -253,9 +254,9 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
         return count > 0 ? { status: "pass", explanation: `${plural(count, "item")} featured.` } : { status: "improve", explanation: "The section has no items." };
       },
     },
-    unverifiable("featured-direction", "Items support your direction", "Feature work related to what you want to be known for."),
-    unverifiable("featured-strongest", "Your strongest work is represented", "Put the strongest, most relevant item first."),
-    unverifiable("featured-media", "Useful links or media", "Include projects, portfolio links, articles, or presentations people can open."),
+    userCheck("featured-direction", "Items support your direction", "Check that your featured items support what you want to be known for."),
+    userCheck("featured-strongest", "Your strongest work is represented", "Check that your strongest, most relevant item comes first."),
+    userCheck("featured-media", "Useful links or media", "Check that people can open useful projects, links, articles, or presentations from it."),
   ],
   experience: [
     present("Experience section added", "experience"),
@@ -291,7 +292,7 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     semantic("experience-ownership", "Your contribution is clear", "Makes clear what the person did or owned, not only what the team did."),
     semantic("experience-technical", "Tools and technologies are specific", "Names the tools, technologies, or methods used, where relevant to the role."),
     semantic("experience-not-generic", "Avoids generic job-description wording", "Avoids generic duties that could appear in any job posting."),
-    unverifiable("experience-media", "Attached media", "LinkWise can't evaluate the quality of media attached to roles."),
+    userCheck("experience-media", "Attached media", "Check that any media attached to your roles is current and worth opening."),
   ],
   education: [
     present("Education section added", "education"),
@@ -334,7 +335,7 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     semantic("projects-technologies", "Technologies are identifiable", "Names the languages, frameworks, or tools used."),
     semantic("projects-result", "Result or impact is stated where possible", "States who used it, what it achieved, or what came of it."),
     semantic("projects-direction", "Strongest projects support your direction", "The most prominent projects relate to the person's direction."),
-    unverifiable("projects-links", "Links, demo, or repository", "LinkWise doesn't read the links attached to projects."),
+    userCheck("projects-links", "Links, demo, or repository", "Check that your projects link to a demo, repository, or write-up where you have one."),
   ],
   skills: [
     present("Skills section added", "skills"),
@@ -348,7 +349,7 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     { id: "certifications-named", label: "Names are clear", verification: "deterministic", advice: "Use each credential's exact name.", check: (c) => namedEntries(c.profile.certifications, "certification", "Licenses & Certifications") },
     { id: "certifications-issuer", label: "Issuing organization shown", verification: "deterministic", advice: "Add the issuer.", check: (c) => describedEntries(c.profile.certifications, "certification", "Licenses & Certifications") },
     { id: "certifications-dates", label: "Issue date shown", verification: "deterministic", advice: "Add the issue date, and the expiration date if it has one.", check: (c) => datedEntries(c.profile.certifications, "certification", "Licenses & Certifications") },
-    unverifiable("certifications-credential", "Credential ID or URL where relevant", "Add a credential ID or link when the issuer provides one; it isn't required."),
+    userCheck("certifications-credential", "Credential ID or URL where relevant", "Check that credentials show an ID or link where the issuer provides one. It isn't required."),
     semantic("certifications-direction", "Support your direction", "The certifications relate to the person's field or direction."),
   ],
   volunteering: [
@@ -422,7 +423,7 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
           : { status: "improve", explanation: `"${location}" doesn't name a city or region.`, evidenceIds: idsOf(c, "location") };
       },
     },
-    unverifiable("location-target", "Fits where you want opportunities", "LinkWise doesn't know where you want to work, so it never suggests changing where you live."),
+    userCheck("location-target", "Fits where you want opportunities", "Check that this location matches where you want to study, work, or find opportunities."),
   ],
   url: [
     {
@@ -460,8 +461,8 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
         return { status: "unverifiable", explanation: "LinkWise couldn't find your Open to Work status on this page." };
       },
     },
-    unverifiable("otw-roles", "Job titles and locations", "LinkWise doesn't read the preferences inside Open to Work."),
-    unverifiable("otw-recruiters", "Recruiter-only Open to Work", "Can't verify recruiter-only Open to Work settings: LinkedIn shows those only to recruiters."),
+    userCheck("otw-roles", "Job titles and locations", "Check that your Open to Work preferences include the roles and locations you actually want."),
+    userCheck("otw-recruiters", "Recruiter-only Open to Work", "Check that your recruiter-only preferences are set the way you want."),
   ],
   network: [
     {
@@ -471,15 +472,13 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
       advice: "Connect with people you know and trust.",
       check: (c) => evaluateNetwork(c.shell?.connections, c.shell?.followers),
     },
-    unverifiable("network-relevant", "Connections in your field", "LinkWise can't see who your connections are."),
+    userCheck("network-relevant", "Connections in your field", "Check that a meaningful part of your network includes people in your field or industries you want to enter."),
   ],
 };
 
 export function semanticCriteria(section: OptimizerSection): CriterionDefinition[] {
   return CHECKLISTS[section].filter((criterion) => criterion.verification === "semantic");
 }
-
-const CANT_VERIFY = "Can't verify automatically from what LinkedIn shows.";
 
 /** Criteria only the user can check: what an image looks like, for example. */
 export function userCriteria(section: OptimizerSection): CriterionDefinition[] {
@@ -489,35 +488,37 @@ export function userCriteria(section: OptimizerSection): CriterionDefinition[] {
 // The reason given when a section has no text for AI to read.
 export const NO_SECTION_TEXT = "no_section_text";
 
+// LinkWise answers what it can (locally or with AI), asks the user about the rest, and any answer
+// the user gives takes precedence over the automatic one, which stays alongside for reference.
 export function evaluateChecklist(section: OptimizerSection, context: ChecklistContext, semanticState: SemanticState): EvaluatedCriterion[] {
   return CHECKLISTS[section].map((criterion): EvaluatedCriterion => {
     const base = { id: criterion.id, label: criterion.label, verification: criterion.verification, evidenceIds: [] as string[] };
-    if (criterion.verification === "deterministic") {
-      const result = criterion.check!(context);
-      return { ...base, status: result.status, explanation: result.explanation, evidenceIds: result.evidenceIds ?? [] };
+    const automatic = automaticResult(criterion, context, semanticState);
+    const answer = context.answers?.[criterion.id];
+    if (answer === true || answer === false) {
+      return { ...base, status: answer ? "pass" : "improve", explanation: answer ? "Confirmed by you." : "You marked this as needing improvement.", userValue: answer, automatic: { status: automatic.status, explanation: automatic.explanation } };
     }
-    if (criterion.verification === "semantic") {
-      if (semanticState.status === "ready") {
-        const result = semanticState.results.find((r) => r.criterionId === criterion.id);
-        return result
-          ? { ...base, status: result.status, explanation: result.explanation, evidenceIds: result.evidenceIds }
-          : { ...base, status: "unverifiable", explanation: "LinkWise couldn't assess this reliably from your profile." };
-      }
-      if (semanticState.status === "unavailable") {
-        const explanation = semanticState.reason === NO_SECTION_TEXT ? "LinkWise hasn't read this section's text yet." : semanticState.reason.startsWith("LinkWise") ? semanticState.reason : "AI assessment is unavailable right now.";
-        return { ...base, status: "unverifiable", explanation };
-      }
-      return { ...base, status: "checking", explanation: "Checking…" };
-    }
-    if (criterion.verification === "user") {
-      const answer = context.answers?.[criterion.id];
-      if (answer === true) return { ...base, status: "pass", explanation: "Confirmed by you.", userValue: true };
-      if (answer === false) return { ...base, status: "improve", explanation: "You marked this as needing improvement.", userValue: false };
-      return { ...base, status: "needs_user", explanation: criterion.advice, userValue: null };
-    }
-    const advice = /^(LinkWise|Can.t)/.test(criterion.advice) ? criterion.advice : CANT_VERIFY;
-    return { ...base, status: "unverifiable", explanation: advice };
+    // Anything LinkWise can't settle by itself becomes a question for the user, never a dead end.
+    if (automatic.status === "unverifiable" || automatic.status === "needs_user") return { ...base, status: "needs_user", explanation: automatic.ask ?? criterion.advice, userValue: null };
+    return { ...base, status: automatic.status, explanation: automatic.explanation, evidenceIds: automatic.evidenceIds ?? [] };
   });
+}
+
+function automaticResult(criterion: CriterionDefinition, context: ChecklistContext, semanticState: SemanticState): { status: CriterionStatus | "checking"; explanation: string; evidenceIds?: string[]; ask?: string } {
+  if (criterion.verification === "deterministic") return criterion.check!(context);
+  if (criterion.verification === "semantic") {
+    if (semanticState.status === "ready") {
+      const result = semanticState.results.find((r) => r.criterionId === criterion.id);
+      return result ? { status: result.status, explanation: result.explanation, evidenceIds: result.evidenceIds } : { status: "unverifiable", explanation: "", ask: `Review this yourself. ${criterion.advice}` };
+    }
+    if (semanticState.status === "unavailable") {
+      // A partly read list says how much was read, then asks the user to judge the full one.
+      const ask = semanticState.reason.startsWith("LinkWise read") ? `${semanticState.reason} Check this against your full list.` : `Review this yourself. ${criterion.advice}`;
+      return { status: "unverifiable", explanation: "", ask };
+    }
+    return { status: "checking", explanation: "Checking…" };
+  }
+  return { status: "needs_user", explanation: criterion.advice };
 }
 
 export type ChecklistState = "strong" | "improve" | "missing";

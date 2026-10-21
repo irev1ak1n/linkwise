@@ -54,7 +54,7 @@ function semanticStateFor(section: OptimizerSection, context: SectionContext, li
   if (semanticCriteria(section).length === 0) return { status: "ready", results: [] };
   if (!context.body) return { status: "idle" };
   const partial = partialList(section, context.body);
-  if (partial) return { status: "unavailable", reason: `LinkWise read only ${partial.read} of your ${partial.total} entries here, so it can't judge the full list.` };
+  if (partial) return { status: "unavailable", reason: `LinkWise read ${partial.read} of your ${partial.total} entries here.` };
   const request = buildChecklistRequest(section, context.body);
   if (!request) return { status: "unavailable", reason: NO_SECTION_TEXT };
   if (live) return live;
@@ -247,13 +247,26 @@ export function ReviewIcon() {
   );
 }
 
+// Where a row's result comes from, for its tooltip: LinkWise's own check, the AI's reading of the
+// text, or the user's answer.
+function sourceOf(criterion: EvaluatedCriterion): string {
+  if (criterion.userValue === true || criterion.userValue === false) {
+    const found = criterion.automatic && criterion.automatic.explanation ? ` LinkWise found: ${criterion.automatic.explanation}` : "";
+    return `${criterion.userValue ? "Confirmed" : "Marked as needing improvement"} by you.${found}`;
+  }
+  if (criterion.status === "needs_user") return "Needs your review";
+  return criterion.verification === "semantic" ? "Checked by AI from your profile text" : "Verified by LinkWise";
+}
+
+// Every row can be answered: the status control opens a small menu to confirm it, mark it as
+// needing improvement, or hand it back to LinkWise's own result (when there is one).
 export function ChecklistRows({ criteria, onAnswer }: { criteria: EvaluatedCriterion[]; onAnswer?: (criterionId: string, value: boolean | null) => void }) {
   return (
     <ul className="lw-od-checks">
       {criteria.map((criterion) => {
-        const own = criterion.verification === "user";
+        const answerable = !!onAnswer && criterion.status !== "checking" && !criterion.id.endsWith("-missing");
         return (
-          <li key={criterion.id} className={`lw-od-check is-${criterion.status}${own ? " is-own" : ""}`} aria-label={`${criterion.label}: ${stateOf(criterion)}`}>
+          <li key={criterion.id} className={`lw-od-check is-${criterion.status}${answerable ? " is-own" : ""}`} aria-label={`${criterion.label}: ${stateOf(criterion)}`} title={sourceOf(criterion)}>
             <span className="lw-od-check__mark" aria-hidden="true">
               {criterion.status === "needs_user" ? <ReviewIcon /> : CRITERION_MARK[criterion.status]}
             </span>
@@ -261,7 +274,7 @@ export function ChecklistRows({ criteria, onAnswer }: { criteria: EvaluatedCrite
               <span className="lw-od-check__label">{criterion.label}</span>
               <span className="lw-od-check__detail">{criterion.explanation}</span>
             </span>
-            {own && onAnswer && <AnswerButtons criterion={criterion} onAnswer={onAnswer} />}
+            {answerable && <AnswerMenu criterion={criterion} onAnswer={onAnswer} />}
           </li>
         );
       })}
@@ -269,40 +282,45 @@ export function ChecklistRows({ criteria, onAnswer }: { criteria: EvaluatedCrite
   );
 }
 
-// "Looks good" and "Needs work" for a check only the user can make. Pressing the active one again
-// clears the answer, so every answer can be changed or withdrawn later.
-function AnswerButtons({ criterion, onAnswer }: { criterion: EvaluatedCriterion; onAnswer: (criterionId: string, value: boolean | null) => void }) {
+function AnswerMenu({ criterion, onAnswer }: { criterion: EvaluatedCriterion; onAnswer: (criterionId: string, value: boolean | null) => void }) {
+  const [open, setOpen] = useState(false);
   const value = criterion.userValue ?? null;
   const { id, label } = criterion;
+  // "Use LinkWise result" only exists when LinkWise has one to go back to.
+  const hasAutomatic = !!criterion.automatic && criterion.automatic.status !== "needs_user" && criterion.automatic.status !== "unverifiable" && criterion.automatic.status !== "checking";
+  const choose = (next: boolean | null) => {
+    onAnswer(id, next);
+    setOpen(false);
+  };
   return (
-    <span className="lw-od-answer" role="group" aria-label={`Your check: ${label}`}>
-      <button
-        type="button"
-        className="lw-od-answer__btn is-yes"
-        aria-pressed={value === true}
-        aria-label={value === true ? `Remove your confirmation of ${label}` : `Mark ${label} as confirmed`}
-        title={value === true ? "Confirmed by you. Click to undo." : "Looks good"}
-        onClick={() => onAnswer(id, value === true ? null : true)}
-      >
-        ✓
+    <span className="lw-od-answer">
+      <button type="button" className={`lw-od-answer__btn${value !== null ? " is-set" : ""}`} aria-haspopup="menu" aria-expanded={open} aria-label={`Change answer for ${label}`} title="Change this answer" onClick={() => setOpen(!open)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="m7 10 5 5 5-5" />
+        </svg>
       </button>
-      <button
-        type="button"
-        className="lw-od-answer__btn is-no"
-        aria-pressed={value === false}
-        aria-label={value === false ? `Clear needs improvement for ${label}` : `Mark ${label} as needs improvement`}
-        title={value === false ? "Marked as needing improvement. Click to undo." : "Needs improvement"}
-        onClick={() => onAnswer(id, value === false ? null : false)}
-      >
-        !
-      </button>
+      {open && (
+        <span className="lw-od-menu" role="menu" aria-label={`Answer for ${label}`}>
+          <button type="button" role="menuitemradio" aria-checked={value === true} aria-label={`Mark ${label} as confirmed`} className="lw-od-menu__item is-yes" onClick={() => choose(true)}>
+            <span aria-hidden="true">✓</span> Looks good
+          </button>
+          <button type="button" role="menuitemradio" aria-checked={value === false} aria-label={`Mark ${label} as needs improvement`} className="lw-od-menu__item is-no" onClick={() => choose(false)}>
+            <span aria-hidden="true">!</span> Needs improvement
+          </button>
+          {value !== null && (
+            <button type="button" role="menuitem" aria-label={hasAutomatic ? `Use LinkWise result for ${label}` : `Clear your answer for ${label}`} className="lw-od-menu__item" onClick={() => choose(null)}>
+              <span aria-hidden="true">↺</span> {hasAutomatic ? "Use LinkWise result" : "Clear my answer"}
+            </button>
+          )}
+        </span>
+      )}
     </span>
   );
 }
 
 export function summaryText(summary: ChecklistSummary): string {
   const toReview = summary.needsUser ? `${summary.needsUser} ${summary.needsUser === 1 ? "needs" : "need"} your review` : null;
-  if (summary.verifiable === 0) return toReview ?? (summary.checking ? "Checking…" : "Nothing LinkWise can verify automatically");
+  if (summary.verifiable === 0) return toReview ?? (summary.checking ? "Checking…" : "Nothing to review");
   return [`${summary.passed} of ${summary.verifiable} verifiable checks passed${summary.checking ? " so far" : ""}`, toReview].filter(Boolean).join(" · ");
 }
 
@@ -379,10 +397,10 @@ export function SectionPage({ section, context }: { section: OptimizerSection; c
       <section className="lw-od-section" aria-label="Checklist">
         <h4 className="lw-od-heading">Checklist</h4>
         {presence.present && !context.body && semanticCriteria(section).length > 0 && <p className="lw-scan-mode__hint">Reading your profile before the AI checks run…</p>}
-        {criteria.some((c) => c.verification === "user") && (
+        {criteria.some((c) => c.status === "needs_user" || c.userValue !== undefined && c.userValue !== null) && (
           <p className="lw-od-review-note">
             <ReviewIcon />
-            {summary.needsUser > 0 ? "Some visual details need your check. Your answers update this assessment." : "You've checked every visual detail. Change an answer any time."}
+            {summary.needsUser > 0 ? "Some checks need your review. Your answers update this assessment." : "You've answered every check. Change any answer any time."}
           </p>
         )}
         <ChecklistRows criteria={rows} onAnswer={(id, value) => setManualAnswer(context.profileKey, id, value, context.shell)} />

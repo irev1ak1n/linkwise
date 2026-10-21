@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getOptimizerPage, neighborSections, openOptimizerPage } from "./optimizerNav";
@@ -85,11 +86,11 @@ describe("section assessment", () => {
     const html = renderToStaticMarkup(<SectionPage section="photo" context={context()} />);
     expect(html).toContain('aria-label="Profile photo added: Meets criterion"');
     expect(html).toContain('aria-label="Face is clear and easy to see: Needs your review"');
-    expect(html).toContain('aria-label="Mark Good lighting as confirmed"');
-    expect(html).toContain('aria-label="Mark Good lighting as needs improvement"');
+    expect(html).toContain('aria-label="Change answer for Good lighting"');
+    expect(html).toContain('aria-label="Change answer for Profile photo added"');
     expect(html).toContain("1 of 1 verifiable checks passed · 6 need your review");
     expect(html).toContain("Needs your review");
-    expect(html.match(/Some visual details need your check/g)).toHaveLength(1);
+    expect(html.match(/Some checks need your review/g)).toHaveLength(1);
     expect(html).not.toMatch(/Looking Good|doesn&#x27;t analyze|Can&#x27;t verify/);
   });
 
@@ -106,7 +107,8 @@ describe("section assessment", () => {
   it("evaluates the discoverability settings from the page", () => {
     expect(renderToStaticMarkup(<SectionPage section="network" context={context()} />)).toContain("Your profile shows 500+ connections.");
     const otw = renderToStaticMarkup(<SectionPage section="openToWork" context={context()} />);
-    expect(otw).toContain("Can&#x27;t verify recruiter-only Open to Work settings");
+    expect(otw).toContain("Check that your recruiter-only preferences are set the way you want.");
+    expect(otw).not.toMatch(/Can&#x27;t verify|doesn&#x27;t read/);
     expect(otw).toContain('aria-label="Open to Work status: Not applicable"');
     expect(renderToStaticMarkup(<SectionPage section="url" context={context()} />)).toContain("linkedin.com/in/jordan-rivera");
   });
@@ -128,19 +130,21 @@ describe("overview rows", () => {
   it("map each status to its circle", () => {
     const ctx = context({ profile: { ...EMPTY_PROFILE, headline: "Passionate, motivated student", extracted: true }, overall: [overall("featured", "add", "high"), overall("headline", "strong", "low")] });
     const html = renderToStaticMarkup(<SectionCards context={ctx} />);
-    expect(rowOf(html, "Network")).toContain('lw-opt-status is-strong" aria-hidden="true">✓<');
+    expect(rowOf(html, "LinkedIn URL")).toContain('lw-opt-status is-strong" aria-hidden="true">✓<');
+    expect(rowOf(html, "Network")).toContain('lw-opt-status is-review" aria-hidden="true"><svg');
     expect(rowOf(html, "Headline")).toContain('lw-opt-status is-improve" aria-hidden="true">!<');
     expect(rowOf(html, "Featured")).toContain('lw-opt-status is-add" aria-hidden="true">–<');
     expect(rowOf(html, "Profile Photo")).toContain('lw-opt-status is-review" aria-hidden="true"><svg');
     expect(rowOf(html, "Profile Photo")).toContain(">6 to review<");
-    expect(rowOf(html, "Open to Work")).toContain('lw-opt-status is-unverifiable" aria-hidden="true">–<');
+    expect(rowOf(html, "Open to Work")).toContain('lw-opt-status is-review" aria-hidden="true"><svg');
   });
 
   it("say the status, and impact where there's something to do, without relying on color", () => {
     const html = renderToStaticMarkup(<SectionCards context={context({ overall: [overall("featured", "add", "high")] })} />);
     expect(rowOf(html, "Featured")).toContain('aria-label="Featured. Missing section · High impact." title="Missing section · High impact"');
-    expect(rowOf(html, "Network")).toContain('aria-label="Network. Strong."');
-    expect(rowOf(html, "Open to Work")).toContain('aria-label="Open to Work. Can&#x27;t verify."');
+    expect(rowOf(html, "LinkedIn URL")).toContain('aria-label="LinkedIn URL. Strong."');
+    expect(rowOf(html, "Network")).toContain('aria-label="Network. Needs your review · 1 check left."');
+    expect(rowOf(html, "Open to Work")).toContain('aria-label="Open to Work. Needs your review · 2 checks left."');
     expect(rowOf(html, "Profile Photo")).toContain('aria-label="Profile Photo. Needs your review · 6 checks left."');
   });
 
@@ -162,10 +166,12 @@ describe("overview rows", () => {
     expect(score({ "photo-face": false })).toBeLessThan(score({}));
   });
 
-  it("shows Open to Work as Can't verify, never Strong or Improve", () => {
-    expect(sectionDisplay("openToWork", context())).toEqual({ status: "unverifiable", impact: null });
-    expect(sectionDisplay("openToWork", context({ shell: shell(true, false, { openToWork: null }) })).status).toBe("unverifiable");
-    expect(renderToStaticMarkup(<SectionPage section="openToWork" context={context()} />)).toContain("lw-opt-badge is-unverifiable");
+  it("shows Open to Work as Needs your review until answered, never Strong or Improve", () => {
+    expect(sectionDisplay("openToWork", context())).toEqual({ status: "review", impact: null, toReview: 2 });
+    expect(sectionDisplay("openToWork", context({ shell: shell(true, false, { openToWork: null }) })).status).toBe("review");
+    expect(renderToStaticMarkup(<SectionPage section="openToWork" context={context()} />)).toContain("lw-opt-badge is-review");
+    // Answering both questions settles it.
+    expect(sectionDisplay("openToWork", context({ answers: { "otw-roles": true, "otw-recruiters": true } })).status).not.toBe("review");
   });
 
   it("are whole-row buttons, so long titles sit beside the circle in one row", () => {
@@ -176,7 +182,7 @@ describe("overview rows", () => {
 });
 
 describe("partly read lists", () => {
-  it("says the AI checks can't judge the full list instead of failing them", () => {
+  it("asks the user to check the AI-judged items against the full list instead of failing them", () => {
     const profile = { ...EMPTY_PROFILE, skills: ["Customer Service", "Tutoring"], extracted: true };
     const body = {
       profile: { identity: "me", evidence: [{ id: "skills:0", section: "skills" as const, text: "Customer Service, Tutoring", evidenceType: "skills" }] },
@@ -184,7 +190,8 @@ describe("partly read lists", () => {
       userContext: "",
     };
     const html = renderToStaticMarkup(<SectionPage section="skills" context={context({ profile, body })} />);
-    expect(html).toContain("LinkWise read only 2 of your 50 entries here");
+    expect(html).toContain("LinkWise read 2 of your 50 entries here. Check this against your full list.");
+    expect(html).not.toMatch(/can&#x27;t judge|can&#x27;t verify/i);
     expect(html).not.toContain("Needs improvement");
   });
 });
@@ -229,9 +236,42 @@ describe("static guidance", () => {
     expect(text).not.toMatch(/green frame|#opentowork/);
   });
 
-  it("states the denominator without unverifiable checks", () => {
+  it("states the denominator, and what is left for the user", () => {
     expect(summaryText({ state: "improve", passed: 3, verifiable: 5, checking: false, needsUser: 0 })).toBe("3 of 5 verifiable checks passed");
-    expect(summaryText({ state: null, passed: 0, verifiable: 0, checking: false, needsUser: 0 })).toBe("Nothing LinkWise can verify automatically");
+    expect(summaryText({ state: null, passed: 0, verifiable: 0, checking: false, needsUser: 0 })).toBe("Nothing to review");
     expect(summaryText({ state: "strong", passed: 1, verifiable: 1, checking: false, needsUser: 1 })).toBe("1 of 1 verifiable checks passed · 1 needs your review");
+  });
+});
+
+describe("answer menu", () => {
+  it("opens a small menu on any row, and every choice is a local update", async () => {
+    const { createRoot } = await import("react-dom/client");
+    const { act } = await import("react");
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const { ChecklistRows } = await import("./SectionPages");
+    const calls: [string, boolean | null][] = [];
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const criteria = [
+      { id: "location-present", label: "Location added", verification: "deterministic" as const, status: "pass" as const, explanation: "Charlotte", evidenceIds: [], userValue: null, automatic: { status: "pass" as const, explanation: "Charlotte" } },
+      { id: "location-target", label: "Fits where you want opportunities", verification: "user" as const, status: "needs_user" as const, explanation: "Check that this location matches where you want to work.", evidenceIds: [], userValue: null },
+    ];
+    act(() => root.render(<ChecklistRows criteria={criteria} onAnswer={(id, value) => calls.push([id, value])} />));
+    expect(container.querySelector('[role="menu"]')).toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Change answer for Location added"]')!.click());
+    expect(container.textContent).toContain("Looks good");
+    expect(container.textContent).not.toContain("Use LinkWise result");
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Mark Location added as needs improvement"]')!.click());
+    expect(calls).toEqual([["location-present", false]]);
+    expect(container.querySelector('[role="menu"]')).toBeNull();
+    // With an override in place, the menu offers the way back to LinkWise's own result.
+    const overridden = [{ ...criteria[0]!, status: "improve" as const, userValue: false }, criteria[1]!];
+    act(() => root.render(<ChecklistRows criteria={overridden} onAnswer={(id, value) => calls.push([id, value])} />));
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Change answer for Location added"]')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Use LinkWise result for Location added"]')!.click());
+    expect(calls.at(-1)).toEqual(["location-present", null]);
+    act(() => root.unmount());
+    container.remove();
   });
 });

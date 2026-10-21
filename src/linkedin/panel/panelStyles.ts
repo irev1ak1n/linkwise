@@ -2026,14 +2026,62 @@ export function getPanelStyles(widthPx: number): string {
     outline: 2px solid #2f5be0;
     outline-offset: 1px;
   }
-  .lw-od-answer__btn.is-yes[aria-pressed="true"] {
-    border-color: #1f9d55;
-    background: #e7f6ec;
+  .lw-od-answer {
+    position: relative;
+  }
+  .lw-od-answer__btn svg {
+    width: 14px;
+    height: 14px;
+  }
+  .lw-od-answer__btn.is-set {
+    border-color: #b9c8f5;
+    background: #eef3fe;
+    color: #2f5be0;
+  }
+  .lw-od-menu {
+    position: absolute;
+    z-index: 5;
+    top: 32px;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 170px;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid #dbe2ec;
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(16, 24, 40, 0.14);
+  }
+  .lw-od-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    font: inherit;
+    font-size: 12.5px;
+    color: #1d2226;
+    text-align: left;
+    cursor: pointer;
+  }
+  .lw-od-menu__item:hover {
+    background: #f1f5fe;
+  }
+  .lw-od-menu__item[aria-checked="true"] {
+    background: #eef3fe;
+    font-weight: 700;
+  }
+  .lw-od-menu__item span {
+    width: 14px;
+    font-weight: 800;
+    text-align: center;
+  }
+  .lw-od-menu__item.is-yes span {
     color: #1a7f45;
   }
-  .lw-od-answer__btn.is-no[aria-pressed="true"] {
-    border-color: #e3a008;
-    background: #fff6e0;
+  .lw-od-menu__item.is-no span {
     color: #a86f00;
   }
   .lw-od-review-note {

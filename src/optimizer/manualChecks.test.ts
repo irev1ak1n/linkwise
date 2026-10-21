@@ -49,9 +49,10 @@ describe("manual checks", () => {
     expect(answers(shell(null))).toEqual({ "photo-face": true, "banner-text": true });
   });
 
-  it("ignores answers for criteria that aren't the user's to make", () => {
+  it("accepts an answer for any checklist item, and ignores ids that aren't one", () => {
     setManualAnswer("me", "photo-present", true, shell("PHOTO1"));
-    expect(answers(shell("PHOTO1"))).toEqual({});
+    setManualAnswer("me", "not-a-check", true, shell("PHOTO1"));
+    expect(answers(shell("PHOTO1"))).toEqual({ "photo-present": true });
   });
 });
 

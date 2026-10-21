@@ -1,10 +1,10 @@
-// The user's own answers to checklist items only a person can judge, such as a photo's lighting or a
-// banner's readability. Stored per own profile and tied to the image they were given for, so a new
+// The user's own answers to checklist items: ones only a person can judge, such as a photo's
+// lighting, and overrides of what LinkWise found by itself. Stored per own profile and tied to the image they were given for, so a new
 // photo starts its checks fresh while every other answer stays. Answering is purely local: it updates
 // the checklist, the section's status and the score, and never sends anything anywhere.
 import { createStoredPreference } from "../linkedin/panel/storedPreference";
 import type { ProfileShell } from "../linkedin/profileAdapter";
-import { CHECKLISTS, userCriteria } from "./checklist";
+import { CHECKLISTS } from "./checklist";
 import type { OptimizerSection } from "./sections";
 
 export const MANUAL_CHECKS_STORAGE_KEY = "finder.optimizerManualChecks.v1";
@@ -34,8 +34,9 @@ function parse(stored: unknown): ManualCheckStore | undefined {
 
 export const manualChecksPreference = createStoredPreference<ManualCheckStore>(MANUAL_CHECKS_STORAGE_KEY, {}, parse);
 
+// Every checklist item can be answered, including ones LinkWise checks itself (the answer then overrides it).
 const SECTION_OF = new Map<string, OptimizerSection>(
-  (Object.keys(CHECKLISTS) as OptimizerSection[]).flatMap((section) => userCriteria(section).map((criterion) => [criterion.id, section] as const)),
+  (Object.keys(CHECKLISTS) as OptimizerSection[]).flatMap((section) => CHECKLISTS[section].map((criterion) => [criterion.id, section] as const)),
 );
 
 /** What a section's answers depend on: the photo or banner image itself. */

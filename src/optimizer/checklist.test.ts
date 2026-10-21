@@ -74,16 +74,16 @@ describe("unverifiable criteria", () => {
   it("never claims what it cannot see: images, links, and paragraph breaks", () => {
     expect(status("photo", profile)).toMatchObject({ "photo-present": "pass", "photo-face": "needs_user", "photo-lighting": "needs_user", "photo-crop": "needs_user" });
     expect(status("banner", profile)).toMatchObject({ "banner-custom": "pass", "banner-relevant": "needs_user", "banner-quality": "needs_user", "banner-text": "needs_user" });
-    expect(status("about", profile)["about-paragraphs"]).toBe("unverifiable");
-    expect(status("projects", { ...profile, projects: [{ name: "Yearbook site" }] })["projects-links"]).toBe("unverifiable");
-    expect(status("experience", profile)["experience-media"]).toBe("unverifiable");
+    expect(status("about", profile)["about-paragraphs"]).toBe("needs_user");
+    expect(status("projects", { ...profile, projects: [{ name: "Yearbook site" }] })["projects-links"]).toBe("needs_user");
+    expect(status("experience", profile)["experience-media"]).toBe("needs_user");
     for (const section of ["photo", "banner"] as const) expect(CHECKLISTS[section].filter((c) => c.verification === "deterministic")).toHaveLength(1);
   });
 
   it("never suggests moving, and never requires a credential URL", () => {
-    expect(status("location", profile)).toMatchObject({ "location-specific": "pass", "location-target": "unverifiable" });
+    expect(status("location", profile)).toMatchObject({ "location-specific": "pass", "location-target": "needs_user" });
     expect(status("location", { ...profile, location: "United States" })["location-specific"]).toBe("improve");
-    expect(status("certifications", profile)["certifications-credential"]).toBe("unverifiable");
+    expect(status("certifications", profile)["certifications-credential"]).toBe("needs_user");
   });
 });
 
@@ -99,11 +99,11 @@ describe("LinkedIn URL", () => {
 
 describe("Open to Work", () => {
   it("reports only what the page shows, and never guesses recruiter-only settings", () => {
-    expect(status("openToWork", profile, undefined, { ...baseShell, openToWork: "shown" })).toMatchObject({ "otw-status": "pass", "otw-recruiters": "unverifiable", "otw-roles": "unverifiable" });
+    expect(status("openToWork", profile, undefined, { ...baseShell, openToWork: "shown" })).toMatchObject({ "otw-status": "pass", "otw-recruiters": "needs_user", "otw-roles": "needs_user" });
     expect(status("openToWork", profile, undefined, { ...baseShell, openToWork: "not_shown" })["otw-status"]).toBe("not_applicable");
-    expect(status("openToWork", profile, undefined, { ...baseShell, openToWork: null })["otw-status"]).toBe("unverifiable");
+    expect(status("openToWork", profile, undefined, { ...baseShell, openToWork: null })["otw-status"]).toBe("needs_user");
     const results = evaluateChecklist("openToWork", context("openToWork", profile, { ...baseShell, openToWork: "not_shown" }), { status: "idle" });
-    expect(summarizeChecklist(true, results)).toMatchObject({ verifiable: 0, state: null });
+    expect(summarizeChecklist(true, results)).toMatchObject({ verifiable: 0, state: null, needsUser: 2 });
   });
 });
 
@@ -132,9 +132,9 @@ describe("semantic criteria", () => {
     expect(evaluated.find((c) => c.id === "about-evidence")!.status).toBe("improve");
   });
 
-  it("marks criteria the AI couldn't assess as unverifiable rather than guessing", () => {
-    expect(status("about", profile, results)["about-differentiator"]).toBe("unverifiable");
-    expect(status("about", profile, { status: "unavailable", reason: "timeout" })["about-who"]).toBe("unverifiable");
+  it("asks the user about criteria the AI couldn't assess rather than guessing", () => {
+    expect(status("about", profile, results)["about-differentiator"]).toBe("needs_user");
+    expect(status("about", profile, { status: "unavailable", reason: "timeout" })["about-who"]).toBe("needs_user");
     expect(status("about", profile)["about-who"]).toBe("checking");
   });
 });
@@ -147,7 +147,7 @@ describe("summarizeChecklist", () => {
       results: semanticCriteria("about").map((c, i) => ({ criterionId: c.id, status: i < 3 ? "pass" : "improve", explanation: "Your About section mentions Python.", evidenceIds: [] })),
     });
     expect(summarizeChecklist(true, about)).toMatchObject({ state: "improve", passed: 4, verifiable: 9 });
-    expect(about.filter((c) => c.status === "unverifiable")).toHaveLength(1);
+    expect(about.filter((c) => c.status === "needs_user")).toHaveLength(1);
   });
 
   it("waits for the AI before calling a section strong, but reports improvements right away", () => {
@@ -200,5 +200,25 @@ describe("section presence", () => {
     const explain = (p: LinkedInProfile) => evaluateChecklist("skills", context("skills", p, shell), { status: "idle" }).find((c) => c.id === "skills-present")?.explanation;
     expect(explain(skills(50))).toBe("50 of 50 entries read.");
     expect(explain(skills(46))).toBe("46 of 50 entries read.");
+  });
+});
+
+describe("overrides", () => {
+  const withAnswers = (answers: Record<string, boolean>) => evaluateChecklist("location", { ...context("location", profile), answers }, { status: "idle" });
+
+  it("lets the user override a result LinkWise found, keeping the automatic one alongside", () => {
+    const [present] = withAnswers({ "location-present": false });
+    expect(present).toMatchObject({ id: "location-present", status: "improve", userValue: false, explanation: "You marked this as needing improvement." });
+    expect(present!.automatic).toMatchObject({ status: "pass" });
+    // Withdrawing the answer returns to what LinkWise found.
+    expect(withAnswers({})[0]).toMatchObject({ status: "pass" });
+    expect(withAnswers({})[0]!.userValue).toBeUndefined();
+    const failing = evaluateChecklist("location", { ...context("location", { ...profile, location: "United States" }), answers: { "location-specific": true } }, { status: "idle" });
+    expect(failing.find((c) => c.id === "location-specific")).toMatchObject({ status: "pass", userValue: true, automatic: { status: "improve" } });
+  });
+
+  it("never asks a question that sounds like a limitation", () => {
+    const text = (["about", "featured", "experience", "projects", "certifications", "location", "openToWork", "network"] as const).flatMap((section) => evaluateChecklist(section, context(section, profile, { ...baseShell, openToWork: null }), { status: "idle" })).map((c) => c.explanation).join(" ");
+    expect(text).not.toMatch(/can.t (verify|see|evaluate|judge)|doesn.t (read|know|analyze)|LinkWise (can|doesn)/i);
   });
 });
