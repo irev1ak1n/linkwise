@@ -1260,6 +1260,21 @@ export function getPanelStyles(widthPx: number): string {
     width: 13.5%;
     border-radius: 50%;
   }
+  /* The Job Analyzer artwork's own button bounds; its title and subtitle share the Optimizer's rules above. */
+  .lw-art-hero--jobs .lw-art-hero__hotspot {
+    top: 12.2%;
+    height: 21.6%;
+  }
+  .lw-art-hero--jobs .lw-art-hero__hotspot--menu {
+    left: 4.8%;
+    width: 13%;
+    border-radius: 24%;
+  }
+  .lw-art-hero--jobs .lw-art-hero__hotspot--settings {
+    right: 6.6%;
+    width: 12.9%;
+    border-radius: 50%;
+  }
   /* The Analyzer's zones: buttons in their own row, then the title and subtitle below them at the
      Analyzer's scale. The artwork's illustration sits right of 61%, where the one-line title ends. */
   .lw-art-hero--optimizer .lw-art-hero__copy {

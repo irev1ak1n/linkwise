@@ -24,7 +24,7 @@ const ICON: Record<MenuTool, ReactNode> = {
 export const MENU_ITEMS: { tool: MenuTool; label: string; description: string }[] = [
   { tool: "analyzer", label: "Profile Analyzer", description: "Analyze someone's LinkedIn profile" },
   { tool: "optimizer", label: "Profile Optimizer", description: "Improve your own profile" },
-  { tool: "jobs", label: "Job Filters", description: "Organize LinkedIn job listings" },
+  { tool: "jobs", label: "Job Analyzer", description: "Analyze LinkedIn job listings" },
   { tool: "saved", label: "Saved Profiles", description: "Revisit profiles and track changes" },
 ];
 
@@ -135,7 +135,7 @@ interface ArtworkHotspot {
 function ArtworkHero({ name, path, width, height, alt, hotspots, children }: { name: string; path: string; width: number; height: number; alt: string; hotspots: ArtworkHotspot[]; children?: ReactNode }) {
   const src = typeof chrome !== "undefined" ? chrome.runtime?.getURL?.(path) : undefined;
   return (
-    <section className={`lw-art-hero lw-art-hero--${name}`}>
+    <section className={`lw-art-hero ${name.split(" ").map((part) => `lw-art-hero--${part}`).join(" ")}`}>
       <img className="lw-art-hero__art" src={src || undefined} width={width} height={height} alt={alt} draggable={false} />
       {children}
       {hotspots.map((hotspot) => (
@@ -180,6 +180,32 @@ export function OptimizerHero() {
         <h2 className="lw-art-hero__title">Profile Optimizer</h2>
         <p className="lw-art-hero__subtitle">
           <span>Improve your LinkedIn profile</span> <span>with AI-powered suggestions.</span>
+        </p>
+      </div>
+    </ArtworkHero>
+  );
+}
+
+// The Job Analyzer's artwork has the same layout as the Optimizer's (menu and settings buttons, empty
+// left side), so its live title and subtitle reuse the Optimizer's hero styling, which already matches the Analyzer's.
+// The illustration sits further left here, so the subtitle takes three short lines to stay clear of it.
+export function JobAnalyzerHero() {
+  return (
+    <ArtworkHero
+      name="jobs optimizer"
+      path="content/assets/job-analyzer-hero.webp"
+      width={1627}
+      height={967}
+      alt=""
+      hotspots={[
+        { label: "Open LinkWise menu", modifier: "menu", onClick: () => panelToolPreference.set("menu") },
+        { label: "Open LinkWise settings", modifier: "settings", onClick: openSettings },
+      ]}
+    >
+      <div className="lw-art-hero__copy">
+        <h2 className="lw-art-hero__title">Job Analyzer</h2>
+        <p className="lw-art-hero__subtitle">
+          <span>Get insights and</span> <span>actionable tips for</span> <span>any LinkedIn job.</span>
         </p>
       </div>
     </ArtworkHero>

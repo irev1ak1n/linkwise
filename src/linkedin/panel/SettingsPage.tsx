@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { SettingsHero } from "./MainMenu";
 
 // General LinkWise behavior: how profiles are scanned and highlighted. What to look for and what
-// to highlight on a profile stay with Profile Analyzer.
-export function SettingsPage({ scanning, highlights }: { scanning: ReactNode; highlights: ReactNode }) {
+// to highlight on a profile stay with Profile Analyzer. The job filters live here too.
+export function SettingsPage({ scanning, highlights, jobFilters }: { scanning: ReactNode; highlights: ReactNode; jobFilters: ReactNode }) {
   return (
     <div className="lw-settings">
       <SettingsHero />
@@ -12,6 +12,7 @@ export function SettingsPage({ scanning, highlights }: { scanning: ReactNode; hi
         {scanning}
       </section>
       {highlights}
+      {jobFilters}
     </div>
   );
 }

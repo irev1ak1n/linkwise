@@ -84,7 +84,7 @@ const openSettings = async () => act(async () => container.querySelector<HTMLBut
 describe("LinkWise menu", () => {
   it("lists exactly the four tools, one per row, with no Smart Highlights or tab bar", async () => {
     await mountPanel();
-    expect(menuItems()).toEqual(["Profile Analyzer", "Profile Optimizer", "Job Filters", "Saved Profiles"]);
+    expect(menuItems()).toEqual(["Profile Analyzer", "Profile Optimizer", "Job Analyzer", "Saved Profiles"]);
     expect(container.querySelector(".lw-menu")!.children).toHaveLength(4);
     expect(container.textContent).not.toContain("Smart Highlights");
     expect(container.querySelector('[role="tablist"]')).toBeNull();
@@ -92,7 +92,7 @@ describe("LinkWise menu", () => {
 
   it("shows the tool list only on the menu, and every tool leads back to it", async () => {
     await mountPanel();
-    for (const label of ["Profile Analyzer", "Profile Optimizer", "Job Filters", "Saved Profiles"]) {
+    for (const label of ["Profile Analyzer", "Profile Optimizer", "Job Analyzer", "Saved Profiles"]) {
       await openFromMenu(label);
       expect(container.querySelector(".lw-menu")).toBeNull();
       await toMenu();
@@ -111,7 +111,7 @@ describe("LinkWise menu", () => {
 
   it("remembers the open tool across panel reopenings", async () => {
     await mountPanel();
-    await openFromMenu("Job Filters");
+    await openFromMenu("Job Analyzer");
     expect(stored["finder.panelTool.v1"]).toBe("jobs");
   });
 
@@ -122,13 +122,18 @@ describe("LinkWise menu", () => {
   });
 });
 
-describe("Job Filters page", () => {
-  it("keeps job controls off the profile page and opens them as their own page", async () => {
+describe("Job filters in Settings", () => {
+  it("keeps job controls off the analyzer pages and puts them in Settings", async () => {
     await mountPanel();
     await openFromMenu("Profile Analyzer");
     expect(container.textContent).not.toContain("Applied jobs");
     await toMenu();
-    await openFromMenu("Job Filters");
+    await openFromMenu("Job Analyzer");
+    expect(container.textContent).toContain("Job Analyzer");
+    expect(container.textContent).not.toContain("Applied jobs");
+    expect(container.querySelector('[role="tablist"]')).toBeNull();
+    await openSettings();
+    expect(container.textContent).toContain("Job filters");
     expect(container.textContent).toContain("Customize how LinkedIn job listings are hidden or highlighted.");
     expect(container.textContent).toContain("Applied jobs");
     expect(container.textContent).toContain("Case-insensitive matching");
@@ -136,7 +141,8 @@ describe("Job Filters page", () => {
 
   it("updates and saves the shared jobs settings, with a color choice only for Highlight", async () => {
     await mountPanel();
-    await openFromMenu("Job Filters");
+    await openFromMenu("Job Analyzer");
+    await openSettings();
     expect(container.querySelector('[aria-label="Viewed jobs color"]')).toBeNull();
     await act(async () => radio("Viewed jobs", "Highlight").click());
     expect(getJobsSettingsState().settings.viewedAction).toBe("highlight");
@@ -221,7 +227,7 @@ describe("Settings", () => {
   it("keeps the first origin when Settings is opened again from Settings", async () => {
     const { openSettings: openFromAnywhere } = await import("./settingsNav");
     await mountPanel();
-    await openFromMenu("Job Filters");
+    await openFromMenu("Job Analyzer");
     await act(async () => openFromAnywhere());
     await act(async () => openFromAnywhere());
     await goBack();

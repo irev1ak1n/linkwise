@@ -13,7 +13,8 @@ import { ScanModeToggle } from "./ScanModeToggle";
 import { ScanOptionRow } from "./ScanOptionRow";
 import { autoExpandPreference } from "./autoExpandPreference";
 import { useStoredPreference } from "./useStoredPreference";
-import { JobFiltersPage } from "./JobFiltersPage";
+import { JobFiltersSection } from "./JobFiltersSection";
+import { JobAnalyzerTab } from "./JobAnalyzerTab";
 import { HighlightSettings } from "./HighlightSettings";
 import { SettingsPage } from "./SettingsPage";
 import { highlightKeywordsPreference } from "./keywordPreference";
@@ -32,7 +33,7 @@ import { getHighlightRule, subscribeHighlightRule } from "./settingsNav";
 import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
-import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, MainMenu, OptimizerHero } from "./MainMenu";
+import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, JobAnalyzerHero, MainMenu, OptimizerHero } from "./MainMenu";
 
 const openMenu = () => panelToolPreference.set("menu");
 
@@ -185,6 +186,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
         ) : tool === "settings" ? (
           <SettingsPage
             highlights={highlights}
+            jobFilters={<JobFiltersSection settings={jobsSettings} onChange={setJobsSettings} />}
             scanning={
               <>
                 <ScanModeToggle mode={scanMode} onChange={setScanMode} />
@@ -228,7 +230,10 @@ export function PanelApp({ onClose }: PanelAppProps) {
             <SavedProfilesView />
           </>
         ) : tool === "jobs" ? (
-          <JobFiltersPage settings={jobsSettings} onChange={setJobsSettings} onBack={openMenu} />
+          <>
+            <JobAnalyzerHero />
+            <JobAnalyzerTab />
+          </>
         ) : tool === "optimizer" ? (
           <>
             {optimizerPage.name === "home" && <OptimizerHero />}

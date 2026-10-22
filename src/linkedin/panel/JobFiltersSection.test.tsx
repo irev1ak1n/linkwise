@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { JobFiltersPage, activeJobRules } from "./JobFiltersPage";
+import { JobFiltersSection, activeJobRules } from "./JobFiltersSection";
 import { DEFAULT_JOBS_SETTINGS, type JobsSettings } from "../../models/jobsSettings";
 import { parseKeywords } from "../jobs/keywordMatcher";
 
 function render(overrides: Partial<JobsSettings> = {}): string {
-  return renderToStaticMarkup(<JobFiltersPage settings={{ ...DEFAULT_JOBS_SETTINGS, ...overrides }} onChange={() => {}} onBack={() => {}} />);
+  return renderToStaticMarkup(<JobFiltersSection settings={{ ...DEFAULT_JOBS_SETTINGS, ...overrides }} onChange={() => {}} />);
 }
 
 const pickers = (html: string) => [...html.matchAll(/role="radiogroup" aria-label="([^"]+ color)"/g)].map((m) => m[1]);
 
-describe("JobFiltersPage", () => {
-  it("renders every job setting with Back, as segmented controls", () => {
+describe("JobFiltersSection", () => {
+  it("renders every job setting as segmented controls, under a Job filters heading", () => {
     const html = render();
-    expect(html).toContain("← Back to Menu");
-    expect(html).toContain("Job Filters");
+    expect(html).not.toContain("Back to Menu");
+    expect(html).toContain("Job filters");
     expect(html).toContain("Customize how LinkedIn job listings are hidden or highlighted.");
     for (const label of ["Applied jobs", "Viewed jobs", "Saved jobs", "Action"]) {
       expect(html).toContain(`role="radiogroup" aria-label="${label}"`);
