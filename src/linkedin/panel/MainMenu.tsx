@@ -188,7 +188,7 @@ export function OptimizerHero() {
 
 // The Job Analyzer's artwork has the same layout as the Optimizer's (menu and settings buttons, empty
 // left side), so its live title and subtitle reuse the Optimizer's hero styling, which already matches the Analyzer's.
-// The illustration sits further left here, so the subtitle takes three short lines to stay clear of it.
+// The illustration sits further left here, so the subtitle is set a little smaller to fit two lines clear of it.
 export function JobAnalyzerHero() {
   return (
     <ArtworkHero
@@ -205,7 +205,7 @@ export function JobAnalyzerHero() {
       <div className="lw-art-hero__copy">
         <h2 className="lw-art-hero__title">Job Analyzer</h2>
         <p className="lw-art-hero__subtitle">
-          <span>Get insights and</span> <span>actionable tips for</span> <span>any LinkedIn job.</span>
+          <span>Get insights and actionable</span> <span>tips for any LinkedIn job.</span>
         </p>
       </div>
     </ArtworkHero>

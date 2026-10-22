@@ -1260,10 +1260,26 @@ export function getPanelStyles(widthPx: number): string {
     width: 13.5%;
     border-radius: 50%;
   }
-  /* The Job Analyzer artwork's own button bounds; its title and subtitle share the Optimizer's rules above. */
+  /* The Job Analyzer artwork's own button bounds; its title and subtitle share the Optimizer's rules above.
+     The artwork draws two glow lines across its top edge; the Analyzer's has one. The top 22px (1.35% of
+     its width) are cropped so only the lower line is left, and the zones below are measured from there. */
+  .lw-art-hero--jobs {
+    overflow: hidden;
+  }
+  .lw-art-hero--jobs .lw-art-hero__art {
+    margin-top: -1.352cqw;
+  }
+  .lw-art-hero.lw-art-hero--jobs .lw-art-hero__copy {
+    top: 45.7%;
+  }
+  .lw-art-hero.lw-art-hero--jobs .lw-art-hero__subtitle {
+    margin-top: 1.4cqw;
+    font-size: 3.3cqw;
+    line-height: 1.38;
+  }
   .lw-art-hero--jobs .lw-art-hero__hotspot {
-    top: 12.2%;
-    height: 21.6%;
+    top: 10.4%;
+    height: 21.2%;
   }
   .lw-art-hero--jobs .lw-art-hero__hotspot--menu {
     left: 4.8%;
