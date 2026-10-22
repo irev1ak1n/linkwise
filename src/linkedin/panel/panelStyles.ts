@@ -2371,6 +2371,92 @@ export function getPanelStyles(widthPx: number): string {
     font-size: 12px;
     color: #6b7585;
   }
+  /* Job filters (in Settings): the Optimizer's card look, a divider above, and the blue selected state. */
+  .lw-settings__group.lw-jobs-page {
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid #e8ecef;
+  }
+  .lw-jobs-page .lw-scan-mode__hint {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #56687a;
+  }
+  .lw-jobs-page .lw-opt-block {
+    gap: 10px;
+    padding: 14px 16px;
+    border-color: #e0e6ef;
+    border-radius: 15px;
+  }
+  .lw-jobs-page .lw-job-rule {
+    gap: 7px;
+  }
+  .lw-jobs-page .lw-job-rule + .lw-job-rule {
+    padding-top: 10px;
+  }
+  .lw-jobs-page .lw-job-rule__label {
+    font-size: 12.5px;
+    color: #1d2226;
+  }
+  .lw-jobs-page .lw-scan-mode__control {
+    border-color: #dbe2ec;
+    border-radius: 10px;
+    background: #f8fafc;
+  }
+  .lw-jobs-page .lw-scan-mode__option {
+    padding: 7px 8px;
+    font-size: 12px;
+    background: transparent;
+  }
+  .lw-jobs-page .lw-scan-mode__option + .lw-scan-mode__option {
+    border-left-color: #dbe2ec;
+  }
+  .lw-jobs-page .lw-scan-mode__option.is-active {
+    background: #2f5be0;
+    color: #fff;
+  }
+  .lw-jobs-page .lw-keywords__input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #1d2226;
+    background: #f8fafc;
+    border: 1px solid #dbe2ec;
+    border-radius: 10px;
+    resize: vertical;
+  }
+  .lw-jobs-page .lw-keywords__input:focus {
+    outline: none;
+    border-color: #2f5be0;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(47, 91, 224, 0.15);
+  }
+  .lw-jobs-page .lw-expand-details {
+    gap: 8px;
+    font-size: 12.5px;
+    line-height: 1.3;
+  }
+  .lw-jobs-page .lw-expand-details input {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    accent-color: #2f5be0;
+  }
+  .lw-jobs-active {
+    background: #f8fafc;
+  }
+  .lw-jobs-active .lw-opt-tips {
+    gap: 6px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: #1d2226;
+  }
+  .lw-jobs-active .lw-opt-tips li::marker {
+    color: #2f5be0;
+  }
   .lw-od-note {
     display: flex;
     flex-direction: column;

@@ -117,7 +117,7 @@ export function JobFiltersSection({ settings, onChange }: { settings: JobsSettin
       </section>
 
       {rules.length > 0 && (
-        <section className="lw-opt-block">
+        <section className="lw-opt-block lw-jobs-active">
           <h4>Active filters</h4>
           <ul className="lw-opt-tips">
             {rules.map((rule) => (
