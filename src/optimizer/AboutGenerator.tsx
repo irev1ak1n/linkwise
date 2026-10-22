@@ -3,6 +3,7 @@ import type { PendingRelayRequest } from "../ai/backgroundRelay";
 import { requestAboutOptions, type AboutGenerationRequestBody, type AboutStyle, type OptimizeProfileRequestBody } from "./optimizerClient";
 import { openOptimizerPage } from "./optimizerNav";
 import { copyText } from "./copyText";
+import { includeHint } from "./generatorHints";
 import { CurrentCard, GeneratorBlock, GeneratorNav, PrimaryButton } from "./GeneratorParts";
 import type { AboutOption, AboutOptionsOutcome } from "./optimizerTypes";
 
@@ -82,7 +83,7 @@ export function AboutGenerator({ body, currentAbout, request = requestAboutOptio
           aria-label="What should we include?"
           value={form.include}
           maxLength={600}
-          placeholder="TSA leadership, 150+ tutoring hours, full-stack projects, school websites"
+          placeholder={includeHint(body?.profile.evidence ?? [], "about")}
           onChange={(e) => update("include", e.target.value)}
         />
       </GeneratorBlock>

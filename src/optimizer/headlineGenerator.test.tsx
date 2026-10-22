@@ -57,7 +57,9 @@ describe("headline generator", () => {
     expect(container.textContent).not.toMatch(/Target role|Keywords to include|Additional context|Language/);
     const include = container.querySelector<HTMLTextAreaElement>("textarea")!;
     const format = container.querySelector<HTMLInputElement>("input")!;
-    expect(format.placeholder).toBe("X | Y | Z");
+    expect(format.placeholder).toBe("Role | Focus | Proof");
+    expect(container.textContent).toContain("Optional. Set the structure you want.");
+    expect(container.textContent).not.toMatch(/X • Y • Z/);
     const button = () => container.querySelector<HTMLButtonElement>(".lw-primary-button")!;
     expect(button().textContent).toBe("Generate headlines");
     act(() => {

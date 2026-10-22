@@ -3,6 +3,7 @@ import type { PendingRelayRequest } from "../ai/backgroundRelay";
 import { requestHeadlineOptions, type HeadlineGenerationRequestBody, type OptimizeProfileRequestBody } from "./optimizerClient";
 import { openOptimizerPage } from "./optimizerNav";
 import { copyText } from "./copyText";
+import { includeHint } from "./generatorHints";
 import { CurrentCard, GeneratorBlock, GeneratorNav, PrimaryButton } from "./GeneratorParts";
 import type { HeadlineOption, HeadlineOptionsOutcome } from "./optimizerTypes";
 
@@ -11,7 +12,7 @@ export interface GeneratorForm {
   format: string;
 }
 
-export const FORMAT_PLACEHOLDER = "X | Y | Z";
+export const FORMAT_PLACEHOLDER = "Role | Focus | Proof";
 
 // Kept for the session, so leaving the generator and coming back keeps what was typed and generated.
 let savedForm: GeneratorForm = { include: "", format: "" };
@@ -73,14 +74,14 @@ export function HeadlineGenerator({ body, currentHeadline, request = requestHead
           aria-label="What should we include?"
           value={form.include}
           maxLength={600}
-          placeholder="Software engineering, full-stack projects, TSA, programming tutoring"
+          placeholder={includeHint(body?.profile.evidence ?? [], "headline")}
           onChange={(e) => update("include", e.target.value)}
         />
       </GeneratorBlock>
 
       <GeneratorBlock title="Format">
         <input className="lw-gen-input" aria-label="Format" value={form.format} maxLength={120} placeholder={FORMAT_PLACEHOLDER} onChange={(e) => update("format", e.target.value)} />
-        <p className="lw-gen-help">Optional. Try “Role | Specialty | Proof”, “X • Y • Z” or “Role — Impact — Direction”. Empty lets LinkWise choose.</p>
+        <p className="lw-gen-help">Optional. Set the structure you want.</p>
       </GeneratorBlock>
 
       <PrimaryButton disabled={!body || loading} onClick={generate}>
