@@ -39,7 +39,7 @@ export const aboutGenerationRequestSchema = z.object({
   profile: profileSchema,
   currentAbout: z.string().max(2600).default(""),
   include: z.string().max(600).default(""),
-  // "all" writes the three styles; one of the others writes two options in that style.
+  // One style per request, and one About back. "all" is the Mix.
   style: z.enum(ABOUT_STYLES).default("all"),
   targetRole: z.string().max(120).default(""),
   standOut: z.string().max(300).default(""),

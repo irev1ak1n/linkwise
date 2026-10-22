@@ -86,7 +86,7 @@ export function validateHeadlineOptions(response: HeadlineOptionsResponse, reque
 }
 
 const MAX_ABOUT_LENGTH = 2000;
-const MIN_ABOUT_WORDS = 110;
+const MIN_ABOUT_WORDS = 70;
 const MAX_ABOUT_WORDS = 340;
 
 export function validateAboutOptions(response: AboutOptionsResponse, request: AboutGenerationRequest): { label: string; text: string }[] {

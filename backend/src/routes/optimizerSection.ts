@@ -11,7 +11,6 @@ import { CHECKLIST_SYSTEM_PROMPT, buildChecklistUserPrompt, checklistResponseSch
 import { validateChecklist } from "../guardrails/validateChecklist";
 
 const HEADLINE_STRATEGIES = ["Balanced", "Impact", "Positioning"];
-const ABOUT_STRATEGIES = ["Balanced", "Impact", "Story"];
 
 // One controlled repair: when validation drops options, ask once for just the missing ones, told what
 // is already kept so they differ. Whatever still fails stays dropped; grounded quality comes before count.
@@ -89,18 +88,17 @@ export async function handleAboutGeneration(req: Request, res: Response, deps: O
     { timeoutMs: deps.timeoutMs, client: deps.client },
   );
   if (result.status !== "ok") return sendFailure(res, "optimizer-abouts", result);
-  let options = validateAboutOptions(result.data, request);
-  const wanted = request.style === "all" ? 3 : 2;
-  if (options.length > 0 && options.length < wanted) {
-    const strategies = request.style === "all" ? ABOUT_STRATEGIES : [`${request.style[0]!.toUpperCase()}${request.style.slice(1)}, alternate`];
-    const repair = await requestStructured<AboutOptionsResponse>(
+  // One style asks for one About. If it fails validation, a single retry; never more.
+  let options = validateAboutOptions(result.data, request).slice(0, 1);
+  if (options.length === 0) {
+    const retry = await requestStructured<AboutOptionsResponse>(
       deps.config,
       () => createOpenAiStructuredClient(deps.config, aboutOptionsResponseSchema, "optimizer_abouts"),
       ABOUT_GENERATION_PROMPT,
-      `${buildAboutUserPrompt(request)}\n\n${repairInstruction("About", missingLabels(wanted, strategies, options), options.map((o) => o.text.slice(0, 200)))}`,
+      `${buildAboutUserPrompt(request)}\n\nREPAIR: the previous attempt was rejected for claims the evidence does not support or the wrong length. Write exactly one About, strictly within the profile evidence.`,
       { timeoutMs: deps.timeoutMs, client: deps.client },
     );
-    if (repair.status === "ok") options = validateAboutOptions({ options: [...options, ...repair.data.options] }, request);
+    if (retry.status === "ok") options = validateAboutOptions(retry.data, request).slice(0, 1);
   }
   if (options.length === 0) {
     res.status(200).json({ status: "unavailable", reason: "ungrounded_abouts" });

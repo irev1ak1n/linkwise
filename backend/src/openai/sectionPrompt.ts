@@ -68,13 +68,17 @@ ${QUALITY_PRINCIPLES}
 
 Before writing, silently choose the four to seven strongest pieces of evidence in the profile and build around them. Prioritize actual projects, real outcomes, leadership and ownership, quantified wins, credible training, awards, users or people helped, and meaningful credentials. Do not recap every role. The request lists the strongest evidence already ranked: build the About around it. The usual order of strength is measurable impact, projects and products built, leadership and ownership, meaningful experience, awards and competition results, credentials and long training, teaching and mentoring, specialized skills, then languages and generic facts. Use that order unless the person's direction makes something lower central (for example, languages for a translator). Spoken languages, tool lists, and school facts are at most one passing clause while stronger evidence exists; never give them a paragraph or a sentence of their own. Prefer "built digital tools students use, led a competition team, and tutored programming for 150+ hours" over "I speak three languages and know Python, C++, and SQL".
 
-Write exactly three options, each 180 to 300 words, in short paragraphs separated by a blank line, in first person, using these labels:
-1. "Balanced": the best overall professional version.
-2. "Impact": leans on results, leadership, projects, and scale.
-3. "Story": a more personal, narrative version that stays professional and grounded. Use "Technical" instead when the person is clearly an engineer and the build work is the better angle.
-The three must be genuinely different in angle, opening, and emphasis. Never rephrase one text three times.
+Write exactly ONE About, in first person, in short paragraphs separated by a blank line, in the style the request names:
+- "Mix": the best overall version, blending the strongest evidence, a clear direction, and a little personal voice.
+- "Balanced": professional and well-rounded.
+- "Impact-focused": leans on results, leadership, projects, and scale.
+- "Story": a more personal, narrative version that stays professional and grounded.
+- "Technical": leans on the engineering work, how things were built, and problem solving.
+Use only the requested style; never write the other styles or several versions.
 
-Shape each as a story told with evidence, not a resume turned into paragraphs. A useful flow, adapted to the person rather than forced into five paragraphs: who they are, their direction, and a hook; the background that led here; strong projects, work, or accomplishments; leadership and measurable impact; what they are building toward now.
+Length: aim for roughly 200 to 300 words, which is a full LinkedIn About. Never pad to reach a number: natural, specific writing matters more than the count. If the person's "what to include" asks for something short or concise, write around 100 words instead; that is just as valid.
+
+Shape it as a story told with evidence, not a resume turned into paragraphs. A useful flow, adapted to the person rather than forced into five paragraphs: who they are, their direction, and a hook; the background that led here; strong projects, work, or accomplishments; leadership and measurable impact; what they are building toward now.
 
 Use proof, not adjectives:
 - Use the strongest numbers the evidence contains (users, hours, team size, rankings, placements, people helped, projects, years of training) naturally inside sentences, not buried in a list. A result described in words counts as much as a number.
@@ -86,11 +90,11 @@ Every sentence must be grounded only in the profile evidence and what the user e
 Use "what to include" to choose what to emphasize, not as a list to cram in. Write in the requested language. Write plainly and like a person: avoid "passionate", "innovative", "results-driven", "dynamic", "seasoned", "highly motivated", "leveraging", "synergy", "driving excellence", and emoji. If this is a regeneration (variation above 1), take a clearly different approach: a different opening, a different order of ideas, and different wording.`;
 
 const STYLE_NOTE: Record<AboutGenerationRequest["style"], string> = {
-  all: "all three styles",
-  balanced: "Balanced only: write two options, both Balanced, labelled \"Balanced\" and \"Balanced, alternate\", with different openings and emphasis",
-  impact: "Impact only: write two options, both Impact, labelled \"Impact\" and \"Impact, alternate\", with different openings and emphasis",
-  technical: "Technical only: write two options, both Technical, labelled \"Technical\" and \"Technical, alternate\", with different openings and emphasis",
-  story: "Story only: write two options, both Story, labelled \"Story\" and \"Story, alternate\", with different openings and emphasis",
+  all: 'one About in the "Mix" style',
+  balanced: 'one About in the "Balanced" style',
+  impact: 'one About in the "Impact-focused" style',
+  story: 'one About in the "Story" style',
+  technical: 'one About in the "Technical" style',
 };
 
 export function buildAboutUserPrompt(request: AboutGenerationRequest): string {
@@ -98,7 +102,7 @@ export function buildAboutUserPrompt(request: AboutGenerationRequest): string {
     `current About: ${JSON.stringify(request.currentAbout)}`,
     ...optional("what the user wants included or emphasized (guidance, not a checklist)", request.include),
     `strongest evidence, ranked best first (build around these; everything else is background):\n${strongestEvidence(request.profile.evidence).map((item, i) => `${i + 1}. [${item.kind}] ${item.id}: ${item.text.slice(0, 260)}`).join("\n")}`,
-    `styles wanted (this overrides the three-option rule above): ${STYLE_NOTE[request.style]}`,
+    `style wanted: ${STYLE_NOTE[request.style]}`,
     ...optional("target role", request.targetRole),
     ...optional("what should stand out", request.standOut),
     ...optional("additional context from the user", request.additionalContext),

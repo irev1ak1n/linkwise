@@ -41,8 +41,11 @@ describe("writing tool prompts", () => {
     expect(HEADLINE_GENERATION_PROMPT).toContain("steering, not a checklist");
   });
 
-  it("About: a story with proof, quantified wins and real leadership, 180 to 300 words, never invented", () => {
-    expect(ABOUT_GENERATION_PROMPT).toContain("180 to 300 words");
+  it("About: one About in the requested style, about 200 to 300 words without padding, ~100 when asked, never invented", () => {
+    expect(ABOUT_GENERATION_PROMPT).toContain("exactly ONE About");
+    expect(ABOUT_GENERATION_PROMPT).toContain("200 to 300 words");
+    expect(ABOUT_GENERATION_PROMPT).toContain("Never pad");
+    expect(ABOUT_GENERATION_PROMPT).toContain("around 100 words");
     expect(ABOUT_GENERATION_PROMPT).toContain("quantified wins");
     expect(ABOUT_GENERATION_PROMPT).toContain("I led a five-person team");
     expect(ABOUT_GENERATION_PROMPT).toContain("Never invent skills");

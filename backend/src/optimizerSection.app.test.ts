@@ -108,14 +108,28 @@ describe("simplified generator inputs", () => {
     expect(prompts[0]).not.toContain("target role");
   });
 
-  it("About: a chosen style asks for two options in that style, and 'all' keeps the three", async () => {
+  it("About: each style is exactly one request for exactly one About in that style, whatever the model returns", async () => {
+    const paragraph = "I am a student at Westfield High who studied Python and C++ at Code Academy and enjoys building practical software that other people use. ";
+    const about = (extra: string) => `${paragraph}${extra} `.repeat(7).trim();
+    const styles = [["all", "Mix"], ["balanced", "Balanced"], ["impact", "Impact-focused"], ["story", "Story"], ["technical", "Technical"]] as const;
+    for (const [style, name] of styles) {
+      const prompts: string[] = [];
+      // A model that wrongly returns several versions still yields a single About.
+      const client = fakeClient({ options: [{ label: name, text: about("One.") }, { label: "Other", text: about("Two, quite different.") }, { label: "Third", text: about("Three.") }] }, prompts);
+      const res = await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send({ profile, include: "leadership", style });
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toContain(`style wanted: one About in the "${name}" style`);
+      expect(prompts[0]).toContain('"leadership"');
+      expect(res.body.options).toHaveLength(1);
+    }
+  });
+
+  it("About: retries once, and only once, when the first attempt fails validation", async () => {
     const prompts: string[] = [];
-    const client = fakeClient({ options: [{ label: "x", text: "too short" }] }, prompts);
-    await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send({ profile, include: "leadership", style: "impact" });
-    await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send({ profile });
-    expect(prompts[0]).toContain("Impact only: write two options");
-    expect(prompts[0]).toContain('"leadership"');
-    expect(prompts[1]).toContain("all three styles");
+    const client = fakeClient({ options: [{ label: "Mix", text: "too short" }] }, prompts);
+    const res = await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send({ profile });
+    expect(prompts).toHaveLength(2);
+    expect(res.body).toEqual({ status: "unavailable", reason: "ungrounded_abouts" });
   });
 });
 
@@ -123,7 +137,7 @@ describe("POST /api/optimizer-abouts", () => {
   const body = { profile, currentAbout: "", targetRole: "Software Engineer", standOut: "projects", additionalContext: "", language: "English", variation: 2 };
   const text = (extra: string) => `I am a student at Westfield High. ${extra} I studied Python and C++ at Code Academy and enjoy building practical software that other people use. `.repeat(6).trim();
 
-  it("asks for three different styles, passes the regeneration number, and returns grounded options", async () => {
+  it("passes the regeneration number, and returns grounded options", async () => {
     const prompts: string[] = [];
     const client = fakeClient({ options: [{ label: "Balanced", text: text("I keep learning every week.") }, { label: "Impact", text: "I invented a rocket at NASA." }] }, prompts);
     const res = await request(appWith({ aboutClient: client })).post("/api/optimizer-abouts").send(body);

@@ -3,8 +3,7 @@ import type { PendingRelayRequest } from "../ai/backgroundRelay";
 import { requestAboutOptions, type AboutGenerationRequestBody, type AboutStyle, type OptimizeProfileRequestBody } from "./optimizerClient";
 import { openOptimizerPage } from "./optimizerNav";
 import { copyText } from "./copyText";
-import { includeHint } from "./generatorHints";
-import { CurrentCard, GeneratorBlock, GeneratorNav, PrimaryButton } from "./GeneratorParts";
+import { CurrentCard, GeneratorBlock, GeneratorNav, IncludeField, PrimaryButton } from "./GeneratorParts";
 import type { AboutOption, AboutOptionsOutcome } from "./optimizerTypes";
 
 export interface AboutForm {
@@ -75,18 +74,12 @@ export function AboutGenerator({ body, currentAbout, request = requestAboutOptio
         <CurrentCard text={currentAbout} empty="No About section currently found." />
       </GeneratorBlock>
 
-      <GeneratorBlock title="What should we include?">
-        <p className="lw-gen-help">Add achievements, projects, leadership, results, or anything you want emphasized.</p>
-        <textarea
-          className="lw-gen-input"
-          rows={2}
-          aria-label="What should we include?"
-          value={form.include}
-          maxLength={600}
-          placeholder={includeHint(body?.profile.evidence ?? [], "about")}
-          onChange={(e) => update("include", e.target.value)}
-        />
-      </GeneratorBlock>
+      <IncludeField
+        help="Add anything you want the AI to consider when writing your About section."
+        placeholder="Achievements, experience, projects, leadership, goals, personality, or anything you want highlighted..."
+        value={form.include}
+        onChange={(value) => update("include", value)}
+      />
 
       <GeneratorBlock title="Structure">
         <div className="lw-gen-chips" role="radiogroup" aria-label="Structure">

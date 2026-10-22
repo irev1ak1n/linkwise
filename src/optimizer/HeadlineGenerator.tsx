@@ -3,8 +3,7 @@ import type { PendingRelayRequest } from "../ai/backgroundRelay";
 import { requestHeadlineOptions, type HeadlineGenerationRequestBody, type OptimizeProfileRequestBody } from "./optimizerClient";
 import { openOptimizerPage } from "./optimizerNav";
 import { copyText } from "./copyText";
-import { includeHint } from "./generatorHints";
-import { CurrentCard, GeneratorBlock, GeneratorNav, PrimaryButton } from "./GeneratorParts";
+import { CurrentCard, GeneratorBlock, GeneratorNav, IncludeField, PrimaryButton } from "./GeneratorParts";
 import type { HeadlineOption, HeadlineOptionsOutcome } from "./optimizerTypes";
 
 export interface GeneratorForm {
@@ -66,18 +65,12 @@ export function HeadlineGenerator({ body, currentHeadline, request = requestHead
         <CurrentCard text={currentHeadline} empty="No headline currently found." />
       </GeneratorBlock>
 
-      <GeneratorBlock title="What should we include?">
-        <p className="lw-gen-help">Add keywords, achievements, roles, projects, or anything you want emphasized.</p>
-        <textarea
-          className="lw-gen-input"
-          rows={2}
-          aria-label="What should we include?"
-          value={form.include}
-          maxLength={600}
-          placeholder={includeHint(body?.profile.evidence ?? [], "headline")}
-          onChange={(e) => update("include", e.target.value)}
-        />
-      </GeneratorBlock>
+      <IncludeField
+        help="Add anything you want the AI to consider when creating your header."
+        placeholder="Achievements, projects, leadership, results, target roles, or anything you want highlighted..."
+        value={form.include}
+        onChange={(value) => update("include", value)}
+      />
 
       <GeneratorBlock title="Format">
         <input className="lw-gen-input" aria-label="Format" value={form.format} maxLength={120} placeholder={FORMAT_PLACEHOLDER} onChange={(e) => update("format", e.target.value)} />

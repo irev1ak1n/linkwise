@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { NavSquare } from "./SectionPages";
 
 // The pieces both writing tools share, so Headline and About look and behave identically.
@@ -29,6 +29,27 @@ export function GeneratorBlock({ title, action, children }: { title: string; act
       </div>
       <div className="lw-opt-block-card lw-gen-card">{children}</div>
     </section>
+  );
+}
+
+const MAX_FIELD_HEIGHT = 240;
+
+// The one steering box both tools share: the same title, help line, and textarea. It grows with its
+// text instead of showing a scrollbar, and only scrolls past a comfortable height.
+export function IncludeField({ help, placeholder, value, onChange }: { help: string; placeholder: string; value: string; onChange: (value: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const field = ref.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${Math.min(field.scrollHeight, MAX_FIELD_HEIGHT)}px`;
+    field.style.overflowY = field.scrollHeight > MAX_FIELD_HEIGHT ? "auto" : "hidden";
+  }, [value]);
+  return (
+    <GeneratorBlock title="What should we include?">
+      <p className="lw-gen-help">{help}</p>
+      <textarea ref={ref} className="lw-gen-input lw-gen-input--area" rows={3} aria-label="What should we include?" value={value} maxLength={600} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    </GeneratorBlock>
   );
 }
 

@@ -56,6 +56,8 @@ describe("headline generator", () => {
     expect(container.textContent).toContain("Student developer");
     expect(container.textContent).not.toMatch(/Target role|Keywords to include|Additional context|Language/);
     const include = container.querySelector<HTMLTextAreaElement>("textarea")!;
+    expect(container.textContent).toContain("Add anything you want the AI to consider when creating your header.");
+    expect(include.placeholder).toBe("Achievements, projects, leadership, results, target roles, or anything you want highlighted...");
     const format = container.querySelector<HTMLInputElement>("input")!;
     expect(format.placeholder).toBe("Role | Focus | Proof");
     expect(container.textContent).toContain("Optional. Set the structure you want.");

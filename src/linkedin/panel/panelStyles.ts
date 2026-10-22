@@ -2142,6 +2142,16 @@ export function getPanelStyles(widthPx: number): string {
     border-radius: 10px;
     resize: vertical;
   }
+  .lw-gen-input--area {
+    display: block;
+    min-height: 88px;
+    padding: 11px 14px;
+    line-height: 1.5;
+    overflow-y: hidden;
+    overflow-wrap: anywhere;
+    resize: vertical;
+    scrollbar-width: thin;
+  }
   .lw-gen-input:focus {
     outline: none;
     border-color: #2f5be0;

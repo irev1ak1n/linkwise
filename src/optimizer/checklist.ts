@@ -235,7 +235,7 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
       label: "About section added",
       verification: "deterministic",
       advice: "Add a few sentences about your focus and experience.",
-      check: (c) => ({ status: "pass", explanation: `About ${(c.profile.about ?? "").split(/\s+/).filter(Boolean).length} words.`, evidenceIds: idsOf(c, "about") }),
+      check: (c) => ({ status: "pass", explanation: "200–300 words is ideal. Prefer something shorter? Around 100 works too.", evidenceIds: idsOf(c, "about") }),
     },
     semantic("about-who", "Clear opening", "The first lines say who the person is, their direction or value, and give a reason to keep reading."),
     semantic("about-background", "Explains the background behind the direction", "Says how the person developed the relevant experience: training, school, study, or work."),

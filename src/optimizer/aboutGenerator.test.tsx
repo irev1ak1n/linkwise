@@ -85,6 +85,50 @@ describe("About generator", () => {
   });
 });
 
+describe("About style selector", () => {
+  const chips = () => Array.from(container.querySelectorAll<HTMLButtonElement>(".lw-gen-chip"));
+  const active = () => chips().filter((c) => c.getAttribute("aria-checked") === "true").map((c) => c.textContent);
+
+  it("is single-select, and one click on Generate sends one request carrying only the last style chosen", async () => {
+    const calls: AboutGenerationRequestBody[] = [];
+    const request = vi.fn((payload: AboutGenerationRequestBody) => {
+      calls.push(payload);
+      return { requestId: "r", promise: Promise.resolve<AboutOptionsOutcome>({ status: "ok", options: options("Only") }), cancel: () => {} };
+    });
+    act(() => root.render(<AboutGenerator body={body} currentAbout="" request={request} />));
+    expect(active()).toHaveLength(1);
+    const pick = (label: string) => act(() => chips().find((c) => c.textContent === label)!.click());
+    pick("Balanced");
+    expect(active()).toEqual(["Balanced"]);
+    pick("Impact-focused");
+    pick("Story");
+    pick("Technical");
+    expect(active()).toEqual(["Technical"]);
+    expect(request).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLButtonElement>(".lw-primary-button")!.click());
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(calls[0]!.style).toBe("technical");
+  });
+
+  it("sends each style as chosen, and uses the shared steering box wording and placeholder", async () => {
+    const styles: Record<string, string> = { Mix: "all", Balanced: "balanced", "Impact-focused": "impact", Story: "story", Technical: "technical" };
+    const sent: string[] = [];
+    const request = vi.fn((payload: AboutGenerationRequestBody) => {
+      sent.push(payload.style);
+      return { requestId: "r", promise: Promise.resolve<AboutOptionsOutcome>({ status: "ok", options: options("x") }), cancel: () => {} };
+    });
+    act(() => root.render(<AboutGenerator body={body} currentAbout="" request={request} />));
+    expect(container.textContent).toContain("Add anything you want the AI to consider when writing your About section.");
+    expect(container.querySelector("textarea")!.placeholder).toBe("Achievements, experience, projects, leadership, goals, personality, or anything you want highlighted...");
+    for (const [label, style] of Object.entries(styles)) {
+      act(() => chips().find((c) => c.textContent === label)!.click());
+      await act(async () => container.querySelector<HTMLButtonElement>(".lw-primary-button")!.click());
+      expect(sent.at(-1)).toBe(style);
+    }
+    expect(sent).toHaveLength(5);
+  });
+});
+
 describe("About section page", () => {
   const context = (): SectionContext => ({
     profileKey: "me",
