@@ -1270,12 +1270,16 @@ export function getPanelStyles(widthPx: number): string {
     margin-top: -1.352cqw;
   }
   .lw-art-hero.lw-art-hero--jobs .lw-art-hero__copy {
-    top: 45.7%;
+    left: 4.8%;
+    top: 44.4%;
+  }
+  .lw-art-hero.lw-art-hero--jobs .lw-art-hero__title {
+    font-size: 7.9cqw;
   }
   .lw-art-hero.lw-art-hero--jobs .lw-art-hero__subtitle {
-    margin-top: 1.4cqw;
-    font-size: 3.3cqw;
-    line-height: 1.38;
+    margin-top: 1.5cqw;
+    font-size: 3.7cqw;
+    line-height: 1.36;
   }
   .lw-art-hero--jobs .lw-art-hero__hotspot {
     top: 10.4%;
