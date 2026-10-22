@@ -9,11 +9,11 @@ import { composeUserContext, sectionNotesPreference } from "./sectionNotes";
 import { OptimizerController, buildOptimizerRequest, type OptimizerViewState } from "./optimizerController";
 import { readWholeProfile } from "./profileReader";
 import { getOptimizerPage, openOptimizerPage, subscribeOptimizerPage } from "./optimizerNav";
-import { Chevron, SectionCards, SectionPage, reconcileAssessments, type SectionContext } from "./SectionPages";
+import { Chevron, SectionCards, SectionPage, checklistRatios, reconcileAssessments, type SectionContext } from "./SectionPages";
 import { buildChecklistRequest, loadChecklist, whenChecklistCacheReady } from "./checklistAssessment";
 import { buildSectionRequest, loadSectionAnalysis, whenSectionCacheReady } from "./sectionAnalysis";
 import { DETAIL_SECTIONS, SECTION_GUIDANCE } from "./sectionGuidance";
-import { computeOptimizerScore, scoreBand } from "./score";
+import { computeScoreBreakdown, scoreBand } from "./score";
 import { SECTION_GROUPS, type OptimizerSection } from "./sections";
 import type { SectionAssessmentDTO } from "./optimizerTypes";
 import { HeadlineGenerator } from "./HeadlineGenerator";
@@ -111,7 +111,8 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   const context: SectionContext = { profileKey, shell, profile, body, overall: state.status === "ready" ? state.result.sections : [], answers: currentAnswers(manualStore, profileKey, shell), analyzing: state.status === "loading" || (state.status === "ready" && !!state.updating) };
   // The overview's states come from the same checklists as the detail pages.
   const reconciled = reconcileAssessments(context);
-  const shownState: OptimizerViewState = state.status === "ready" ? { ...state, result: { ...state.result, sections: reconciled }, score: computeOptimizerScore(state.body.sections, reconciled) } : state;
+  const breakdown = state.status === "ready" ? computeScoreBreakdown(state.body.sections, reconciled, state.body.profile.evidence, checklistRatios(context)) : null;
+  const shownState: OptimizerViewState = state.status === "ready" && breakdown ? { ...state, result: { ...state.result, sections: reconciled }, score: breakdown.score } : state;
   if (page.name === "section") {
     return (
       <div className="lw-optimizer" ref={rootRef}>
@@ -128,7 +129,7 @@ export function OptimizerView({ profileKey, profile, isFinal, onAnalyzeNow }: Op
   }
 
   return (
-    <div className="lw-optimizer" ref={rootRef}>
+    <div className="lw-optimizer" ref={rootRef} data-score-breakdown={breakdown ? JSON.stringify(breakdown.sections.map(({ section, status, possible, earned, reason }) => ({ section, status, possible, earned: Math.round(earned * 10) / 10, reason }))) : undefined}>
       <ProfileScore state={shownState} onRetry={() => controllerRef.current!.retry()} pageRead={pageRead} isFinal={isFinal} onAnalyzeNow={onAnalyzeNow} />
       {shownState.status === "ready" && <TopPriorities sections={shownState.result.sections} />}
       <ContextInput committed={userContext} />

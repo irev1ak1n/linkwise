@@ -69,7 +69,7 @@ interface Job {
 }
 
 function readyState(job: Job, result: OptimizerResultDTO): OptimizerReady {
-  return { status: "ready", key: job.key, profileKey: job.profileKey, body: job.body, result, score: computeOptimizerScore(job.body.sections, result.sections) };
+  return { status: "ready", key: job.key, profileKey: job.profileKey, body: job.body, result, score: computeOptimizerScore(job.body.sections, result.sections, job.body.profile.evidence) };
 }
 
 export class OptimizerController {

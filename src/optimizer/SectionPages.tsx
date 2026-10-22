@@ -24,7 +24,8 @@ import { setManualAnswer } from "./manualChecks";
 import { MAX_SECTION_NOTE_CHARS, sectionNotesPreference, setSectionNote } from "./sectionNotes";
 import { useStoredPreference } from "../linkedin/panel/useStoredPreference";
 import { SectionDrafts } from "./SectionDrafts";
-import { SECTION_GROUPS, buildSectionMap, sectionInfo, type OptimizerSection, type SectionPresence } from "./sections";
+import { missingRelevance, type ChecklistRatios } from "./score";
+import { OPTIMIZER_SECTIONS, SECTION_GROUPS, buildSectionMap, sectionInfo, type OptimizerSection, type SectionPresence } from "./sections";
 import type { SectionAssessmentDTO } from "./optimizerTypes";
 
 // What the overview row and the detail page both show for a section. "review": nothing is wrong so
@@ -82,7 +83,31 @@ function reconcile(assessment: SectionAssessmentDTO, state: ChecklistState | nul
 // The overall review, with each section's state taken from its checklist so the overview and the
 // detail page never disagree. The review keeps its impact and its reasoning.
 export function reconcileAssessments(context: SectionContext): SectionAssessmentDTO[] {
-  return context.overall.map((assessment) => reconcile(assessment, sectionChecklist(assessment.section, context).summary.state));
+  const reconciled = context.overall.map((assessment) => reconcile(assessment, sectionChecklist(assessment.section, context).summary.state));
+  const evidence = context.body?.profile.evidence;
+  if (!evidence || context.overall.length === 0) return reconciled;
+  // A missing optional section is a real recommendation only when the profile's own evidence says it
+  // belongs; otherwise it stays low-key, whatever the review said.
+  return ["featured", "projects", "certifications"].reduce<SectionAssessmentDTO[]>((list, name) => {
+    const section = name as OptimizerSection;
+    if (sectionChecklist(section, context).presence.present) return list;
+    const relevance = missingRelevance(section, evidence);
+    const existing = list.find((a) => a.section === section);
+    if (!relevance) return list;
+    if (!relevance.relevant) return existing ? list.map((a) => (a === existing ? { ...a, impact: "low" as const } : a)) : list;
+    const advice: SectionAssessmentDTO = { section, state: "add", impact: "medium", reason: relevance.reason, sourceType: "linkedin_profile", evidenceIds: relevance.evidenceIds.slice(0, 4), suggestions: [] };
+    return existing ? list.map((a) => (a === existing ? { ...existing, state: "add" as const, impact: existing.impact === "low" ? "medium" : existing.impact, reason: existing.state === "add" && existing.reason ? existing.reason : advice.reason, evidenceIds: existing.evidenceIds.length ? existing.evidenceIds : advice.evidenceIds } : a)) : [...list, advice];
+  }, reconciled);
+}
+
+/** Passed and verifiable checks for each section, so the score can follow every checklist answer. */
+export function checklistRatios(context: SectionContext): ChecklistRatios {
+  const ratios: ChecklistRatios = {};
+  for (const { section } of OPTIMIZER_SECTIONS) {
+    const { summary } = sectionChecklist(section, context);
+    ratios[section] = { passed: summary.passed, verifiable: summary.verifiable };
+  }
+  return ratios;
 }
 
 // "Strong" only when most of the checklist could actually be verified; otherwise "Partial". Checks

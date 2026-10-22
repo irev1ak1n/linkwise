@@ -278,3 +278,16 @@ describe("quality-focused criteria", () => {
     expect(userCriteria("banner").map((c) => c.id)).toEqual(expect.arrayContaining(["banner-relevant", "banner-headline"]));
   });
 });
+
+describe("checklist requests stay within the backend's limits", () => {
+  it("keeps every AI criterion's advice and label short enough, and at most 12 per section", () => {
+    for (const section of Object.keys(CHECKLISTS) as (keyof typeof CHECKLISTS)[]) {
+      const ai = semanticCriteria(section);
+      expect(ai.length).toBeLessThanOrEqual(12);
+      for (const criterion of ai) {
+        expect(criterion.advice.length).toBeLessThanOrEqual(300);
+        expect(criterion.label.length).toBeLessThanOrEqual(200);
+      }
+    }
+  });
+});

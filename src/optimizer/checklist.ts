@@ -223,7 +223,7 @@ export const CHECKLISTS: Record<OptimizerSection, CriterionDefinition[]> = {
     },
     semantic("headline-direction", "Clear professional direction", "A visitor can tell immediately what the person does or wants to do: a role, field, or direction."),
     semantic("headline-specialization", "Relevant specialty or focus", "Names the person's strongest area rather than only a generic role."),
-    semantic("headline-differentiator", "Includes a strong differentiator", "Where the evidence has one, includes something that sets the person apart: project impact, leadership, years of training, a credential, an achievement, or the audience they serve. Proof is welcome but a number is not required. Attending or graduating from a school or program is context, not a differentiator by itself."),
+    semantic("headline-differentiator", "Includes a strong differentiator", "Where the evidence has one, shows what sets the person apart: project impact, leadership, deep training, a credential, an achievement, or an audience served. No number required. A school or program alone is context, not a differentiator."),
     semantic("headline-keywords", "Searchable role or field terms", "Uses realistic role or field terms people would search for."),
     semantic("headline-readable", "Not keyword stuffed or repetitive", "Reads as a phrase for people, not a list of tools or the same role restated several ways. Fails on a string like several languages and frameworks in a row, or repeated near-synonyms of one title."),
     semantic("headline-scan", "Strongest information comes first", "The most important identity and proof appear early, and the headline is easy to scan."),
