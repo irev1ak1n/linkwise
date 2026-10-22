@@ -15,6 +15,7 @@ export const ABOUT_STYLE_CHOICES: { value: AboutStyle; label: string }[] = [
   { value: "all", label: "Mix" },
   { value: "balanced", label: "Balanced" },
   { value: "impact", label: "Impact-focused" },
+  { value: "story", label: "Story" },
   { value: "technical", label: "Technical" },
 ];
 

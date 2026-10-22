@@ -33,7 +33,7 @@ export const headlineGenerationRequestSchema = z.object({
 
 export type HeadlineGenerationRequest = z.infer<typeof headlineGenerationRequestSchema>;
 
-export const ABOUT_STYLES = ["all", "balanced", "impact", "technical"] as const;
+export const ABOUT_STYLES = ["all", "balanced", "impact", "story", "technical"] as const;
 
 export const aboutGenerationRequestSchema = z.object({
   profile: profileSchema,

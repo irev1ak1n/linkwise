@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { OPTIMIZER_SYSTEM_PROMPT } from "./optimizerPrompt";
 import { optimizerResponseSchema } from "./optimizerSchema";
 import { SYSTEM_PROMPT } from "./prompt";
+import { CHECKLIST_SYSTEM_PROMPT } from "./checklistSchema";
+import { QUALITY_PRINCIPLES } from "./qualityRubric";
 import { ABOUT_GENERATION_PROMPT, HEADLINE_GENERATION_PROMPT } from "./sectionPrompt";
 
 describe("optimizer summary prompt", () => {
@@ -32,8 +34,8 @@ describe("optimizer summary prompt", () => {
 
 describe("writing tool prompts", () => {
   it("headlines: three different strategies, proof over keyword lists, a concise length", () => {
-    for (const label of ['"Balanced"', '"Impact"', '"Technical"']) expect(HEADLINE_GENERATION_PROMPT).toContain(label);
-    expect(HEADLINE_GENERATION_PROMPT).toContain("Prefer proof");
+    for (const label of ['"Balanced"', '"Impact"', '"Positioning"']) expect(HEADLINE_GENERATION_PROMPT).toContain(label);
+    expect(HEADLINE_GENERATION_PROMPT).toContain("strongest evidence");
     expect(HEADLINE_GENERATION_PROMPT).toContain("Never list five or more skills");
     expect(HEADLINE_GENERATION_PROMPT).toContain("70 to 160 characters");
     expect(HEADLINE_GENERATION_PROMPT).toContain("steering, not a checklist");
@@ -46,5 +48,30 @@ describe("writing tool prompts", () => {
     expect(ABOUT_GENERATION_PROMPT).toContain("Never invent skills");
     expect(ABOUT_GENERATION_PROMPT).toContain("never imply LinkedIn already shows it");
     expect(ABOUT_GENERATION_PROMPT).toContain("regeneration");
+  });
+});
+
+describe("quality rubric", () => {
+  const prompts = [OPTIMIZER_SYSTEM_PROMPT, CHECKLIST_SYSTEM_PROMPT, HEADLINE_GENERATION_PROMPT, ABOUT_GENERATION_PROMPT];
+
+  it("is shared by the assessment, the checklist, and both writing tools", () => {
+    for (const prompt of prompts) {
+      expect(prompt).toContain("WHAT A STRONG PROFILE DOES");
+      expect(prompt).toContain("Evidence comes before adjectives");
+      expect(prompt).toContain("CONTEXT FIRST");
+      expect(prompt).toContain("TOOLS ARE NOT THE STORY");
+    }
+  });
+
+  it("judges proof by the kind of person, counts qualitative impact, and explains why", () => {
+    expect(QUALITY_PRINCIPLES).toContain("never penalize a younger person");
+    expect(QUALITY_PRINCIPLES).toContain("quantitative");
+    expect(QUALITY_PRINCIPLES).toContain("qualitative");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("Explain WHY");
+    expect(OPTIMIZER_SYSTEM_PROMPT).toContain("only when the evidence shows work worth showcasing");
+  });
+
+  it("never names the reference profiles it was distilled from", () => {
+    for (const prompt of prompts) expect(prompt).not.toMatch(/Langstaff|McGoff|Dhar|Madden/i);
   });
 });

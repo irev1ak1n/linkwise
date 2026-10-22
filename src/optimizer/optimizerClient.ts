@@ -78,7 +78,7 @@ export interface SectionAnalysisRequestBody {
   userContext: string;
 }
 
-export type AboutStyle = "all" | "balanced" | "impact" | "technical";
+export type AboutStyle = "all" | "balanced" | "impact" | "story" | "technical";
 
 export interface HeadlineGenerationRequestBody {
   profile: OptimizerProfilePayload;
