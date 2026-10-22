@@ -1,7 +1,10 @@
+import { useState } from "react";
 import type { JobCardAction, JobsSettings } from "../../models/jobsSettings";
 import type { HighlightColor } from "../highlightPalette";
 import { parseKeywords } from "../jobs/keywordMatcher";
 import { HighlightColorPicker } from "./HighlightColorPicker";
+import { JobAnalyzerTab } from "./JobAnalyzerTab";
+import { isJobsSearchPage } from "../jobs/jobsRuntime";
 
 interface JobFiltersPageProps {
   settings: JobsSettings;
@@ -75,13 +78,34 @@ export function activeJobRules(settings: JobsSettings): string[] {
   return rules;
 }
 
+type JobsTab = "analyzer" | "filters";
+const TABS: { key: JobsTab; label: string }[] = [
+  { key: "analyzer", label: "Job Analyzer" },
+  { key: "filters", label: "Filters" },
+];
+
+// Analyzing is what you want while a job is open; the filter settings are what you want otherwise.
+const onJobPage = () => typeof location !== "undefined" && (isJobsSearchPage(location.href) || /\/jobs\/view\//.test(location.href));
+
 export function JobFiltersPage({ settings, onChange, onBack }: JobFiltersPageProps) {
+  const [tab, setTab] = useState<JobsTab>(() => (onJobPage() ? "analyzer" : "filters"));
   const rules = activeJobRules(settings);
   return (
     <div className="lw-jobs-page">
       <button type="button" className="lw-opt-back" onClick={onBack}>
         ← Back to Menu
       </button>
+      <div className="lw-scan-mode__control" role="tablist" aria-label="Jobs">
+        {TABS.map(({ key, label }) => (
+          <button key={key} type="button" role="tab" aria-selected={tab === key} className={`lw-scan-mode__option${tab === key ? " is-active" : ""}`} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "analyzer" ? (
+        <JobAnalyzerTab />
+      ) : (
+        <>
       <div>
         <h3 className="lw-opt-page__title">Job Filters</h3>
         <p className="lw-scan-mode__hint">Customize how LinkedIn job listings are hidden or highlighted.</p>
@@ -135,6 +159,8 @@ export function JobFiltersPage({ settings, onChange, onBack }: JobFiltersPagePro
             ))}
           </ul>
         </section>
+      )}
+        </>
       )}
     </div>
   );

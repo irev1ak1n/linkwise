@@ -2270,6 +2270,72 @@ export function getPanelStyles(widthPx: number): string {
     border-radius: 9px;
     cursor: pointer;
   }
+  /* Job Analyzer: functional for now, restyled later. */
+  .lw-ja {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .lw-ja-block h4 {
+    margin: 0 0 6px;
+  }
+  .lw-ja-sub {
+    margin: 8px 0 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #56687a;
+  }
+  .lw-ja-score,
+  .lw-ja-pay {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+    color: #1d2226;
+  }
+  .lw-ja-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+  }
+  .lw-ja-chip {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #eef3fe;
+    color: #2f5be0;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .lw-ja-criteria li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .lw-ja-status {
+    font-size: 12px;
+    font-weight: 700;
+    color: #2f5be0;
+  }
+  .lw-ja-match--strong .lw-ja-status,
+  .lw-ja-match--match .lw-ja-status {
+    color: #1a7f45;
+  }
+  .lw-ja-match--none .lw-ja-status {
+    color: #b42318;
+  }
+  .lw-ja-match--unknown .lw-ja-status {
+    color: #6b7585;
+  }
+  .lw-ja-reason {
+    font-size: 12.5px;
+    color: #56687a;
+  }
+  .lw-ja-evidence {
+    font-size: 12px;
+    color: #6b7585;
+  }
   .lw-od-note {
     display: flex;
     flex-direction: column;

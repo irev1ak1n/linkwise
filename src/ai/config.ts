@@ -34,6 +34,10 @@ export function compareProfileEndpoint(): string {
   return `${LINKWISE_API_BASE_URL}/api/compare-profile`;
 }
 
+export function analyzeJobEndpoint(): string {
+  return `${LINKWISE_API_BASE_URL}/api/analyze-job`;
+}
+
 export function optimizerHeadlinesEndpoint(): string {
   return `${LINKWISE_API_BASE_URL}/api/optimizer-headlines`;
 }

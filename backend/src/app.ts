@@ -9,6 +9,7 @@ import { handleAnalyzeSignals } from "./routes/analyzeSignals";
 import { handleOptimizeProfile, handleOptimizerDraft } from "./routes/optimizeProfile";
 import { handleAboutGeneration, handleChecklist, handleHeadlineGeneration, handleSectionAnalysis } from "./routes/optimizerSection";
 import { handleCompareProfile } from "./routes/compareProfile";
+import { handleAnalyzeJob } from "./routes/analyzeJob";
 import type { AnalysisClient } from "./openai/client";
 import type { CriteriaGenerationClient } from "./openai/criteriaClient";
 import type { SignalAnalysisClient } from "./openai/signalsClient";
@@ -27,6 +28,7 @@ export interface CreateAppOptions {
   headlineClient?: StructuredClient;
   aboutClient?: StructuredClient;
   compareClient?: StructuredClient;
+  jobClient?: StructuredClient;
   checklistClient?: StructuredClient;
   timeoutMs?: number;
 }
@@ -85,6 +87,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.post("/api/compare-profile", (req: Request, res: Response) => {
     void handleCompareProfile(req, res, { config, client: options.compareClient, timeoutMs: options.timeoutMs });
+  });
+
+  app.post("/api/analyze-job", (req: Request, res: Response) => {
+    void handleAnalyzeJob(req, res, { config, client: options.jobClient, timeoutMs: options.timeoutMs });
   });
 
   // Catches malformed JSON. Never leak the raw parser error to the client.
