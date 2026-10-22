@@ -9,7 +9,7 @@ import { buildSectionMap } from "./sections";
 import { computeOptimizerScore } from "./score";
 import type { OptimizerOutcome, OptimizerResultDTO } from "./optimizerTypes";
 
-export const OPTIMIZER_VERSION = "optimizer-v8";
+export const OPTIMIZER_VERSION = "optimizer-v9";
 const OPTIMIZER_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const OPTIMIZER_DEBOUNCE_MS = 2000;
 const OPTIMIZER_TIMEOUT_MS = 130000;

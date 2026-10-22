@@ -73,10 +73,9 @@ describe("deterministic criteria", () => {
 describe("unverifiable criteria", () => {
   it("never claims what it cannot see: images, links, and paragraph breaks", () => {
     expect(status("photo", profile)).toMatchObject({ "photo-present": "pass", "photo-face": "needs_user", "photo-lighting": "needs_user", "photo-crop": "needs_user" });
-    expect(status("banner", profile)).toMatchObject({ "banner-custom": "pass", "banner-relevant": "needs_user", "banner-quality": "needs_user", "banner-text": "needs_user" });
+    expect(status("banner", profile)).toMatchObject({ "banner-custom": "pass", "banner-relevant": "needs_user", "banner-headline": "needs_user", "banner-quality": "needs_user", "banner-text": "needs_user" });
     expect(status("about", profile)["about-paragraphs"]).toBe("needs_user");
     expect(status("projects", { ...profile, projects: [{ name: "Yearbook site" }] })["projects-links"]).toBe("needs_user");
-    expect(status("experience", profile)["experience-media"]).toBe("needs_user");
     for (const section of ["photo", "banner"] as const) expect(CHECKLISTS[section].filter((c) => c.verification === "deterministic")).toHaveLength(1);
   });
 
@@ -133,7 +132,7 @@ describe("semantic criteria", () => {
   });
 
   it("asks the user about criteria the AI couldn't assess rather than guessing", () => {
-    expect(status("about", profile, results)["about-differentiator"]).toBe("needs_user");
+    expect(status("about", profile, results)["about-direction"]).toBe("needs_user");
     expect(status("about", profile, { status: "unavailable", reason: "timeout" })["about-who"]).toBe("needs_user");
     expect(status("about", profile)["about-who"]).toBe("checking");
   });
@@ -146,7 +145,7 @@ describe("summarizeChecklist", () => {
       status: "ready",
       results: semanticCriteria("about").map((c, i) => ({ criterionId: c.id, status: i < 3 ? "pass" : "improve", explanation: "Your About section mentions Python.", evidenceIds: [] })),
     });
-    expect(summarizeChecklist(true, about)).toMatchObject({ state: "improve", passed: 4, verifiable: 11 });
+    expect(summarizeChecklist(true, about)).toMatchObject({ state: "improve", passed: 4, verifiable: 8 });
     expect(about.filter((c) => c.status === "needs_user")).toHaveLength(1);
   });
 
@@ -167,7 +166,7 @@ describe("checks only the user can make", () => {
   it("asks for photo and banner judgments instead of claiming LinkWise can't see them, keeping presence automatic", () => {
     expect(CHECKLISTS.photo.find((c) => c.id === "photo-present")?.verification).toBe("deterministic");
     expect(userCriteria("photo")).toHaveLength(6);
-    expect(userCriteria("banner")).toHaveLength(5);
+    expect(userCriteria("banner")).toHaveLength(6);
     const text = JSON.stringify(photo()) + JSON.stringify(evaluateChecklist("banner", context("banner", profile), { status: "idle" }));
     expect(text).not.toMatch(/doesn.t analyze|can.t verify|unable to/i);
     for (const criterion of [...userCriteria("photo"), ...userCriteria("banner")]) expect(criterion.advice).toMatch(/^Check that /);
@@ -229,7 +228,7 @@ describe("measurable impact", () => {
   const long = (text: string) => ({ title: "Developer", company: "School", description: text });
 
   it("passes on a number, or on an outcome described in words, and never needs every role to have one", () => {
-    expect(impact([long("Built the yearbook website, used by 4,000+ students each month."), { title: "Tutor", company: "Club" }])).toMatchObject({ label: "Measurable impact is shown", status: "pass" });
+    expect(impact([long("Built the yearbook website, used by 4,000+ students each month."), { title: "Tutor", company: "Club" }])).toMatchObject({ label: "Measurable outcomes where meaningful", status: "pass" });
     const words = impact([long("Built a dashboard that allowed the adviser to manage yearbook content independently.")]);
     expect(words).toMatchObject({ status: "pass" });
     expect(words.explanation).toContain("what the work led to");
@@ -253,5 +252,29 @@ describe("measurable impact", () => {
     expect(CHECKLISTS.featured.find((c) => c.id === "featured-impact")?.verification).toBe("user");
     // Leadership applies "when supported": the advice tells the AI to pass when there is nothing to show.
     expect(CHECKLISTS.about.find((c) => c.id === "about-leadership")!.advice).toContain("If the evidence shows none, this is met.");
+  });
+});
+
+describe("quality-focused criteria", () => {
+  const ids = (section: Parameters<typeof semanticCriteria>[0]) => semanticCriteria(section).map((c) => c.id);
+
+  it("judge headlines on positioning, proof, stuffing, repetition, and consistency, and Abouts on evidence over adjectives", () => {
+    expect(ids("headline")).toEqual(expect.arrayContaining(["headline-direction", "headline-differentiator", "headline-readable", "headline-scan", "headline-consistent"]));
+    expect(CHECKLISTS.headline.find((c) => c.id === "headline-readable")?.advice).toMatch(/repeated|restated/);
+    expect(ids("about")).toEqual(expect.arrayContaining(["about-who", "about-evidence", "about-measurable", "about-leadership", "about-connection", "about-direction"]));
+    expect(CHECKLISTS.about.find((c) => c.id === "about-measurable")?.advice).toMatch(/no number is required/);
+  });
+
+  it("credit Experience and Projects for ownership and results, and never for naming many tools", () => {
+    expect(ids("experience")).toEqual(expect.arrayContaining(["experience-accomplishments", "experience-ownership", "experience-context", "experience-early"]));
+    for (const id of ["experience-technical", "projects-technologies"]) {
+      const criterion = [...CHECKLISTS.experience, ...CHECKLISTS.projects].find((c) => c.id === id)!;
+      expect(criterion.advice).toMatch(/not credit|is not credit|does not replace/);
+    }
+    expect(ids("projects")).toEqual(expect.arrayContaining(["projects-purpose", "projects-contribution", "projects-audience", "projects-result"]));
+  });
+
+  it("keep the banner checks about identity and the headline, as the user's own visual judgment", () => {
+    expect(userCriteria("banner").map((c) => c.id)).toEqual(expect.arrayContaining(["banner-relevant", "banner-headline"]));
   });
 });

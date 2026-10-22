@@ -34,7 +34,7 @@ describe("checklist requests", () => {
 
   it("sends only the section's own evidence and what shows the person's direction", () => {
     const request = buildChecklistRequest("about", body("I study software."))!;
-    expect(request.profile.evidence.map((e) => e.section)).toEqual(["headline", "about"]);
+    expect(request.profile.evidence.map((e) => e.section)).toEqual(["headline", "about", "experience"]);
   });
 
   it("asks nothing for sections without AI criteria or without text", () => {
@@ -63,7 +63,7 @@ describe("checklist cache", () => {
 
   it("ignores changes to sections the assessment doesn't read", () => {
     const before = checklistCacheKey(buildChecklistRequest("about", body("I study software."))!);
-    const after = checklistCacheKey(buildChecklistRequest("about", body("I study software.", "", "Something else entirely"))!);
+    const after = checklistCacheKey(buildChecklistRequest("about", body("I study software.", "", "Website Developer — School — Built the yearbook site"))!);
     expect(after).toBe(before);
   });
 
