@@ -10,6 +10,24 @@ import { checklistRequestSchema } from "../validation/checklistRequestSchema";
 import { CHECKLIST_SYSTEM_PROMPT, buildChecklistUserPrompt, checklistResponseSchema, type ChecklistResponse } from "../openai/checklistSchema";
 import { validateChecklist } from "../guardrails/validateChecklist";
 
+const HEADLINE_STRATEGIES = ["Balanced", "Impact", "Positioning"];
+const ABOUT_STRATEGIES = ["Balanced", "Impact", "Story"];
+
+// One controlled repair: when validation drops options, ask once for just the missing ones, told what
+// is already kept so they differ. Whatever still fails stays dropped; grounded quality comes before count.
+function repairInstruction(kind: "headline" | "About", missing: string[], kept: string[]): string {
+  return [
+    `REPAIR (this overrides the three-option rule above): write exactly ${missing.length} option${missing.length === 1 ? "" : "s"}, labelled ${missing.map((label) => JSON.stringify(label)).join(", ")}.`,
+    `These ${kind} options are already accepted. Do not repeat or reword them, and take a different angle: ${JSON.stringify(kept)}`,
+    "Stay strictly within the profile evidence.",
+  ].join("\n");
+}
+
+function missingLabels(wanted: number, strategies: string[], kept: { label: string }[]): string[] {
+  const unused = strategies.filter((label) => !kept.some((option) => option.label.toLowerCase().startsWith(label.toLowerCase())));
+  return unused.slice(0, Math.max(1, wanted - kept.length));
+}
+
 export async function handleSectionAnalysis(req: Request, res: Response, deps: OptimizerDeps): Promise<void> {
   const parsed = sectionAnalysisRequestSchema.safeParse(req.body);
   if (!parsed.success) return invalidRequest(res);
@@ -39,7 +57,18 @@ export async function handleHeadlineGeneration(req: Request, res: Response, deps
     { timeoutMs: deps.timeoutMs, client: deps.client },
   );
   if (result.status !== "ok") return sendFailure(res, "optimizer-headlines", result);
-  const options = validateHeadlineOptions(result.data, request);
+  let options = validateHeadlineOptions(result.data, request);
+  if (options.length > 0 && options.length < 3) {
+    const repair = await requestStructured<HeadlineOptionsResponse>(
+      deps.config,
+      () => createOpenAiStructuredClient(deps.config, headlineOptionsResponseSchema, "optimizer_headlines"),
+      HEADLINE_GENERATION_PROMPT,
+      `${buildHeadlineUserPrompt(request)}\n\n${repairInstruction("headline", missingLabels(3, HEADLINE_STRATEGIES, options), options.map((o) => o.headline))}`,
+      { timeoutMs: deps.timeoutMs, client: deps.client },
+    );
+    // Already-valid options go first, so they are never replaced; the repair only fills the gap.
+    if (repair.status === "ok") options = validateHeadlineOptions({ options: [...options, ...repair.data.options] }, request);
+  }
   if (options.length === 0) {
     res.status(200).json({ status: "unavailable", reason: "ungrounded_headlines" });
     return;
@@ -60,7 +89,19 @@ export async function handleAboutGeneration(req: Request, res: Response, deps: O
     { timeoutMs: deps.timeoutMs, client: deps.client },
   );
   if (result.status !== "ok") return sendFailure(res, "optimizer-abouts", result);
-  const options = validateAboutOptions(result.data, request);
+  let options = validateAboutOptions(result.data, request);
+  const wanted = request.style === "all" ? 3 : 2;
+  if (options.length > 0 && options.length < wanted) {
+    const strategies = request.style === "all" ? ABOUT_STRATEGIES : [`${request.style[0]!.toUpperCase()}${request.style.slice(1)}, alternate`];
+    const repair = await requestStructured<AboutOptionsResponse>(
+      deps.config,
+      () => createOpenAiStructuredClient(deps.config, aboutOptionsResponseSchema, "optimizer_abouts"),
+      ABOUT_GENERATION_PROMPT,
+      `${buildAboutUserPrompt(request)}\n\n${repairInstruction("About", missingLabels(wanted, strategies, options), options.map((o) => o.text.slice(0, 200)))}`,
+      { timeoutMs: deps.timeoutMs, client: deps.client },
+    );
+    if (repair.status === "ok") options = validateAboutOptions({ options: [...options, ...repair.data.options] }, request);
+  }
   if (options.length === 0) {
     res.status(200).json({ status: "unavailable", reason: "ungrounded_abouts" });
     return;

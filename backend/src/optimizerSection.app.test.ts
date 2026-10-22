@@ -62,6 +62,40 @@ describe("POST /api/optimizer-headlines", () => {
   });
 });
 
+describe("repairing dropped options", () => {
+  const body = { profile, currentHeadline: "Student at Westfield High", include: "", format: "" };
+  const good = [
+    { label: "Balanced", headline: "Aspiring Software Engineer | Python & C++" },
+    { label: "Impact", headline: "Code Academy | C++ and Python Student" },
+  ];
+  const sequence = (...responses: unknown[]): { client: StructuredClient; prompts: string[] } => {
+    const prompts: string[] = [];
+    return { prompts, client: { complete: async (_system, user) => (prompts.push(user), responses[Math.min(prompts.length - 1, responses.length - 1)]) } };
+  };
+
+  it("asks once for only the option that failed, and keeps the two that passed", async () => {
+    const { client, prompts } = sequence({ options: [...good, { label: "Positioning", headline: "Senior Engineer at Google" }] }, { options: [{ label: "Positioning", headline: "Westfield High | C++" }] });
+    const res = await request(appWith({ headlineClient: client })).post("/api/optimizer-headlines").send(body);
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("write exactly 1 option");
+    expect(prompts[1]).toContain(good[0]!.headline);
+    expect(res.body.options.map((o: { label: string }) => o.label)).toEqual(["Balanced", "Impact", "Positioning"]);
+  });
+
+  it("shows the two valid options when the repair also fails, and never retries again", async () => {
+    const { client, prompts } = sequence({ options: [...good, { label: "Positioning", headline: "Senior Engineer at Google" }] });
+    const res = await request(appWith({ headlineClient: client })).post("/api/optimizer-headlines").send(body);
+    expect(prompts).toHaveLength(2);
+    expect(res.body.options).toEqual(good);
+  });
+
+  it("makes no repair call when all three are valid", async () => {
+    const { client, prompts } = sequence({ options: [...good, { label: "Positioning", headline: "Westfield High | C++" }] });
+    await request(appWith({ headlineClient: client })).post("/api/optimizer-headlines").send(body);
+    expect(prompts).toHaveLength(1);
+  });
+});
+
 describe("simplified generator inputs", () => {
   it("headlines: passes what to include and the preferred format, and counts them as the user's own words", async () => {
     const prompts: string[] = [];

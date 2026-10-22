@@ -1,4 +1,5 @@
 import { QUALITY_PRINCIPLES } from "./qualityRubric";
+import { strongestEvidence } from "../guardrails/rankEvidence";
 import type { AboutGenerationRequest, HeadlineGenerationRequest, SectionAnalysisRequest } from "../validation/sectionRequestSchema";
 
 const evidenceJson = (request: { profile: { evidence: { id: string; section: string; text: string }[] } }) =>
@@ -65,7 +66,7 @@ export const ABOUT_GENERATION_PROMPT = `You write LinkedIn About section options
 
 ${QUALITY_PRINCIPLES}
 
-Before writing, silently choose the four to seven strongest pieces of evidence in the profile and build around them. Prioritize actual projects, real outcomes, leadership and ownership, quantified wins, credible training, awards, users or people helped, and meaningful credentials. Do not recap every role.
+Before writing, silently choose the four to seven strongest pieces of evidence in the profile and build around them. Prioritize actual projects, real outcomes, leadership and ownership, quantified wins, credible training, awards, users or people helped, and meaningful credentials. Do not recap every role. The request lists the strongest evidence already ranked: build the About around it. The usual order of strength is measurable impact, projects and products built, leadership and ownership, meaningful experience, awards and competition results, credentials and long training, teaching and mentoring, specialized skills, then languages and generic facts. Use that order unless the person's direction makes something lower central (for example, languages for a translator). Spoken languages, tool lists, and school facts are at most one passing clause while stronger evidence exists; never give them a paragraph or a sentence of their own. Prefer "built digital tools students use, led a competition team, and tutored programming for 150+ hours" over "I speak three languages and know Python, C++, and SQL".
 
 Write exactly three options, each 180 to 300 words, in short paragraphs separated by a blank line, in first person, using these labels:
 1. "Balanced": the best overall professional version.
@@ -96,6 +97,7 @@ export function buildAboutUserPrompt(request: AboutGenerationRequest): string {
   return [
     `current About: ${JSON.stringify(request.currentAbout)}`,
     ...optional("what the user wants included or emphasized (guidance, not a checklist)", request.include),
+    `strongest evidence, ranked best first (build around these; everything else is background):\n${strongestEvidence(request.profile.evidence).map((item, i) => `${i + 1}. [${item.kind}] ${item.id}: ${item.text.slice(0, 260)}`).join("\n")}`,
     `styles wanted (this overrides the three-option rule above): ${STYLE_NOTE[request.style]}`,
     ...optional("target role", request.targetRole),
     ...optional("what should stand out", request.standOut),
