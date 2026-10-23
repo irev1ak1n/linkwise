@@ -19,6 +19,7 @@ export interface JobCriterionMatch {
 }
 
 export interface JobFindings {
+  summary: string;
   responsibilities: JobFinding[];
   required: JobFinding[];
   preferred: JobFinding[];
@@ -62,19 +63,29 @@ function findings(list: { text: string; quote: string }[], limit: number, haysta
 // A company fact is kept only if the posting says it in those words.
 const stated = (value: string, haystack: string) => (value.trim() && haystack.includes(normalize(value)) ? value.trim().slice(0, 120) : "");
 
+const numbersIn = (text: string) => (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map((n) => n.replace(/,/g, ""));
+
+// A summary stays only if every number in it is one the posting contains.
+function groundedSummary(summary: string, posting: string): string {
+  const text = summary.trim().replace(/\s+/g, " ").slice(0, 800);
+  const known = new Set(numbersIn(posting));
+  return text.length >= 40 && numbersIn(text).every((n) => known.has(n)) ? text : "";
+}
+
 export function validateJob(response: JobResponse, request: JobAnalysisRequest): JobFindings {
   const haystack = normalize(postingText(request));
   const focusEvidence = groundedQuote(response.company.focusQuote, haystack);
   const criteria: JobCriterionMatch[] = request.criteria.map((criterion) => {
     const result = response.criteria.find((r) => r.criterionId === criterion.id);
     const unknown: JobCriterionMatch = { criterionId: criterion.id, status: "unknown", reasoning: "The listing doesn't give enough information to judge this.", evidence: "" };
-    if (!result || result.status === "unknown") return result?.reasoning.trim() ? { ...unknown, reasoning: result.reasoning.trim().slice(0, 300) } : unknown;
+    if (!result || result.status === "unknown") return result?.reasoning.trim() ? { ...unknown, reasoning: result.reasoning.trim().slice(0, 400) } : unknown;
     const evidence = groundedQuote(result.quote, haystack);
     // Without the posting's own words, no verdict, positive or negative, can be shown to rest on anything.
     if (!evidence) return unknown;
-    return { criterionId: criterion.id, status: result.status, reasoning: result.reasoning.trim().slice(0, 300), evidence };
+    return { criterionId: criterion.id, status: result.status, reasoning: result.reasoning.trim().slice(0, 400), evidence };
   });
   return {
+    summary: groundedSummary(response.summary, postingText(request)),
     responsibilities: findings(response.responsibilities, LIMITS.responsibilities, haystack),
     required: findings(response.required, LIMITS.required, haystack),
     preferred: findings(response.preferred, LIMITS.preferred, haystack),

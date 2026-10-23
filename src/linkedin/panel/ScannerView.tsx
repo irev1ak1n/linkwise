@@ -28,7 +28,7 @@ const UNITS: Partial<Record<ProfileSectionName, [string, string]>> = {
   organizations: ["organization", "organizations"],
 };
 
-function StatusMark({ status }: { status: SectionScan["status"] }) {
+export function StatusMark({ status }: { status: SectionScan["status"] }) {
   if (status === "complete") {
     return (
       <svg className="lw-scan-mark is-complete" viewBox="0 0 16 16" aria-hidden="true">

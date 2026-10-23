@@ -5,6 +5,7 @@ import type { JobAnalysisRequest } from "../validation/jobRequestSchema";
 const finding = z.object({ text: z.string(), quote: z.string() });
 
 export const jobResponseSchema = z.object({
+  summary: z.string(),
   responsibilities: z.array(finding),
   required: z.array(finding),
   preferred: z.array(finding),
@@ -43,11 +44,13 @@ Extract only what the posting says; never guess:
 - benefits: only benefits the posting actually states.
 - company: industry, size, headquarters taken from the company section; "focus" is what the company does, in one short phrase, with its quote. Leave a field "" when the posting does not state it.
 - keyEvidence: the 4 to 8 facts someone most needs to know in a few seconds (pay, workplace, program length or start date, level, a standout requirement, the core work), each with its quote.
+- summary: three or four plain, specific sentences that shorten the posting for someone deciding whether to look closer: what the job is and where, the work in a nutshell, who it suits (student-friendly, entry level, experience expected), and anything that could decide it (pay if stated, workplace type, a hard requirement). Written for the reader, in a natural voice, using only what the posting says. Never invent numbers; state pay only if it appears.
+- keyEvidence "text" is a complete short sentence a reader can use as is ("Pays $28 to $31 an hour.", "Hybrid in Pittsburgh, PA."), not a label.
 - Compensation is parsed separately; do not return it unless it is a restriction like "unpaid".
 
 Criteria: for EACH criterion given, return one result with its criterionId.
 - status: "strong" when the posting clearly and directly satisfies it; "match" when it clearly does but less directly; "partial" when it satisfies part of it or only by inference; "none" when the posting clearly contradicts it (for example the criterion says remote and the posting says on-site); "unknown" when the posting does not give enough information. Silence is "unknown", not "none".
-- reasoning: one short sentence about what the posting says, in plain words.
+- reasoning: one or two sentences explaining WHY it matches or does not, in plain words, naming what in the posting decides it ("The role is mostly building and testing web applications with senior engineers, which is the hands-on development work you asked for."). Never just restate the criterion.
 - quote: the exact posting words that decide it (required for strong, match, partial, and none; "" for unknown).
 - A criterion about the person (their membership, languages spoken, skills they have) is judged by what the job asks for or offers that relates to it. Do not infer matches from nothing.
 - Do not simply keyword-match: understand what the criterion means.`;

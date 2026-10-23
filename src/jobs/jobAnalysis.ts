@@ -34,15 +34,45 @@ export function formatCompensation(pay: JobCompensation | null): string {
   return pay.period ? `${range}/${pay.period === "year" ? "year" : pay.period}` : range;
 }
 
-function keyEvidence(analysis: Pick<JobAnalysis, "job" | "compensation" | "restrictions" | "responsibilities">, ai: JobFinding[]): JobFinding[] {
-  const { job, compensation, restrictions } = analysis;
+const WORKPLACE_PHRASE = { remote: "Remote", hybrid: "Hybrid", "on-site": "On-site" } as const;
+
+// The plain facts as sentences a reader can use as they are.
+function factSentences(analysis: Pick<JobAnalysis, "job" | "compensation">): JobFinding[] {
+  const { job, compensation } = analysis;
   const lead: JobFinding[] = [];
-  if (compensation && compensation.min !== null) lead.push({ text: formatCompensation(compensation), evidence: compensation.rawText });
-  const where = [job.location, job.workplaceType].filter(Boolean).join(" · ");
-  if (where) lead.push({ text: where.replace(/^(.*) · (remote|hybrid|on-site)$/, (_, place, kind) => `${kind[0].toUpperCase()}${kind.slice(1)} · ${place}`), evidence: where });
-  const kind = [job.employmentType, job.experienceLevel].filter(Boolean).join(" · ");
-  if (kind) lead.push({ text: kind, evidence: kind });
-  return union([...lead, ...ai, ...restrictions.slice(0, 2)], [], 8);
+  if (compensation && compensation.min !== null) lead.push({ text: `Pays ${formatCompensation(compensation)}.`, evidence: compensation.rawText });
+  const workplace = job.workplaceType ? WORKPLACE_PHRASE[job.workplaceType] : null;
+  if (workplace || job.location) {
+    const text = workplace && job.location ? `${workplace} in ${job.location}.` : workplace ? `${workplace} position.` : `Located in ${job.location}.`;
+    lead.push({ text, evidence: [job.location, job.workplaceType].filter(Boolean).join(" · ") });
+  }
+  const kind = [job.employmentType, job.experienceLevel].filter(Boolean).join(", ");
+  if (kind) lead.push({ text: `${kind} role.`, evidence: kind });
+  return lead;
+}
+
+function keyEvidence(analysis: Pick<JobAnalysis, "job" | "compensation" | "restrictions">, ai: JobFinding[]): JobFinding[] {
+  const sentence = (f: JobFinding): JobFinding => ({ ...f, text: /[.!?]$/.test(f.text) ? f.text : `${f.text}.` });
+  // Deterministic facts first, then the AI's, then deal breakers not already covered. Several lines say the same
+  // thing (pay, workplace), so a line is kept only if it adds words the earlier ones lack.
+  const all = [...factSentences(analysis), ...ai.map(sentence), ...analysis.restrictions.slice(0, 3).map(sentence)];
+  const kept: JobFinding[] = [];
+  for (const item of all) {
+    const words = new Set(key(item.text).split(" "));
+    if (!kept.some((k) => key(k.text).split(" ").filter((w) => words.has(w)).length / Math.max(words.size, 1) > 0.7)) kept.push(item);
+  }
+  return kept.slice(0, 10);
+}
+
+// What the posting plainly says, as a short paragraph, for when no AI summary is available.
+export function plainSummary(analysis: Pick<JobAnalysis, "job" | "compensation" | "responsibilities" | "restrictions">): string {
+  const { job } = analysis;
+  const where = [job.workplaceType ? WORKPLACE_PHRASE[job.workplaceType].toLowerCase() : null, job.location ? `in ${job.location}` : null].filter(Boolean).join(" ");
+  const parts = [`${job.title || "This job"}${job.company ? ` at ${job.company}` : ""}${where ? `, ${where}` : ""}${job.employmentType ? `, ${job.employmentType.toLowerCase()}` : ""}.`];
+  if (analysis.compensation && analysis.compensation.min !== null) parts.push(`It pays ${formatCompensation(analysis.compensation)}.`);
+  if (analysis.responsibilities.length > 0) parts.push(`The work includes ${analysis.responsibilities.slice(0, 2).map((r) => r.text.replace(/\.$/, "").replace(/^./, (c) => c.toLowerCase())).join(" and ")}.`);
+  if (analysis.restrictions.length > 0) parts.push(`Worth checking: ${analysis.restrictions.slice(0, 3).map((r) => r.text.toLowerCase()).join(", ")}.`);
+  return parts.join(" ");
 }
 
 function assessments(goal: Goal, matches: JobCriterionMatch[]): Map<string, CriterionAssessment> {
@@ -106,6 +136,7 @@ export function buildJobAnalysis(posting: JobPosting, ai: JobAiFindings | null, 
 
   return {
     jobId: posting.jobId,
+    summary: ai?.summary || plainSummary({ job: base.job, compensation: base.compensation, responsibilities: base.responsibilities, restrictions }),
     job: base.job,
     compensation: base.compensation,
     responsibilities: base.responsibilities,
@@ -127,7 +158,7 @@ export function buildJobAnalysis(posting: JobPosting, ai: JobAiFindings | null, 
       focusEvidence: ai?.company.focusEvidence ?? "",
       followers: facts.company.followers,
     },
-    keyEvidence: keyEvidence(base, ai?.keyEvidence ?? []),
+    keyEvidence: keyEvidence({ job: base.job, compensation: base.compensation, restrictions }, ai?.keyEvidence ?? []),
     criteriaMatches: matches,
     overallMatch: { score, confidence: result?.confidence ?? 0, disqualified: result?.disqualified ?? false, summary: summaryOf(goal, matches, score, result?.disqualified ?? false) },
     aiAvailable: ai !== null,

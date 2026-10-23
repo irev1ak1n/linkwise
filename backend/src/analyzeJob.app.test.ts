@@ -32,6 +32,7 @@ const body = {
 
 const f = (text: string, quote: string) => ({ text, quote });
 const response = {
+  summary: "This is a hybrid software engineering internship in Pittsburgh, PA that pays $28 to $31 an hour. You would build and test internal tools with senior engineers, and it is aimed at students currently working toward a computer science degree.",
   responsibilities: [f("Build and maintain internal APIs", "Build and maintain internal APIs with senior engineers"), f("Run the Mars rover program", "Run the Mars rover program every day")],
   required: [f("Pursuing a CS degree", "Currently pursuing a CS or related degree")],
   preferred: [f("Internship experience", "Previous internship experience")],
@@ -68,6 +69,13 @@ describe("POST /api/analyze-job", () => {
     expect(findings.required[0].evidence).toBe("Currently pursuing a CS or related degree");
     expect(findings.restrictions).toHaveLength(2);
     expect(findings.company).toMatchObject({ industry: "Logistics Software", headquarters: "", size: "1,001-5,000 employees", focus: "Logistics software" });
+  });
+
+  it("keeps a summary whose numbers are in the posting, and drops one that invents a number", async () => {
+    const kept = await request(appWith(fake(response))).post("/api/analyze-job").send(body);
+    expect(kept.body.findings.summary).toContain("$28 to $31");
+    const invented = await request(appWith(fake({ ...response, summary: "This internship pays $45 an hour and runs for 24 months in Pittsburgh, PA with senior engineers." }))).post("/api/analyze-job").send(body);
+    expect(invented.body.findings.summary).toBe("");
   });
 
   it("returns a criterion verdict only when the posting's own words back it, otherwise unknown", async () => {

@@ -1,10 +1,12 @@
-import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Goal } from "../../models/goal";
 import { JobAnalyzerController, type JobAnalyzerState } from "../../jobs/jobAnalyzerController";
-import { STATUS_LABEL, formatCompensation } from "../../jobs/jobAnalysis";
 import { requestJobAnalysis } from "../../jobs/jobAnalysisClient";
 import { highlightTargets } from "../../jobs/jobHighlightTargets";
-import type { JobAnalysis, JobFinding } from "../../jobs/jobTypes";
+import type { JobAnalysis } from "../../jobs/jobTypes";
+import type { MatchResult } from "../../matching/scoreProfile";
+import { matchDisplayColor, matchDisplayLabel, matchDisplayState, type MatchDisplayState } from "../../matching/matchColors";
+import { StatusMark } from "./ScannerView";
 import { JobHighlighter } from "../jobs/jobHighlighter";
 import { currentJobId, expandCollapsed, findJobDetails, readJobPosting } from "../jobs/jobPageReader";
 import { isPanelVisible, subscribePanelVisibility } from "./panelVisibilityStore";
@@ -76,131 +78,146 @@ export function useJobAnalyzer(goal: Goal | null, active: boolean): { state: Job
   return { state, retry: () => controller.retry() };
 }
 
-function Block({ title, children }: { title: string; children: ReactNode }) {
+const KEY_EVIDENCE_SHOWN = 5;
+
+function confidenceText(analysis: JobAnalysis): string {
+  if (!analysis.aiAvailable) return "Local analysis";
+  const c = analysis.overallMatch.confidence;
+  return c >= 0.7 ? "High confidence" : c >= 0.4 ? "Medium confidence" : "Low confidence";
+}
+
+// The score as the Profile Analyzer shows it: the same bands, colors, and labels.
+function displayState(analysis: JobAnalysis): MatchDisplayState {
+  return matchDisplayState({ scorePercent: analysis.overallMatch.score, disqualified: analysis.overallMatch.disqualified, confidence: analysis.overallMatch.confidence } as MatchResult);
+}
+
+const stateLabel = (state: MatchDisplayState) => (state.kind === "low_confidence" ? "Limited Listing Information" : matchDisplayLabel(state));
+
+// The same quick read as the Profile Analyzer's dashboard: how strong, why, and the evidence behind it.
+export function JobAnalysisView({ analysis, hasCriteria }: { analysis: JobAnalysis; hasCriteria: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const { job } = analysis;
+  const state = displayState(analysis);
+  const color = matchDisplayColor(state);
+  const confirmed = analysis.criteriaMatches.filter((m) => m.status === "strong" || m.status === "match" || m.status === "partial");
+  const evidence = expanded ? analysis.keyEvidence : analysis.keyEvidence.slice(0, KEY_EVIDENCE_SHOWN);
+  const hidden = analysis.keyEvidence.length - evidence.length;
+  const heading = [job.title || "This job", job.company].filter(Boolean).join(" · ");
   return (
-    <section className="lw-opt-block lw-ja-block">
-      <h4>{title}</h4>
-      {children}
+    <div className="lw-analysis lw-dash">
+      {hasCriteria ? (
+        <section className="lw-an-score" style={{ borderTopColor: color }}>
+          <span className="lw-an-score__level" style={{ color }}>
+            {stateLabel(state)}
+          </span>
+          {"scorePercent" in state && <span className="lw-an-score__value">{state.scorePercent}%</span>}
+          <span className="lw-an-score__goal">{heading}</span>
+          <span className="lw-an-score__source">{confidenceText(analysis)}</span>
+          {state.kind === "low_confidence" && <p className="lw-an-score__note">Only part of what you're looking for is covered by this listing, so this score may be rough.</p>}
+          {state.kind === "not_enough_info" && <p className="lw-an-score__note">The listing doesn't say enough about what you're looking for to score it.</p>}
+        </section>
+      ) : (
+        <section className="lw-dash__block" aria-label="Job">
+          <h3 className="lw-dash__label">{heading}</h3>
+        </section>
+      )}
+
+      <section className="lw-dash__block" aria-label="Summary">
+        <h3 className="lw-dash__label">Summary</h3>
+        <p className="lw-an-summary">{analysis.summary}</p>
+      </section>
+
+      {hasCriteria && (
+        <section className="lw-dash__block" aria-label="Why it matches">
+          <h3 className="lw-dash__label">Why it matches</h3>
+          {confirmed.length > 0 ? (
+            <ul className="lw-an-points lw-an-points--detailed">
+              {confirmed.map((match) => (
+                <li key={match.criterionId} className="is-good">
+                  <strong>{match.criterion}</strong>
+                  <span>{match.reasoning}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="lw-dash__none">None of the things you're looking for were confirmed in this listing.</p>
+          )}
+        </section>
+      )}
+
+      {analysis.keyEvidence.length > 0 && (
+        <section className="lw-dash__block" aria-label="Key evidence">
+          <h3 className="lw-dash__label">Key evidence</h3>
+          <ul className="lw-key-evidence">
+            {evidence.map((fact) => (
+              <li key={fact.text} title={fact.evidence}>
+                {fact.text}
+              </li>
+            ))}
+          </ul>
+          {hidden > 0 && (
+            <button type="button" className="lw-scan__link" onClick={() => setExpanded(true)}>
+              Show {hidden} more
+            </button>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+// The Profile Analyzer's scan screen, for a job: the same bar, shimmer, rows, and result line.
+function JobScanView({ step, goalName, resultLabel }: { step: "reading" | "analyzing" | "done"; goalName?: string; resultLabel?: string }) {
+  const percent = step === "reading" ? 25 : step === "analyzing" ? 70 : 100;
+  const shown = useRef(0);
+  shown.current = Math.max(shown.current, percent);
+  const rows: { label: string; status: "complete" | "scanning" | "pending"; detail?: string }[] = [
+    { label: "Job posting", status: step === "reading" ? "scanning" : "complete", detail: step === "reading" ? "Reading the full description…" : undefined },
+    { label: "Requirements and pay", status: step === "reading" ? "pending" : "complete" },
+    { label: "Your criteria", status: step === "done" ? "complete" : step === "analyzing" ? "scanning" : "pending", detail: step === "analyzing" ? "Comparing the job to what you want…" : undefined },
+  ];
+  return (
+    <section className={`lw-scan is-${step === "done" ? "complete" : "scanning"}`} aria-label="Job scan">
+      <header className="lw-scan__head">
+        <span className="lw-scan__eyebrow">{step === "done" ? "Job analyzed" : "Reading job"}</span>
+        <h3 className="lw-scan__name">This job</h3>
+        {goalName && (
+          <p className="lw-scan__goal">
+            Matching for <span>{goalName}</span>
+          </p>
+        )}
+      </header>
+      <div className="lw-scan__progress">
+        {step === "done" && resultLabel ? (
+          <p className="lw-scan__result" role="status">
+            {resultLabel}
+          </p>
+        ) : (
+          <div className="lw-scan__status">
+            <p className="lw-scan__message" role="status" key={step}>
+              {step === "reading" ? "Reading the full job posting…" : "Analyzing the job…"}
+            </p>
+            <span className="lw-scan__percent">{shown.current}%</span>
+          </div>
+        )}
+        <div className="lw-scan__bar" role="progressbar" aria-valuenow={shown.current} aria-valuemin={0} aria-valuemax={100} aria-label="Scan progress">
+          <div className="lw-scan__fill" style={{ width: `${shown.current}%` }} />
+        </div>
+      </div>
+      <ul className="lw-scan__rows">
+        {rows.map((row) => (
+          <li key={row.label} className={`lw-scan-row is-${row.status}`} aria-label={`${row.label}: ${row.status}`}>
+            <StatusMark status={row.status} />
+            <span className="lw-scan-row__label">{row.label}</span>
+            {row.detail && <span className="lw-scan-row__detail">{row.detail}</span>}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
 
-function Findings({ items, empty }: { items: JobFinding[]; empty: string }) {
-  if (items.length === 0) return <p className="lw-scan-mode__hint">{empty}</p>;
-  return (
-    <ul className="lw-opt-tips">
-      {items.map((item) => (
-        <li key={item.text} title={item.evidence}>
-          {item.text}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function Chips({ items, empty }: { items: JobFinding[]; empty: string }) {
-  if (items.length === 0) return <p className="lw-scan-mode__hint">{empty}</p>;
-  return (
-    <p className="lw-ja-chips">
-      {items.map((item) => (
-        <span key={item.text} className="lw-ja-chip" title={item.evidence}>
-          {item.text}
-        </span>
-      ))}
-    </p>
-  );
-}
-
-export function JobAnalysisView({ analysis, hasCriteria }: { analysis: JobAnalysis; hasCriteria: boolean }) {
-  const { job, company, overallMatch } = analysis;
-  const facts = [job.location, job.workplaceType && `${job.workplaceType[0]!.toUpperCase()}${job.workplaceType.slice(1)}`, job.employmentType, job.experienceLevel, job.postedDate].filter(Boolean).join(" · ");
-  return (
-    <div className="lw-ja">
-      <div>
-        <h3 className="lw-opt-page__title">{job.title || "Job"}</h3>
-        <p className="lw-scan-mode__hint">
-          {[job.company, facts].filter(Boolean).join(" · ")}
-          {!job.workplaceType && " · Workplace not specified"}
-        </p>
-      </div>
-
-      {hasCriteria && (
-        <Block title="Match">
-          <p className="lw-ja-score">{overallMatch.disqualified ? "Not a fit" : overallMatch.score === null ? "—" : `${overallMatch.score}% match`}</p>
-          <p className="lw-scan-mode__hint">{overallMatch.summary}</p>
-          <ul className="lw-opt-tips lw-ja-criteria">
-            {analysis.criteriaMatches.map((match) => (
-              <li key={match.criterionId} className={`lw-ja-match lw-ja-match--${match.status}`}>
-                <strong>{match.criterion}</strong> <span className="lw-ja-status">{STATUS_LABEL[match.status]}</span>
-                <span className="lw-ja-reason">{match.reasoning}</span>
-                {match.evidence && <em className="lw-ja-evidence">“{match.evidence}”</em>}
-              </li>
-            ))}
-          </ul>
-        </Block>
-      )}
-
-      <Block title="Key evidence">
-        <Findings items={analysis.keyEvidence} empty="Nothing notable stated." />
-      </Block>
-
-      <Block title="Compensation">
-        <p className="lw-ja-pay">{formatCompensation(analysis.compensation)}</p>
-        {analysis.compensation?.other.map((other) => (
-          <p key={other.text} className="lw-scan-mode__hint">
-            {other.evidence}
-          </p>
-        ))}
-      </Block>
-
-      <Block title="Important details">
-        <Findings items={analysis.restrictions} empty="None identified." />
-      </Block>
-
-      <Block title="Responsibilities">
-        <Findings items={analysis.responsibilities} empty="Not identified." />
-      </Block>
-
-      <Block title="Requirements">
-        <p className="lw-ja-sub">Required</p>
-        <Findings items={analysis.requirements.required} empty="None identified." />
-        <p className="lw-ja-sub">Preferred</p>
-        <Findings items={analysis.requirements.preferred} empty="None identified." />
-        {analysis.education.length > 0 && (
-          <>
-            <p className="lw-ja-sub">Education</p>
-            <Findings items={analysis.education} empty="" />
-          </>
-        )}
-        {analysis.experience.length > 0 && (
-          <>
-            <p className="lw-ja-sub">Experience</p>
-            <Findings items={analysis.experience} empty="" />
-          </>
-        )}
-      </Block>
-
-      <Block title="Skills">
-        <p className="lw-ja-sub">Technical</p>
-        <Chips items={analysis.skills.technical} empty="None identified." />
-        <p className="lw-ja-sub">Professional</p>
-        <Chips items={analysis.skills.professional} empty="None identified." />
-      </Block>
-
-      <Block title="Benefits">
-        <Findings items={analysis.benefits} empty="None identified." />
-      </Block>
-
-      <Block title="Company">
-        <p className="lw-ja-pay">{company.name || "Not specified"}</p>
-        <p className="lw-scan-mode__hint">
-          {[company.industry, company.size, company.headquarters, company.followers].filter(Boolean).join(" · ") || "No company details found."}
-        </p>
-        {company.focus && <p className="lw-scan-mode__hint">{company.focus}</p>}
-      </Block>
-    </div>
-  );
-}
+const REVEAL_MS = 1400;
 
 const JOB_COPY = {
   heading: "What are you looking for in a job?",
@@ -223,6 +240,18 @@ export function JobAnalyzerTab() {
   // Same card as the Profile Analyzer's, with its own saved value, about jobs.
   const criteriaCard = <GoalSetupSection goal={goal ?? null} profileKey={null} kind="job" onSetActiveCriteria={setJobGoal} copy={JOB_COPY} />;
 
+  // A job that was just read and analyzed gets the scan screen's finish before its result; one already known does not.
+  const animated = useRef(new Set<string>());
+  const [revealed, setRevealed] = useState<string | null>(null);
+  if (state.status === "reading" || state.status === "analyzing") animated.current.add(state.jobId);
+  const revealing = state.status === "ready" && !state.aiError && animated.current.has(state.jobId) && revealed !== state.jobId;
+  const readyJobId = state.status === "ready" ? state.jobId : null;
+  useEffect(() => {
+    if (!revealing || !readyJobId) return;
+    const timer = setTimeout(() => setRevealed(readyJobId), REVEAL_MS);
+    return () => clearTimeout(timer);
+  }, [revealing, readyJobId]);
+
   if (state.status === "idle" || state.status === "no_job") {
     return (
       <>
@@ -231,23 +260,32 @@ export function JobAnalyzerTab() {
       </>
     );
   }
-  if (state.status === "reading") {
+  if (state.status === "reading" || state.status === "analyzing") {
     return (
       <>
         {criteriaCard}
-        <p className="lw-empty">Reading the full job posting…</p>
+        <JobScanView step={state.status === "reading" ? "reading" : "analyzing"} goalName={goal?.name} />
+      </>
+    );
+  }
+  if (revealing) {
+    const shown = displayState(state.analysis);
+    const label = "scorePercent" in shown ? `${shown.scorePercent}% · ${stateLabel(shown)}` : "Analysis complete";
+    return (
+      <>
+        {criteriaCard}
+        <JobScanView step="done" goalName={goal?.name} resultLabel={hasCriteria ? label : "Analysis complete"} />
       </>
     );
   }
   return (
     <>
       {criteriaCard}
-      {state.status === "analyzing" && <p className="lw-scan-mode__hint">Analyzing with AI… what the posting states plainly is shown below.</p>}
-      {state.status === "ready" && state.aiError && (
-        <p className="lw-scan-mode__hint">
-          AI analysis unavailable ({state.aiError}). Showing what the posting states.{" "}
-          <button type="button" className="lw-opt-back" onClick={retry}>
-            Try again
+      {state.aiError && (
+        <p className="lw-ai-status">
+          AI analysis unavailable ({state.aiError}) — showing what the posting states.{" "}
+          <button type="button" className="lw-ai-retry" onClick={retry}>
+            Retry
           </button>
         </p>
       )}

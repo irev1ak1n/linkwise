@@ -42,6 +42,7 @@ export interface JobCriterionMatch {
 
 /** What the backend's AI reading returns, already checked against the posting. */
 export interface JobAiFindings {
+  summary: string;
   responsibilities: JobFinding[];
   required: JobFinding[];
   preferred: JobFinding[];
@@ -58,6 +59,8 @@ export interface JobAiFindings {
 
 export interface JobAnalysis {
   jobId: string;
+  /** A short, readable account of the job: the AI's, or one built from what the posting states plainly. */
+  summary: string;
   job: {
     title: string;
     company: string;
