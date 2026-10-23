@@ -7,6 +7,7 @@ import type { JobAnalysis } from "../../jobs/jobTypes";
 import type { MatchResult } from "../../matching/scoreProfile";
 import { matchDisplayColor, matchDisplayLabel, matchDisplayState, type MatchDisplayState } from "../../matching/matchColors";
 import { StatusMark } from "./ScannerView";
+import { formatCompensation } from "../../jobs/jobAnalysis";
 import { JobHighlighter } from "../jobs/jobHighlighter";
 import { currentJobId, expandCollapsed, findJobDetails, readJobPosting } from "../jobs/jobPageReader";
 import { isPanelVisible, subscribePanelVisibility } from "./panelVisibilityStore";
@@ -24,6 +25,7 @@ function createController(goal: Goal | null): JobAnalyzerController {
   return new JobAnalyzerController(
     {
       currentJobId: () => currentJobId(location.href, document),
+      title: () => document.title.replace(/\s*\|\s*LinkedIn\s*$/i, "").split(" | ")[0] || null,
       expand: () => {
         const root = findJobDetails(document);
         return root ? expandCollapsed(root) : 0;
@@ -166,21 +168,49 @@ export function JobAnalysisView({ analysis, hasCriteria }: { analysis: JobAnalys
   );
 }
 
-// The Profile Analyzer's scan screen, for a job: the same bar, shimmer, rows, and result line.
-function JobScanView({ step, goalName, resultLabel }: { step: "reading" | "analyzing" | "done"; goalName?: string; resultLabel?: string }) {
-  const percent = step === "reading" ? 25 : step === "analyzing" ? 70 : 100;
-  const shown = useRef(0);
-  shown.current = Math.max(shown.current, percent);
-  const rows: { label: string; status: "complete" | "scanning" | "pending"; detail?: string }[] = [
-    { label: "Job posting", status: step === "reading" ? "scanning" : "complete", detail: step === "reading" ? "Reading the full description…" : undefined },
-    { label: "Requirements and pay", status: step === "reading" ? "pending" : "complete" },
-    { label: "Your criteria", status: step === "done" ? "complete" : step === "analyzing" ? "scanning" : "pending", detail: step === "analyzing" ? "Comparing the job to what you want…" : undefined },
+// The Profile Analyzer's scan screen, for a job: the same bar, shimmer, rows, marks, and result line.
+// Rows finish one after another, as the Profile scan's sections do.
+type RowStatus = "complete" | "scanning" | "pending" | "not_found" | "skipped";
+const ROW_STAGGER_MS = 260;
+
+function scanRows(analysis: JobAnalysis | null, criteriaCount: number): { label: string; found: boolean; detail: string | null }[] {
+  const count = (n: number, noun: string) => (n > 0 ? `${n} ${noun}${n === 1 ? "" : "s"}` : null);
+  const a = analysis;
+  return [
+    { label: "Job posting", found: true, detail: a ? ([a.job.location, a.job.workplaceType].filter(Boolean).join(" · ") || null) : null },
+    { label: "Compensation", found: !!a?.compensation && a.compensation.min !== null, detail: a && a.compensation && a.compensation.min !== null ? formatCompensation(a.compensation) : null },
+    { label: "Responsibilities", found: !!a && a.responsibilities.length > 0, detail: a ? (count(a.responsibilities.length, "duty")?.replace("dutys", "duties") ?? null) : null },
+    { label: "Requirements", found: !!a && a.requirements.required.length + a.requirements.preferred.length > 0, detail: a ? count(a.requirements.required.length + a.requirements.preferred.length, "requirement") : null },
+    { label: "Skills", found: !!a && a.skills.technical.length + a.skills.professional.length > 0, detail: a ? count(a.skills.technical.length + a.skills.professional.length, "skill") : null },
+    { label: "Company", found: !!a && !!(a.company.industry || a.company.size || a.company.headquarters || a.company.focus), detail: a ? ([a.company.industry, a.company.size].filter(Boolean).join(" · ") || null) : null },
+    { label: "Your criteria", found: criteriaCount > 0, detail: criteriaCount > 0 ? `${criteriaCount} to compare` : null },
   ];
+}
+
+function JobScanView({ step, title, analysis, criteriaCount, goalName, resultLabel }: { step: "reading" | "analyzing" | "done"; title: string; analysis: JobAnalysis | null; criteriaCount: number; goalName?: string; resultLabel?: string }) {
+  const rows = scanRows(analysis, criteriaCount);
+  // Reading: the posting row is active. Once read, the extracted rows finish in turn, then the criteria row works.
+  const target = step === "reading" ? 0 : step === "analyzing" ? rows.length - 1 : rows.length;
+  const [finished, setFinished] = useState(0);
+  const shown = useRef(0);
+  useEffect(() => {
+    if (finished === target) return;
+    const timer = setTimeout(() => setFinished((n) => n + Math.sign(target - n)), ROW_STAGGER_MS);
+    return () => clearTimeout(timer);
+  }, [finished, target]);
+  const statusOf = (index: number): RowStatus => {
+    if (index < finished) return rows[index]!.found ? "complete" : index === rows.length - 1 ? "skipped" : "not_found";
+    return index === finished ? "scanning" : "pending";
+  };
+  const allDone = step === "done" && finished >= rows.length;
+  const percent = allDone ? 100 : Math.round(((finished + 0.5) / rows.length) * (step === "done" ? 100 : 92));
+  shown.current = allDone ? 100 : Math.max(shown.current, percent);
+  const message = step === "reading" ? "Reading the full job posting…" : finished < rows.length - 1 ? `Reading ${rows[Math.min(finished, rows.length - 1)]!.label.toLowerCase()}…` : "Comparing the job to what you want…";
   return (
-    <section className={`lw-scan is-${step === "done" ? "complete" : "scanning"}`} aria-label="Job scan">
+    <section className={`lw-scan is-${allDone ? "complete" : "scanning"}`} aria-label="Job scan">
       <header className="lw-scan__head">
-        <span className="lw-scan__eyebrow">{step === "done" ? "Job analyzed" : "Reading job"}</span>
-        <h3 className="lw-scan__name">This job</h3>
+        <span className="lw-scan__eyebrow">{allDone ? "Job analyzed" : "Reading job"}</span>
+        <h3 className="lw-scan__name">{title}</h3>
         {goalName && (
           <p className="lw-scan__goal">
             Matching for <span>{goalName}</span>
@@ -188,14 +218,14 @@ function JobScanView({ step, goalName, resultLabel }: { step: "reading" | "analy
         )}
       </header>
       <div className="lw-scan__progress">
-        {step === "done" && resultLabel ? (
+        {allDone && resultLabel ? (
           <p className="lw-scan__result" role="status">
             {resultLabel}
           </p>
         ) : (
           <div className="lw-scan__status">
-            <p className="lw-scan__message" role="status" key={step}>
-              {step === "reading" ? "Reading the full job posting…" : "Analyzing the job…"}
+            <p className="lw-scan__message" role="status" key={message}>
+              {message}
             </p>
             <span className="lw-scan__percent">{shown.current}%</span>
           </div>
@@ -205,13 +235,17 @@ function JobScanView({ step, goalName, resultLabel }: { step: "reading" | "analy
         </div>
       </div>
       <ul className="lw-scan__rows">
-        {rows.map((row) => (
-          <li key={row.label} className={`lw-scan-row is-${row.status}`} aria-label={`${row.label}: ${row.status}`}>
-            <StatusMark status={row.status} />
-            <span className="lw-scan-row__label">{row.label}</span>
-            {row.detail && <span className="lw-scan-row__detail">{row.detail}</span>}
-          </li>
-        ))}
+        {rows.map((row, index) => {
+          const status = statusOf(index);
+          const detail = status === "complete" ? row.detail : status === "not_found" ? "Not found" : status === "skipped" ? "No criteria set" : status === "scanning" && index === rows.length - 1 ? "Comparing to your criteria…" : null;
+          return (
+            <li key={row.label} className={`lw-scan-row is-${status}`} aria-label={`${row.label}: ${status}`}>
+              <StatusMark status={status} />
+              <span className="lw-scan-row__label">{row.label}</span>
+              {detail && <span className="lw-scan-row__detail">{detail}</span>}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -228,7 +262,8 @@ export function JobAnalyzerTab() {
   const { value: goal } = useStoredPreference(jobGoalPreference);
   const visible = useSyncExternalStore(subscribePanelVisibility, isPanelVisible, isPanelVisible);
   const { state, retry } = useJobAnalyzer(goal ?? null, visible);
-  const hasCriteria = (goal?.criteria.filter((c) => c.importance !== "EXCLUDED").length ?? 0) > 0;
+  const criteriaCount = goal?.criteria.filter((c) => c.importance !== "EXCLUDED").length ?? 0;
+  const hasCriteria = criteriaCount > 0;
 
   const setJobGoal = (name: string, description: string, criteria: DraftCriterionInput[]) =>
     jobGoalPreference.set({
@@ -264,7 +299,7 @@ export function JobAnalyzerTab() {
     return (
       <>
         {criteriaCard}
-        <JobScanView step={state.status === "reading" ? "reading" : "analyzing"} goalName={goal?.name} />
+        <JobScanView step={state.status === "reading" ? "reading" : "analyzing"} title={state.status === "reading" ? state.title || "This job" : state.analysis.job.title || "This job"} analysis={state.status === "analyzing" ? state.analysis : null} criteriaCount={criteriaCount} goalName={goal?.name} />
       </>
     );
   }
@@ -274,7 +309,7 @@ export function JobAnalyzerTab() {
     return (
       <>
         {criteriaCard}
-        <JobScanView step="done" goalName={goal?.name} resultLabel={hasCriteria ? label : "Analysis complete"} />
+        <JobScanView step="done" title={state.analysis.job.title || "This job"} analysis={state.analysis} criteriaCount={criteriaCount} goalName={goal?.name} resultLabel={hasCriteria ? label : "Analysis complete"} />
       </>
     );
   }

@@ -78,7 +78,7 @@ describe("job analyzer", () => {
     await flush();
     page.id = "2";
     controller.check();
-    expect(controller.getState()).toEqual({ status: "reading", jobId: "2" });
+    expect(controller.getState()).toEqual({ status: "reading", jobId: "2", title: null });
     expect(highlights.at(-1)).toBeNull();
     expect(pending[0]!.cancel).toHaveBeenCalled();
     await flush();
@@ -90,6 +90,13 @@ describe("job analyzer", () => {
     pending[1]!.resolve(ok("2"));
     await flush();
     expect(controller.getState()).toMatchObject({ status: "ready", jobId: "2" });
+  });
+
+  it("carries the open job's title while it is being read", async () => {
+    const { controller, page } = harness("7");
+    (controller as unknown as { deps: { title: () => string | null } }).deps.title = () => `Title for ${page.id}`;
+    controller.check();
+    expect(controller.getState()).toEqual({ status: "reading", jobId: "7", title: "Title for 7" });
   });
 
   it("reuses a job's reading when it is selected again, with no new request", async () => {

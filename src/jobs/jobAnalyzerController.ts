@@ -13,12 +13,14 @@ import type { JobAiFindings, JobAnalysis, JobPosting } from "./jobTypes";
 export type JobAnalyzerState =
   | { status: "idle" }
   | { status: "no_job" }
-  | { status: "reading"; jobId: string }
+  | { status: "reading"; jobId: string; title: string | null }
   | { status: "analyzing"; jobId: string; analysis: JobAnalysis }
   | { status: "ready"; jobId: string; analysis: JobAnalysis; aiError: string | null };
 
 export interface JobAnalyzerDeps {
   currentJobId(): string | null;
+  /** The title of the job on screen, when LinkedIn has shown it. */
+  title?(): string | null;
   /** Opens collapsed sections; returns how many it opened. */
   expand(): number;
   read(): JobPosting | null;
@@ -124,7 +126,7 @@ export class JobAnalyzerController {
     this.deps.highlight(null);
     this.jobId = id;
     this.posting = null;
-    this.set({ status: "reading", jobId: id });
+    this.set({ status: "reading", jobId: id, title: this.deps.title?.() ?? null });
     void this.readAndAnalyze(id, this.run);
   }
 
@@ -143,6 +145,9 @@ export class JobAnalyzerController {
       await this.wait(SETTLE_MS);
       if (this.stale(run) || this.deps.currentJobId() !== id) return;
       const read = this.deps.read();
+      // The title is on the page before the description is, and LinkedIn may update it after the click.
+      const title = read?.title || this.deps.title?.() || null;
+      if (this.state.status === "reading" && this.state.jobId === id && this.state.title !== title) this.set({ status: "reading", jobId: id, title });
       const text = read ? `${read.description}\n${read.companyText}` : "";
       if (read && read.jobId === id && text === last && read.description.length > 0) {
         posting = read;
