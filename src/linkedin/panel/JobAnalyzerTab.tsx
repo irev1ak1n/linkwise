@@ -8,7 +8,11 @@ import type { JobAnalysis, JobFinding } from "../../jobs/jobTypes";
 import { JobHighlighter } from "../jobs/jobHighlighter";
 import { currentJobId, expandCollapsed, findJobDetails, readJobPosting } from "../jobs/jobPageReader";
 import { isPanelVisible, subscribePanelVisibility } from "./panelVisibilityStore";
-import { useGoalStore } from "./useGoalStore";
+import { GoalSetupSection } from "./GoalSetupSection";
+import { jobGoalPreference } from "./jobGoalStore";
+import { useStoredPreference } from "./useStoredPreference";
+import { createCriterion, createGoal } from "../../models/goal";
+import type { DraftCriterionInput } from "./goalStore";
 
 const MUTATION_DEBOUNCE_MS = 600;
 const HREF_POLL_MS = 1000;
@@ -198,16 +202,49 @@ export function JobAnalysisView({ analysis, hasCriteria }: { analysis: JobAnalys
   );
 }
 
+const JOB_COPY = {
+  label: "Looking for in a job",
+  heading: "What are you looking for in a job?",
+  placeholder: "Software engineering internships, student-friendly roles, remote or hybrid, strong development experience, good compensation...",
+  vague: "We couldn't find enough detail in that description — try adding a role, workplace type, pay, or experience level.",
+  created: "Saved — comparing the open job to it now.",
+};
+
 export function JobAnalyzerTab() {
-  const { selectedGoal: goal } = useGoalStore();
+  const { value: goal } = useStoredPreference(jobGoalPreference);
   const visible = useSyncExternalStore(subscribePanelVisibility, isPanelVisible, isPanelVisible);
   const { state, retry } = useJobAnalyzer(goal ?? null, visible);
   const hasCriteria = (goal?.criteria.filter((c) => c.importance !== "EXCLUDED").length ?? 0) > 0;
 
-  if (state.status === "idle" || state.status === "no_job") return <p className="lw-empty">Open a LinkedIn job to analyze it. Click a listing in your search results.</p>;
-  if (state.status === "reading") return <p className="lw-empty">Reading the full job posting…</p>;
+  const setJobGoal = (name: string, description: string, criteria: DraftCriterionInput[]) =>
+    jobGoalPreference.set({
+      ...(goal ?? createGoal(name || "My job search")),
+      name: name || goal?.name || "My job search",
+      description,
+      criteria: criteria.map((c) => createCriterion(c.label, c.importance, { category: c.category, groupId: c.groupId, value: c.value, operator: c.operator, sourceText: c.sourceText })),
+    });
+  // Same card as the Profile Analyzer's, with its own saved value, about jobs.
+  const criteriaCard = <GoalSetupSection goal={goal ?? null} profileKey={null} kind="job" onSetActiveCriteria={setJobGoal} copy={JOB_COPY} />;
+
+  if (state.status === "idle" || state.status === "no_job") {
+    return (
+      <>
+        {criteriaCard}
+        <p className="lw-empty">Open a LinkedIn job to analyze it. Click a listing in your search results.</p>
+      </>
+    );
+  }
+  if (state.status === "reading") {
+    return (
+      <>
+        {criteriaCard}
+        <p className="lw-empty">Reading the full job posting…</p>
+      </>
+    );
+  }
   return (
     <>
+      {criteriaCard}
       {state.status === "analyzing" && <p className="lw-scan-mode__hint">Analyzing with AI… what the posting states plainly is shown below.</p>}
       {state.status === "ready" && state.aiError && (
         <p className="lw-scan-mode__hint">
@@ -217,7 +254,6 @@ export function JobAnalyzerTab() {
           </button>
         </p>
       )}
-      {!hasCriteria && <p className="lw-scan-mode__hint">Describe what you're looking for in Profile Analyzer to see how well this job fits.</p>}
       <JobAnalysisView key={state.jobId} analysis={state.analysis} hasCriteria={hasCriteria} />
     </>
   );

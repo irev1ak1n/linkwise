@@ -108,3 +108,17 @@ describe("POST /api/generate-criteria - successful generation", () => {
     expect(res.body.criteria).toEqual([]);
   });
 });
+
+describe("POST /api/generate-criteria - kind", () => {
+  it("uses the job wording for jobs and the people wording by default", async () => {
+    const systems: string[] = [];
+    const client: CriteriaGenerationClient = { generate: async (system: string) => (systems.push(system), fakeGeneratedResponse()) } as unknown as CriteriaGenerationClient;
+    const app = createApp({ config: loadConfig({ OPENAI_API_KEY: "sk-test" }), criteriaClient: client });
+    await request(app).post("/api/generate-criteria").send({ description: "remote internships", kind: "job" });
+    await request(app).post("/api/generate-criteria").send({ description: "FRC mentor" });
+    expect(systems[0]).toContain("what they want in a LinkedIn job");
+    expect(systems[0]).toContain("KIND OF JOB");
+    expect(systems[0]).not.toContain("KIND OF PERSON");
+    expect(systems[1]).toContain("who they are looking for on LinkedIn");
+  });
+});

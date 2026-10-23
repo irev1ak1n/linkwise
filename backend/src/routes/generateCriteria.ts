@@ -3,7 +3,7 @@
 import type { Request, Response } from "express";
 import { generateCriteriaRequestSchema } from "../validation/generateCriteriaRequestSchema";
 import { requestCriteriaGeneration, type CriteriaGenerationClient } from "../openai/criteriaClient";
-import { CRITERIA_SYSTEM_PROMPT, buildCriteriaUserPrompt } from "../openai/criteriaPrompt";
+import { CRITERIA_SYSTEM_PROMPT, JOB_CRITERIA_SYSTEM_PROMPT, buildCriteriaUserPrompt } from "../openai/criteriaPrompt";
 import { sanitizeGeneratedCriteria } from "../criteria/sanitizeGeneratedCriteria";
 import type { BackendConfig } from "../config";
 
@@ -23,7 +23,7 @@ export async function handleGenerateCriteria(req: Request, res: Response, deps: 
 
   const aiResult = await requestCriteriaGeneration(
     deps.config,
-    CRITERIA_SYSTEM_PROMPT,
+    parseResult.data.kind === "job" ? JOB_CRITERIA_SYSTEM_PROMPT : CRITERIA_SYSTEM_PROMPT,
     buildCriteriaUserPrompt(parseResult.data.description),
     { timeoutMs: deps.timeoutMs, client: deps.client },
   );

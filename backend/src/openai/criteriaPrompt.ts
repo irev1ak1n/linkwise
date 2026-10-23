@@ -40,6 +40,13 @@ Examples:
 
 If the description is too vague or short to extract anything meaningful, return an empty criteria array rather than inventing criteria the text doesn't actually support.`;
 
+// The same rules, pointed at a job: what the person wants a LinkedIn job listing to offer or be.
+export const JOB_CRITERIA_SYSTEM_PROMPT = CRITERIA_SYSTEM_PROMPT.replace(
+  "who they are looking for on LinkedIn into structured matching criteria for a networking tool called LinkWise",
+  "what they want in a LinkedIn job into structured matching criteria for a job-analysis tool called LinkWise. Each criterion is something a job listing could offer or be: a kind of role, field, location or workplace type (remote, hybrid, on-site), employment type (internship, part-time), pay, benefits, skills or technologies used, experience level, or who it welcomes (students, entry level)",
+)
+  .replace(/NAME: a short[\s\S]*?(?=\n\nIf the description is too vague)/, 'NAME: a short, natural title (usually 3-8 words) for the KIND OF JOB being searched for, such as "Remote Software Engineering Internships". Never invent requirements, never copy the raw input, and use no trailing punctuation.');
+
 export function buildCriteriaUserPrompt(description: string): string {
   return `Description:\n"""\n${description}\n"""`;
 }

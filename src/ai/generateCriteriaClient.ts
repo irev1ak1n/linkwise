@@ -18,12 +18,12 @@ function toOutcome(response: GenerateCriteriaApiResponse): GenerateCriteriaOutco
   return { status: "unavailable", reason: response.status };
 }
 
-export function requestGenerateCriteria(description: string): PendingGenerateCriteriaRequest {
+export function requestGenerateCriteria(description: string, kind: "person" | "job" = "person"): PendingGenerateCriteriaRequest {
   return sendBackgroundRelayRequest<GenerateCriteriaApiResponse, GenerateCriteriaOutcome>({
     requestType: LINKWISE_GENERATE_CRITERIA,
     cancelType: LINKWISE_CANCEL_GENERATE_CRITERIA,
     idPrefix: "criteria_req",
-    payload: { description },
+    payload: { description, kind },
     toOutcome,
     unavailable: (reason) => ({ status: "unavailable", reason }),
   });

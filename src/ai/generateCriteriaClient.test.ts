@@ -21,7 +21,7 @@ describe("requestGenerateCriteria - success", () => {
   it("resolves to an 'ok' outcome from a generated response", async () => {
     installFakeChromeRuntime((message) => {
       expect((message as { type: string }).type).toBe(LINKWISE_GENERATE_CRITERIA);
-      expect((message as { payload: { description: string } }).payload).toEqual({ description: "FRC mentor" });
+      expect((message as { payload: { description: string } }).payload).toEqual({ description: "FRC mentor", kind: "person" });
       return {
         status: "generated",
         name: "FRC Mentors",

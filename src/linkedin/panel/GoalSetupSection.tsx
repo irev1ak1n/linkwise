@@ -18,12 +18,23 @@ interface GoalSetupSectionProps {
   goal: Goal | null;
   profileKey: string | null;
   onSetActiveCriteria: (name: string, description: string, criteria: DraftCriterionInput[]) => void;
+  /** What the criteria describe; the Job Analyzer keeps its own, about jobs. */
+  kind?: "person" | "job";
+  /** Wording that differs between the people and the jobs versions. */
+  copy?: { label: string; heading: string; placeholder?: string; vague: string; created: string };
 }
+
+const PERSON_COPY = {
+  label: "Looking for",
+  heading: "Who are you looking for?",
+  vague: "We couldn't find enough detail in that description — try adding a role, location, or experience.",
+  created: "Goal created — analyzing any open profile now.",
+};
 
 // The textarea reflects the committed active goal, not a search box. With no active goal it's
 // editable so the user can create one. With an active goal it's read-only until Edit is
 // clicked, and an in-progress edit is only a local draft until Save succeeds.
-export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: GoalSetupSectionProps) {
+export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria, kind = "person", copy = PERSON_COPY }: GoalSetupSectionProps) {
   const hasActiveGoal = !!goal?.description;
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -60,9 +71,9 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
     setMessage(null);
     try {
       const description = draft.trim();
-      const result = await generateCriteria(draft);
+      const result = await generateCriteria(draft, { kind });
       if (result.criteria.length === 0) {
-        setMessage("We couldn't find enough detail in that description — try adding a role, location, or experience.");
+        setMessage(copy.vague);
         return;
       }
       onSetActiveCriteria(
@@ -79,7 +90,7 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
         })),
       );
       setIsEditing(false);
-      setMessage(hasActiveGoal ? "Updated your active goal." : "Goal created — analyzing any open profile now.");
+      setMessage(hasActiveGoal ? "Updated your active goal." : copy.created);
     } finally {
       setGenerating(false);
     }
@@ -92,7 +103,7 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
     return (
       <section className="lw-an-goal">
         <div className="lw-an-goal__text">
-          <span className="lw-an-goal__label">Looking for</span>
+          <span className="lw-an-goal__label">{copy.label}</span>
           <p title={goal?.description}>{goal?.description}</p>
         </div>
         <button type="button" className="lw-an-more" onClick={handleEdit}>
@@ -105,7 +116,7 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
 
   return (
     <section className="app__section lw-goal">
-      <h2>Who are you looking for?</h2>
+      <h2>{copy.heading}</h2>
       <textarea
         className="text-area"
         value={textareaValue}
@@ -120,6 +131,7 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria }: Goal
             : undefined
         }
         rows={3}
+        placeholder={copy.placeholder}
       />
       <div className="lw-goal__footer">
         <span className="char-count">{editable ? `${draft.length} / ${GOAL_TEXT_MAX_LENGTH}` : ""}</span>

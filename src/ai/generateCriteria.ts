@@ -24,10 +24,10 @@ export interface CriteriaGenerationResult {
 // Never throws, every failure mode falls back to the local parser instead.
 export async function generateCriteria(
   description: string,
-  options: { requestGenerateCriteria?: typeof defaultRequestGenerateCriteria } = {},
+  options: { requestGenerateCriteria?: typeof defaultRequestGenerateCriteria; kind?: "person" | "job" } = {},
 ): Promise<CriteriaGenerationResult> {
   const request = options.requestGenerateCriteria ?? defaultRequestGenerateCriteria;
-  const { promise } = request(description);
+  const { promise } = request(description, options.kind ?? "person");
   const outcome = await promise;
 
   if (outcome.status === "ok" && outcome.criteria.length > 0) {
