@@ -21,14 +21,12 @@ interface GoalSetupSectionProps {
   /** What the criteria describe; the Job Analyzer keeps its own, about jobs. */
   kind?: "person" | "job";
   /** Wording that differs between the people and the jobs versions. */
-  copy?: { label: string; heading: string; placeholder?: string; vague: string; created: string };
+  copy?: { heading: string; placeholder?: string; vague: string };
 }
 
 const PERSON_COPY = {
-  label: "Looking for",
   heading: "Who are you looking for?",
   vague: "We couldn't find enough detail in that description — try adding a role, location, or experience.",
-  created: "Goal created — analyzing any open profile now.",
 };
 
 // The textarea reflects the committed active goal, not a search box. With no active goal it's
@@ -90,7 +88,6 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria, kind =
         })),
       );
       setIsEditing(false);
-      setMessage(hasActiveGoal ? "Updated your active goal." : copy.created);
     } finally {
       setGenerating(false);
     }
@@ -99,24 +96,20 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria, kind =
   const editable = !hasActiveGoal || isEditing;
   const textareaValue = editable ? draft : (goal?.description ?? "");
 
-  if (!editable) {
-    return (
-      <section className="lw-an-goal">
-        <div className="lw-an-goal__text">
-          <span className="lw-an-goal__label">{copy.label}</span>
-          <p title={goal?.description}>{goal?.description}</p>
-        </div>
-        <button type="button" className="lw-an-more" onClick={handleEdit}>
-          Edit
-        </button>
-        {message && <p className="lw-goal__message">{message}</p>}
-      </section>
-    );
-  }
-
   return (
     <section className="app__section lw-goal">
       <h2>{copy.heading}</h2>
+      {!editable ? (
+        <div className="lw-an-goal">
+          <div className="lw-an-goal__text">
+            <p title={goal?.description}>{goal?.description}</p>
+          </div>
+          <button type="button" className="lw-an-more" onClick={handleEdit}>
+            Edit
+          </button>
+        </div>
+      ) : (
+      <>
       <textarea
         className="text-area"
         value={textareaValue}
@@ -156,6 +149,8 @@ export function GoalSetupSection({ goal, profileKey, onSetActiveCriteria, kind =
           ) : null}
         </div>
       </div>
+      </>
+      )}
       {message && <p className="lw-goal__message">{message}</p>}
     </section>
   );

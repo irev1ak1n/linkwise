@@ -203,10 +203,8 @@ export function JobAnalysisView({ analysis, hasCriteria }: { analysis: JobAnalys
 }
 
 const JOB_COPY = {
-  label: "Looking for in a job",
   heading: "What are you looking for in a job?",
   vague: "We couldn't find enough detail in that description — try adding a role, workplace type, pay, or experience level.",
-  created: "Saved — comparing the open job to it now.",
 };
 
 export function JobAnalyzerTab() {
