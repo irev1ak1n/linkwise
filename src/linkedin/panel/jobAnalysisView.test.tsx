@@ -15,7 +15,8 @@ const ai = (over: Partial<JobAiFindings> = {}): JobAiFindings => ({
   summary: "This is a hybrid software engineering internship in Pittsburgh that pays $28 to $31 an hour. You would build and test internal tools alongside senior engineers.",
   responsibilities: [], required: [], preferred: [], technicalSkills: [], professionalSkills: [], education: [], experience: [], restrictions: [], benefits: [],
   company: { industry: "", size: "", headquarters: "", focus: "", focusEvidence: "" },
-  keyEvidence: [{ text: "You would work directly with senior engineers.", evidence: "senior engineers" }],
+  keyEvidence: [{ text: "You would build and test internal tools alongside senior engineers on a small, fast-moving team.", evidence: "senior engineers" }],
+  conditions: [{ text: "The internship is hybrid and based in Pittsburgh, with an hourly pay range of twenty-eight to thirty-one dollars.", evidence: "Hybrid" }],
   criteria: [{ criterionId: "c1", status: "strong", reasoning: "The role is hands-on building and testing of internal tools, which is the development work you asked for.", evidence: "Build and test internal tools" }, { criterionId: "c2", status: "none", reasoning: "The listing says hybrid.", evidence: "Hybrid" }],
   ...over,
 });
@@ -30,7 +31,10 @@ describe("job analysis view", () => {
     // The unmet criterion is not listed as a reason, and no separate missing-information block exists.
     expect(html).not.toContain("The listing says hybrid.");
     expect(html).not.toMatch(/Missing/i);
-    expect(html).toContain("Pays $28–$31/hour.");
+    expect(html).toContain(">Requirements &amp; conditions<");
+    expect(html).toContain("The internship is hybrid and based in Pittsburgh");
+    // Pay and place appear once, in Requirements & conditions, not again as separate plain-fact lines.
+    expect(html).not.toContain("Hybrid in Pittsburgh, PA.");
   });
 
   it("builds a readable summary from the posting alone when there is no AI summary", () => {

@@ -6,6 +6,7 @@ import type { Criterion, Goal } from "../models/goal";
 import type { EvidenceStrength } from "../models/evidence";
 import { computeMatchResult, type CriterionAssessment } from "../matching/scoreProfile";
 import { readPostingFacts } from "./jobFacts";
+import { dedupeAcross } from "./dedupeFacts";
 import type { JobAiFindings, JobAnalysis, JobCompensation, JobCriterionMatch, JobFinding, JobMatchStatus, JobPosting } from "./jobTypes";
 
 const key = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}+#]+/gu, " ").trim();
@@ -51,17 +52,28 @@ function factSentences(analysis: Pick<JobAnalysis, "job" | "compensation">): Job
   return lead;
 }
 
-function keyEvidence(analysis: Pick<JobAnalysis, "job" | "compensation" | "restrictions">, ai: JobFinding[]): JobFinding[] {
-  const sentence = (f: JobFinding): JobFinding => ({ ...f, text: /[.!?]$/.test(f.text) ? f.text : `${f.text}.` });
-  // Deterministic facts first, then the AI's, then deal breakers not already covered. Several lines say the same
-  // thing (pay, workplace), so a line is kept only if it adds words the earlier ones lack.
-  const all = [...factSentences(analysis), ...ai.map(sentence), ...analysis.restrictions.slice(0, 3).map(sentence)];
-  const kept: JobFinding[] = [];
-  for (const item of all) {
-    const words = new Set(key(item.text).split(" "));
-    if (!kept.some((k) => key(k.text).split(" ").filter((w) => words.has(w)).length / Math.max(words.size, 1) > 0.7)) kept.push(item);
-  }
-  return kept.slice(0, 10);
+const asSentence = (f: JobFinding): JobFinding => ({ ...f, text: /[.!?]$/.test(f.text) ? f.text : `${f.text}.` });
+
+// Requirements & conditions: pay, place, schedule, qualifications, restrictions, general benefits. The AI's lines
+// come first; plain facts only fill in what they did not say. Every fact is kept once, here or in Key evidence.
+function conditionsAndEvidence(
+  analysis: Pick<JobAnalysis, "job" | "compensation" | "restrictions" | "responsibilities" | "education" | "experience" | "benefits" | "skills">,
+  ai: JobAiFindings | null,
+): { conditions: JobFinding[]; keyEvidence: JobFinding[] } {
+  const plainConditions = [
+    ...factSentences(analysis),
+    ...analysis.education.map((f) => ({ text: f.evidence, evidence: f.evidence })),
+    ...analysis.experience.map((f) => ({ text: f.evidence, evidence: f.evidence })),
+    ...analysis.restrictions.map((f) => ({ text: f.evidence, evidence: f.evidence })),
+    ...analysis.benefits.map((f) => ({ text: f.evidence, evidence: f.evidence })),
+  ].map(asSentence);
+  const skillLine = analysis.skills.technical.length > 0 ? [{ text: `The work uses ${analysis.skills.technical.slice(0, 5).map((s) => s.text).join(", ")}.`, evidence: analysis.skills.technical[0]!.evidence }] : [];
+  const plainEvidence = [...analysis.responsibilities.map((f) => ({ text: f.evidence, evidence: f.evidence })).map(asSentence), ...skillLine];
+  const [conditions, keyEvidence] = dedupeAcross(
+    [[...(ai?.conditions ?? []).map(asSentence), ...plainConditions], [...(ai?.keyEvidence ?? []).map(asSentence), ...(ai?.keyEvidence.length ? [] : plainEvidence)]],
+    [10, 8],
+  );
+  return { conditions: conditions!, keyEvidence: keyEvidence! };
 }
 
 // What the posting plainly says, as a short paragraph, for when no AI summary is available.
@@ -134,6 +146,9 @@ export function buildJobAnalysis(posting: JobPosting, ai: JobAiFindings | null, 
   const result = goal && goal.criteria.length > 0 ? computeMatchResult(goal, assessments(goal, matches), true) : null;
   const score = result?.scorePercent ?? null;
 
+  const benefits = union(ai?.benefits ?? [], union(facts.benefits, lists.benefits.slice(0, 0), 10), 12, (f) => key(f.evidence));
+  const skills = { technical: union(ai?.technicalSkills ?? [], facts.technical, 14), professional: union(ai?.professionalSkills ?? [], facts.professional, 8) };
+  const split = conditionsAndEvidence({ job: base.job, compensation: base.compensation, restrictions, responsibilities: base.responsibilities, education, experience, benefits, skills }, ai);
   return {
     jobId: posting.jobId,
     summary: ai?.summary || plainSummary({ job: base.job, compensation: base.compensation, responsibilities: base.responsibilities, restrictions }),
@@ -141,13 +156,10 @@ export function buildJobAnalysis(posting: JobPosting, ai: JobAiFindings | null, 
     compensation: base.compensation,
     responsibilities: base.responsibilities,
     requirements: { required: ai?.required.length ? ai.required : lists.required.slice(0, 12), preferred: ai?.preferred.length ? ai.preferred : lists.preferred.slice(0, 10) },
-    skills: {
-      technical: union(ai?.technicalSkills ?? [], facts.technical, 14),
-      professional: union(ai?.professionalSkills ?? [], facts.professional, 8),
-    },
+    skills,
     education,
     experience,
-    benefits: union(ai?.benefits ?? [], union(facts.benefits, lists.benefits.slice(0, 0), 10), 12, (f) => key(f.evidence)),
+    benefits,
     restrictions,
     company: {
       name: posting.company,
@@ -158,7 +170,7 @@ export function buildJobAnalysis(posting: JobPosting, ai: JobAiFindings | null, 
       focusEvidence: ai?.company.focusEvidence ?? "",
       followers: facts.company.followers,
     },
-    keyEvidence: keyEvidence({ job: base.job, compensation: base.compensation, restrictions }, ai?.keyEvidence ?? []),
+    ...split,
     criteriaMatches: matches,
     overallMatch: { score, confidence: result?.confidence ?? 0, disqualified: result?.disqualified ?? false, summary: summaryOf(goal, matches, score, result?.disqualified ?? false) },
     aiAvailable: ai !== null,

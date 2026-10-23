@@ -43,7 +43,8 @@ const response = {
   restrictions: [f("Must be authorized to work in the U.S.", "Must be authorized to work in the United States"), f("No sponsorship", "Sponsorship is not available")],
   benefits: [],
   company: { industry: "Logistics Software", size: "1,001-5,000 employees", headquarters: "", focus: "Logistics software", focusQuote: "Acme builds logistics software" },
-  keyEvidence: [f("Hybrid in Pittsburgh", "This is a hybrid role in Pittsburgh, PA")],
+  keyEvidence: [f("You would build and test internal tools alongside senior engineers on a rotating team.", "Build and maintain internal APIs with senior engineers")],
+  conditions: [f("The role is hybrid and based in Pittsburgh, Pennsylvania, with the schedule split between office and home.", "This is a hybrid role in Pittsburgh, PA")],
   criteria: [
     { criterionId: "c1", status: "strong", reasoning: "The job involves building and debugging applications.", quote: "Test and debug applications" },
     { criterionId: "c2", status: "none", reasoning: "The listing says hybrid.", quote: "This is a hybrid role in Pittsburgh, PA" },

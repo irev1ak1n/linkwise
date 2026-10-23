@@ -95,15 +95,37 @@ function displayState(analysis: JobAnalysis): MatchDisplayState {
 
 const stateLabel = (state: MatchDisplayState) => (state.kind === "low_confidence" ? "Limited Listing Information" : matchDisplayLabel(state));
 
+// A titled list of facts, the first few shown and the rest a click away, as the Profile Analyzer's Key evidence is.
+function FactList({ title, items }: { title: string; items: JobAnalysis["keyEvidence"] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (items.length === 0) return null;
+  const shown = expanded ? items : items.slice(0, KEY_EVIDENCE_SHOWN);
+  const hidden = items.length - shown.length;
+  return (
+    <section className="lw-dash__block" aria-label={title}>
+      <h3 className="lw-dash__label">{title}</h3>
+      <ul className="lw-key-evidence">
+        {shown.map((fact) => (
+          <li key={fact.text} title={fact.evidence}>
+            {fact.text}
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 && (
+        <button type="button" className="lw-scan__link" onClick={() => setExpanded(true)}>
+          Show {hidden} more
+        </button>
+      )}
+    </section>
+  );
+}
+
 // The same quick read as the Profile Analyzer's dashboard: how strong, why, and the evidence behind it.
 export function JobAnalysisView({ analysis, hasCriteria }: { analysis: JobAnalysis; hasCriteria: boolean }) {
-  const [expanded, setExpanded] = useState(false);
   const { job } = analysis;
   const state = displayState(analysis);
   const color = matchDisplayColor(state);
   const confirmed = analysis.criteriaMatches.filter((m) => m.status === "strong" || m.status === "match" || m.status === "partial");
-  const evidence = expanded ? analysis.keyEvidence : analysis.keyEvidence.slice(0, KEY_EVIDENCE_SHOWN);
-  const hidden = analysis.keyEvidence.length - evidence.length;
   const heading = [job.title || "This job", job.company].filter(Boolean).join(" · ");
   return (
     <div className="lw-analysis lw-dash">
@@ -147,23 +169,8 @@ export function JobAnalysisView({ analysis, hasCriteria }: { analysis: JobAnalys
         </section>
       )}
 
-      {analysis.keyEvidence.length > 0 && (
-        <section className="lw-dash__block" aria-label="Key evidence">
-          <h3 className="lw-dash__label">Key evidence</h3>
-          <ul className="lw-key-evidence">
-            {evidence.map((fact) => (
-              <li key={fact.text} title={fact.evidence}>
-                {fact.text}
-              </li>
-            ))}
-          </ul>
-          {hidden > 0 && (
-            <button type="button" className="lw-scan__link" onClick={() => setExpanded(true)}>
-              Show {hidden} more
-            </button>
-          )}
-        </section>
-      )}
+      <FactList title="Key evidence" items={analysis.keyEvidence} />
+      <FactList title="Requirements & conditions" items={analysis.conditions} />
     </div>
   );
 }

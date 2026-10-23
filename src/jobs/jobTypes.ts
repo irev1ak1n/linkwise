@@ -54,6 +54,7 @@ export interface JobAiFindings {
   benefits: JobFinding[];
   company: { industry: string; size: string; headquarters: string; focus: string; focusEvidence: string };
   keyEvidence: JobFinding[];
+  conditions: JobFinding[];
   criteria: { criterionId: string; status: JobMatchStatus; reasoning: string; evidence: string }[];
 }
 
@@ -82,7 +83,10 @@ export interface JobAnalysis {
   /** Details that can decide whether someone wants or qualifies for the job. */
   restrictions: JobFinding[];
   company: { name: string; industry: string | null; size: string | null; headquarters: string | null; focus: string | null; focusEvidence: string; followers: string | null };
+  /** The opportunity itself: the work, tools, structure, training, growth. */
   keyEvidence: JobFinding[];
+  /** Qualifications and practical details: requirements, pay, place, schedule, conditions. */
+  conditions: JobFinding[];
   criteriaMatches: JobCriterionMatch[];
   overallMatch: { score: number | null; confidence: number; disqualified: boolean; summary: string };
   /** Whether the AI reading ran; without it, only what is stated plainly in the posting is shown. */

@@ -31,11 +31,12 @@ export interface JobFindings {
   benefits: JobFinding[];
   company: { industry: string; size: string; headquarters: string; focus: string; focusEvidence: string };
   keyEvidence: JobFinding[];
+  conditions: JobFinding[];
   criteria: JobCriterionMatch[];
 }
 
 const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}+#]+/gu, " ").trim();
-const LIMITS = { responsibilities: 8, required: 12, preferred: 10, technicalSkills: 14, professionalSkills: 8, education: 6, experience: 6, restrictions: 10, benefits: 10, keyEvidence: 8 } as const;
+const LIMITS = { responsibilities: 8, required: 12, preferred: 10, technicalSkills: 14, professionalSkills: 8, education: 6, experience: 6, restrictions: 10, benefits: 10, keyEvidence: 8, conditions: 10 } as const;
 const MIN_QUOTE_WORDS = 2;
 
 export function postingText(request: JobAnalysisRequest): string {
@@ -103,6 +104,7 @@ export function validateJob(response: JobResponse, request: JobAnalysisRequest):
       focusEvidence,
     },
     keyEvidence: findings(response.keyEvidence, LIMITS.keyEvidence, haystack),
+    conditions: findings(response.conditions, LIMITS.conditions, haystack),
     criteria,
   };
 }

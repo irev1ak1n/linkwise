@@ -17,6 +17,7 @@ export const jobResponseSchema = z.object({
   benefits: z.array(finding),
   company: z.object({ industry: z.string(), size: z.string(), headquarters: z.string(), focus: z.string(), focusQuote: z.string() }),
   keyEvidence: z.array(finding),
+  conditions: z.array(finding),
   criteria: z.array(
     z.object({
       criterionId: z.string(),
@@ -43,9 +44,10 @@ Extract only what the posting says; never guess:
 - restrictions: things that could rule someone in or out: work authorization or citizenship, sponsorship, age limits, clearance, relocation, travel, driver's license, schedule (nights, weekends), enrollment or graduation timing, minimum GPA, unpaid or stipend-only, physical requirements, background checks, in-office requirements.
 - benefits: only benefits the posting actually states.
 - company: industry, size, headquarters taken from the company section; "focus" is what the company does, in one short phrase, with its quote. Leave a field "" when the posting does not state it.
-- keyEvidence: the 4 to 8 facts someone most needs to know in a few seconds (pay, workplace, program length or start date, level, a standout requirement, the core work), each with its quote.
+- keyEvidence: 4 to 8 facts about the OPPORTUNITY itself: the main responsibilities, technologies and tools, program structure and length, rotations, mentorship and training, career development, and role-specific benefits. What the person would actually do or gain. Never pay, location, workplace type, schedule, or qualifications (those go in conditions).
+- conditions: 4 to 10 practical facts: education and experience required, work authorization or citizenship, pay, location, remote/hybrid/on-site, schedule, relocation, travel, employment type, general benefits, and other restrictions or important conditions.
+- keyEvidence and conditions are factual only (never an opinion about fit). Each "text" is ONE clear fact written as a natural sentence of about 15 to 25 words, descriptive enough to be useful, not raw extracted text. A fact appears once across both lists and across the other fields' wording: never state the same thing twice in different words (pay as a range once; location and workplace once; a requirement once).
 - summary: three or four plain, specific sentences that shorten the posting for someone deciding whether to look closer: what the job is and where, the work in a nutshell, who it suits (student-friendly, entry level, experience expected), and anything that could decide it (pay if stated, workplace type, a hard requirement). Written for the reader, in a natural voice, using only what the posting says. Never invent numbers; state pay only if it appears.
-- keyEvidence "text" is a complete short sentence a reader can use as is ("Pays $28 to $31 an hour.", "Hybrid in Pittsburgh, PA."), not a label.
 - Compensation is parsed separately; do not return it unless it is a restriction like "unpaid".
 
 Criteria: for EACH criterion given, return one result with its criterionId.

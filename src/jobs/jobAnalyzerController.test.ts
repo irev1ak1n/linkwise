@@ -4,7 +4,7 @@ import type { JobAnalysisRequestBody, JobAiOutcome } from "./jobAnalysisClient";
 import type { JobAiFindings, JobPosting } from "./jobTypes";
 import type { Goal } from "../models/goal";
 
-const empty: JobAiFindings = { summary: "", responsibilities: [], required: [], preferred: [], technicalSkills: [], professionalSkills: [], education: [], experience: [], restrictions: [], benefits: [], company: { industry: "", size: "", headquarters: "", focus: "", focusEvidence: "" }, keyEvidence: [], criteria: [] };
+const empty: JobAiFindings = { summary: "", responsibilities: [], required: [], preferred: [], technicalSkills: [], professionalSkills: [], education: [], experience: [], restrictions: [], benefits: [], company: { industry: "", size: "", headquarters: "", focus: "", focusEvidence: "" }, keyEvidence: [], conditions: [], criteria: [] };
 const goal: Goal = { id: "g", name: "Dev", criteria: [{ id: "c1", label: "Software development", importance: "MUST_HAVE" }] } as Goal;
 
 const posting = (jobId: string, description = `Pay: $20 per hour. Build software for ${jobId}.`): JobPosting => ({ jobId, url: "", title: `Job ${jobId}`, company: "Acme", headerLines: ["Boston, MA · 1 day ago", "Hybrid"], description, companyText: "" });
