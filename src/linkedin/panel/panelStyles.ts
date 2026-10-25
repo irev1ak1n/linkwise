@@ -1184,9 +1184,9 @@ export function getPanelStyles(widthPx: number): string {
   .lw-faq__title {
     margin: 0;
     font-size: 14.5px;
-    font-weight: 700;
+    font-weight: 800;
     letter-spacing: -0.01em;
-    color: #0e1a5c;
+    color: #0a1230;
     text-align: center;
     white-space: nowrap;
   }
@@ -1214,9 +1214,9 @@ export function getPanelStyles(widthPx: number): string {
     min-height: 52px;
     padding: 12px 14px 12px 18px;
     font: inherit;
-    font-weight: 600;
+    font-weight: 700;
     text-align: left;
-    color: #1a1a1a;
+    color: #0a1230;
     background: none;
     border: none;
     cursor: pointer;
@@ -1267,7 +1267,7 @@ export function getPanelStyles(widthPx: number): string {
   .lw-faq__answer-inner p {
     margin: 0;
     padding: 0 18px 14px;
-    color: #2f3b52;
+    color: #232f46;
     line-height: 1.55;
   }
   @media (prefers-reduced-motion: reduce) {
