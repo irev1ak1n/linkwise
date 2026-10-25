@@ -33,7 +33,7 @@ import { getHighlightRule, subscribeHighlightRule } from "./settingsNav";
 import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimizerNav";
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
-import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, JobAnalyzerHero, MainMenu, OptimizerHero } from "./MainMenu";
+import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, JobAnalyzerHero, MainMenu, OptimizerHero, WelcomeBanner } from "./MainMenu";
 import { MenuFaq } from "./MenuFaq";
 
 const openMenu = () => panelToolPreference.set("menu");
@@ -181,6 +181,7 @@ export function PanelApp({ onClose }: PanelAppProps) {
       <div className="lw-panel__body">
         {tool === "menu" ? (
           <>
+            <WelcomeBanner />
             <MainMenu onOpen={panelToolPreference.set} />
             <MenuFaq />
           </>

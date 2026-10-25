@@ -1149,6 +1149,14 @@ export function getPanelStyles(widthPx: number): string {
     color: #8a949c;
   }
 
+  .lw-welcome {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    pointer-events: none;
+    user-select: none;
+  }
   .lw-menu {
     display: flex;
     flex-direction: column;
