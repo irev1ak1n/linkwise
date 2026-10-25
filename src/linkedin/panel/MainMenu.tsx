@@ -51,7 +51,7 @@ export function MainMenu({ onOpen }: { onOpen: (tool: MenuTool) => void }) {
 
 export function WelcomeBanner() {
   const src = typeof chrome !== "undefined" ? chrome.runtime?.getURL?.("content/assets/menu-welcome-hero.webp") : undefined;
-  return <img className="lw-welcome" src={src || undefined} width={1711} height={919} alt="Make LinkedIn work for you. Analyze profiles, find better opportunities, and improve your presence with AI." draggable={false} />;
+  return <img className="lw-welcome" src={src || undefined} width={1672} height={941} alt="Make LinkedIn work for you. Analyze profiles, find better opportunities, and improve your presence with confidence." draggable={false} />;
 }
 
 export function BackLink({ label, onClick }: { label: string; onClick: () => void }) {

@@ -1151,8 +1151,10 @@ export function getPanelStyles(widthPx: number): string {
 
   .lw-welcome {
     display: block;
-    width: 100%;
+    width: calc(100% + 20px);
+    max-width: none;
     height: auto;
+    margin: -10px -10px -4px;
     border-radius: 12px;
     pointer-events: none;
     user-select: none;
