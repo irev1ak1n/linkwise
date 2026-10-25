@@ -82,21 +82,21 @@ const toMenu = async () =>
 const openSettings = async () => act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Open LinkWise settings"]')!.click());
 
 describe("LinkWise menu", () => {
-  it("lists exactly the four tools, one per row, with no Smart Highlights or tab bar", async () => {
+  it("lists exactly the three tools, one per row, with no Smart Highlights or tab bar", async () => {
     await mountPanel();
-    expect(menuItems()).toEqual(["Profile Analyzer", "Profile Optimizer", "Job Analyzer", "Saved Profiles"]);
-    expect(container.querySelector(".lw-menu")!.children).toHaveLength(4);
+    expect(menuItems()).toEqual(["Profile Analyzer", "Profile Optimizer", "Job Analyzer"]);
+    expect(container.querySelector(".lw-menu")!.children).toHaveLength(3);
     expect(container.textContent).not.toContain("Smart Highlights");
     expect(container.querySelector('[role="tablist"]')).toBeNull();
   });
 
   it("shows the tool list only on the menu, and every tool leads back to it", async () => {
     await mountPanel();
-    for (const label of ["Profile Analyzer", "Profile Optimizer", "Job Analyzer", "Saved Profiles"]) {
+    for (const label of ["Profile Analyzer", "Profile Optimizer", "Job Analyzer"]) {
       await openFromMenu(label);
       expect(container.querySelector(".lw-menu")).toBeNull();
       await toMenu();
-      expect(menuItems()).toHaveLength(4);
+      expect(menuItems()).toHaveLength(3);
     }
   });
 
@@ -178,7 +178,7 @@ describe("Settings", () => {
     expect(stored["finder.panelTool.v1"]).toBe("settings");
     expect(container.querySelector(".lw-art-hero--settings h2")!.textContent).toBe("Settings");
     await toMenu();
-    expect(menuItems()).toHaveLength(4);
+    expect(menuItems()).toHaveLength(3);
   });
 
   it("shows the artwork hero with live title text, and Back then Menu as its two controls", async () => {
@@ -204,11 +204,11 @@ describe("Settings", () => {
     expect(container.querySelector(".lw-art-hero--analyzer")).not.toBeNull();
     await openSettings();
     await toMenu();
-    expect(menuItems()).toHaveLength(4);
+    expect(menuItems()).toHaveLength(3);
     const { openSettings: openFromAnywhere } = await import("./settingsNav");
     await act(async () => openFromAnywhere());
     await goBack();
-    expect(menuItems()).toHaveLength(4);
+    expect(menuItems()).toHaveLength(3);
   });
 
   it("returns to the exact Optimizer page it was opened from", async () => {
@@ -238,7 +238,7 @@ describe("Settings", () => {
     panelToolPreference.set("settings");
     await mountPanel();
     await goBack();
-    expect(menuItems()).toHaveLength(4);
+    expect(menuItems()).toHaveLength(3);
   });
 
   it("holds the scan and highlight settings, which the Analyzer no longer shows", async () => {

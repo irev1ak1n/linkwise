@@ -25,10 +25,9 @@ export const MENU_ITEMS: { tool: MenuTool; label: string; description: string }[
   { tool: "analyzer", label: "Profile Analyzer", description: "Analyze someone's LinkedIn profile" },
   { tool: "optimizer", label: "Profile Optimizer", description: "Improve your own profile" },
   { tool: "jobs", label: "Job Analyzer", description: "Analyze LinkedIn job listings" },
-  { tool: "saved", label: "Saved Profiles", description: "Revisit profiles and track changes" },
 ];
 
-// The only place the four tools are listed; every tool page leads back here.
+// The only place the tools are listed; every tool page leads back here.
 export function MainMenu({ onOpen }: { onOpen: (tool: MenuTool) => void }) {
   return (
     <nav className="lw-menu" aria-label="LinkWise tools">
