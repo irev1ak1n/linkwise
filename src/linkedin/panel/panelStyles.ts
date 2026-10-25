@@ -1151,11 +1151,12 @@ export function getPanelStyles(widthPx: number): string {
 
   .lw-welcome {
     display: block;
-    width: calc(100% + 20px);
+    width: calc(100% + 32px);
     max-width: none;
     height: auto;
-    margin: -10px -10px -4px;
-    border-radius: 12px;
+    flex-shrink: 0;
+    margin: -16px -16px 0;
+    border-radius: 0;
     pointer-events: none;
     user-select: none;
   }
