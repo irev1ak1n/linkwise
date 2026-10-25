@@ -1194,12 +1194,16 @@ export function getPanelStyles(widthPx: number): string {
     list-style: none;
     margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .lw-faq__item {
     background: #fff;
     border: 1px solid #e1e6ea;
     border-radius: 10px;
-  }
-  .lw-faq__item + .lw-faq__item {
-    border-top: 1px solid #e1e6ea;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
   }
   .lw-faq__question {
     display: flex;
@@ -1207,7 +1211,8 @@ export function getPanelStyles(widthPx: number): string {
     justify-content: space-between;
     gap: 12px;
     width: 100%;
-    padding: 11px 12px 11px 14px;
+    min-height: 52px;
+    padding: 12px 14px 12px 18px;
     font: inherit;
     font-weight: 600;
     text-align: left;
@@ -1261,9 +1266,9 @@ export function getPanelStyles(widthPx: number): string {
   }
   .lw-faq__answer-inner p {
     margin: 0;
-    padding: 0 14px 12px;
-    color: #56687a;
-    line-height: 1.5;
+    padding: 0 18px 14px;
+    color: #2f3b52;
+    line-height: 1.55;
   }
   @media (prefers-reduced-motion: reduce) {
     .lw-faq__answer,
