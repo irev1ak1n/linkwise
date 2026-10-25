@@ -34,6 +34,7 @@ import { getOptimizerPage, subscribeOptimizerPage } from "../../optimizer/optimi
 import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
 import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, JobAnalyzerHero, MainMenu, OptimizerHero } from "./MainMenu";
+import { MenuFaq } from "./MenuFaq";
 
 const openMenu = () => panelToolPreference.set("menu");
 
@@ -179,7 +180,10 @@ export function PanelApp({ onClose }: PanelAppProps) {
       </header>
       <div className="lw-panel__body">
         {tool === "menu" ? (
-          <MainMenu onOpen={panelToolPreference.set} />
+          <>
+            <MainMenu onOpen={panelToolPreference.set} />
+            <MenuFaq />
+          </>
         ) : tool === "settings" && highlightRule ? (
           // A highlight category's own page, one level deeper in Settings: no hero, no other groups.
           highlights

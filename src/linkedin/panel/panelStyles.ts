@@ -1163,6 +1163,114 @@ export function getPanelStyles(widthPx: number): string {
     border-color: #c9d6e2;
     box-shadow: none;
   }
+  .lw-faq {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 6px;
+  }
+  .lw-faq__heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .lw-faq__heading::before,
+  .lw-faq__heading::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e1e6ea;
+  }
+  .lw-faq__title {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #0e1a5c;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .lw-faq__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    border: 1px solid #e1e6ea;
+    border-radius: 10px;
+  }
+  .lw-faq__item + .lw-faq__item {
+    border-top: 1px solid #e1e6ea;
+  }
+  .lw-faq__question {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px 11px 14px;
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    color: #1a1a1a;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .lw-faq__question:hover {
+    background: #f7f9fb;
+  }
+  .lw-faq__question:focus-visible {
+    outline: 2px solid #0a66c2;
+    outline-offset: -2px;
+  }
+  .lw-faq__chevron {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: #56687a;
+    border: 1px solid #e1e6ea;
+    border-radius: 50%;
+    transition: transform 0.2s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .lw-faq__item--open .lw-faq__chevron {
+    transform: rotate(180deg);
+    color: #0a66c2;
+    border-color: #b9cfe6;
+  }
+  .lw-faq__answer {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.22s ease;
+  }
+  .lw-faq__item--open .lw-faq__answer {
+    grid-template-rows: 1fr;
+  }
+  .lw-faq__answer-inner {
+    overflow: hidden;
+    min-height: 0;
+    visibility: hidden;
+    transition: visibility 0s 0.22s;
+  }
+  .lw-faq__item--open .lw-faq__answer-inner {
+    visibility: visible;
+    transition-delay: 0s;
+  }
+  .lw-faq__answer-inner p {
+    margin: 0;
+    padding: 0 14px 12px;
+    color: #56687a;
+    line-height: 1.5;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lw-faq__answer,
+    .lw-faq__chevron {
+      transition: none;
+    }
+  }
   .lw-tool-head {
     display: flex;
     flex-direction: column;
