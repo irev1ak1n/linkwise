@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearProfileCache } from "./clearProfileCache";
+import { clearAllAnalysisCaches, clearProfileCache } from "./clearProfileCache";
 
 let store: Record<string, unknown>;
 
@@ -55,5 +55,22 @@ describe("clearProfileCache", () => {
     store = { "finder.autoScanSession.v1": { profileKey: "other" } };
     await clearProfileCache("me");
     expect(store["finder.autoScanSession.v1"]).toEqual({ profileKey: "other" });
+  });
+
+  it("clears every profile's cached analysis but keeps settings, criteria and saved profiles", async () => {
+    store = {
+      "finder.profileSession.v3:a": {},
+      "finder.profileSession.v3:b": {},
+      "finder.profileSessions.v2": { a: {} },
+      "finder.autoScanSession.v1": {},
+      "finder.analysisCache.v1": { "v4:a:x:y": entry() },
+      "finder.profileComparisonCache.v1": { k: entry() },
+      "finder.goals.v1": [{ id: "g" }],
+      "finder.highlightPreferences.v1": {},
+      "finder.jobsSettings.v1": {},
+      "finder.savedProfile.v1:a": {},
+    };
+    await clearAllAnalysisCaches();
+    expect(Object.keys(store).sort()).toEqual(["finder.goals.v1", "finder.highlightPreferences.v1", "finder.jobsSettings.v1", "finder.savedProfile.v1:a"]);
   });
 });

@@ -1,7 +1,7 @@
 // Temporary demo helper: wipes everything LinkWise stored for one profile so it scans like a new one.
 import { clearAutoScanSession, loadAutoScanSession } from "../storage/autoScanSessionRepository";
-import { LEGACY_PROFILE_SESSIONS_STORAGE_KEY, profileSessionStorageKey } from "../storage/profileSessionRepository";
-import { safeStorageGet, safeStorageRemove, safeStorageSet } from "../storage/safeChromeStorage";
+import { LEGACY_PROFILE_SESSIONS_STORAGE_KEY, PROFILE_SESSION_KEY_PREFIX, profileSessionStorageKey } from "../storage/profileSessionRepository";
+import { safeStorageGet, safeStorageGetAll, safeStorageRemove, safeStorageSet } from "../storage/safeChromeStorage";
 
 // Cache keys carry the profile slug as a colon-separated segment; the analysis "latest" cache is prefixed with it and a pipe.
 const SEGMENT_CACHES = ["finder.analysisCache.v1", "finder.signalGrades.v2", "finder.optimizerCache.v1", "finder.optimizerSectionCache.v1", "finder.optimizerChecklistCache.v1"];
@@ -31,4 +31,11 @@ export async function clearProfileCache(profileKey: string): Promise<void> {
 
   for (const key of SEGMENT_CACHES) await dropEntries(key, (entryKey) => entryKey.split(":").includes(profileKey));
   for (const key of PREFIX_CACHES) await dropEntries(key, (entryKey) => entryKey.startsWith(`${profileKey}|`));
+}
+
+// Every cached result and scan record for all profiles. Job analysis is held in memory only, so the reload that follows resets it.
+export async function clearAllAnalysisCaches(): Promise<void> {
+  const all = await safeStorageGetAll();
+  const sessions = Object.keys(all).filter((key) => key.startsWith(PROFILE_SESSION_KEY_PREFIX));
+  await safeStorageRemove([...sessions, LEGACY_PROFILE_SESSIONS_STORAGE_KEY, "finder.autoScanSession.v1", "finder.profileComparisonCache.v1", ...SEGMENT_CACHES, ...PREFIX_CACHES]);
 }
