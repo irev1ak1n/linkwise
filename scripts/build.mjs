@@ -43,7 +43,10 @@ async function buildLinkedInContentScript() {
     define: nodeEnvDefine(watch ? "development" : "production"),
     build: {
       outDir: path.join(root, "dist/content"),
-      emptyOutDir: true,
+      // A full build starts from an empty folder. In watch mode every rebuild of the content script would
+      // empty it again, deleting the images, the pdf worker, and the document parser that are only
+      // copied or built once at startup, so the panel's pictures vanished after the first rebuild.
+      emptyOutDir: !watch,
       watch: watch ? {} : null,
       lib: {
         entry: path.join(root, "src/linkedin/content.ts"),
