@@ -35,7 +35,6 @@ import { SavedProfilesView } from "../../savedProfiles/SavedProfilesView";
 import { getSavedPage, subscribeSavedPage } from "../../savedProfiles/savedNav";
 import { AnalyzerHero, BackLink, BrandMark, HeaderSignalLines, JobAnalyzerHero, MainMenu, OptimizerHero, WelcomeBanner } from "./MainMenu";
 import { MenuFaq } from "./MenuFaq";
-import { ClearProfileCacheButton } from "../../dev/ClearProfileCacheButton";
 
 const openMenu = () => panelToolPreference.set("menu");
 
@@ -254,7 +253,6 @@ export function PanelApp({ onClose }: PanelAppProps) {
             <AnalyzerHero />
             <GoalSetupSection goal={goal} profileKey={profileKey} onSetActiveCriteria={setActiveGoalCriteria} />
             {renderProfileSection()}
-            {profileKey !== null && <ClearProfileCacheButton profileKey={profileKey} />}
           </>
         )}
       </div>
