@@ -180,3 +180,26 @@ describe("POST /api/analyze-profile - successful AI analysis", () => {
     expect(res.body.result.missing.some((m: { criterion: { id: string } }) => m.criterion.id === "c1")).toBe(true);
   });
 });
+
+describe("production readiness", () => {
+  it("answers /health and /api/health without any key, so a host can check the server is up", async () => {
+    const app = createApp({ config: loadConfig({}) });
+    for (const path of ["/health", "/api/health"]) {
+      const res = await request(app).get(path);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ aiConfigured: false });
+    }
+  });
+
+  it("binds every interface by default and reads the port from PORT, falling back to 8787", () => {
+    expect(loadConfig({}).host).toBe("0.0.0.0");
+    expect(loadConfig({ HOST: "127.0.0.1" }).host).toBe("127.0.0.1");
+    expect(loadConfig({ PORT: "3456" }).port).toBe(3456);
+    expect(loadConfig({}).port).toBe(8787);
+  });
+
+  it("allows the extension's cross-origin calls", async () => {
+    const res = await request(createApp({ config: loadConfig({}) })).get("/health").set("Origin", "chrome-extension://abcdefghijklmnop");
+    expect(res.headers["access-control-allow-origin"]).toBeTruthy();
+  });
+});

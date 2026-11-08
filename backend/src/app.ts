@@ -45,9 +45,12 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(cors());
   app.use(express.json({ limit: MAX_BODY_SIZE }));
 
-  app.get("/api/health", (_req: Request, res: Response) => {
+  // Both paths: /health is what a host's health check hits, /api/health is what the extension's tooling uses.
+  const health = (_req: Request, res: Response) => {
     res.status(200).json(redactedConfigSummary(config));
-  });
+  };
+  app.get("/health", health);
+  app.get("/api/health", health);
 
   app.post("/api/analyze-profile", (req: Request, res: Response) => {
     void handleAnalyzeProfile(req, res, { config, client: options.client, timeoutMs: options.timeoutMs });

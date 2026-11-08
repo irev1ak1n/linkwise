@@ -8,6 +8,7 @@ export interface BackendConfig {
   openAiApiKey: string | undefined;
   openAiModel: string;
   port: number;
+  host: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig {
@@ -17,6 +18,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
     openAiApiKey: apiKey && apiKey.length > 0 ? apiKey : undefined,
     openAiModel: env.OPENAI_MODEL?.trim() || DEFAULT_MODEL,
     port: Number.isFinite(port) && port > 0 ? port : DEFAULT_PORT,
+    host: env.HOST?.trim() || "0.0.0.0",
   };
 }
 

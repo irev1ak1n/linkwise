@@ -4,15 +4,23 @@ import { build } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { mkdirSync, copyFileSync, readdirSync } from "node:fs";
+import { mkdirSync, copyFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const watch = process.argv.includes("--watch");
 
+// Where the extension finds the backend. Unset, it is the local backend; set LINKWISE_API_BASE_URL to the
+// deployed (Railway) URL for a production build. Localhost stays allowed so development keeps working.
+const LOCAL_API = "http://localhost:8787";
+const apiBaseUrl = (process.env.LINKWISE_API_BASE_URL ?? "").trim().replace(/\/+$/, "") || LOCAL_API;
+if (apiBaseUrl !== LOCAL_API && !/^https:\/\/[^/\s]+$/.test(apiBaseUrl)) {
+  throw new Error(`LINKWISE_API_BASE_URL must be an https origin such as https://your-app.up.railway.app (got "${apiBaseUrl}").`);
+}
+
 // Vite's lib mode skips the usual NODE_ENV define. Without it, React's dev/prod switcher tries
 // to read process.env, which doesn't exist in a content script or service worker.
 function nodeEnvDefine(mode) {
-  return { "process.env.NODE_ENV": JSON.stringify(mode) };
+  return { "process.env.NODE_ENV": JSON.stringify(mode), __LINKWISE_API_BASE_URL__: JSON.stringify(apiBaseUrl) };
 }
 
 async function buildBackground() {
@@ -101,7 +109,10 @@ function copyAssets() {
 
 function copyManifest() {
   mkdirSync(path.join(root, "dist"), { recursive: true });
-  copyFileSync(path.join(root, "manifest.json"), path.join(root, "dist/manifest.json"));
+  const manifest = JSON.parse(readFileSync(path.join(root, "manifest.json"), "utf8"));
+  // The extension may call the backend only at origins it holds permission for.
+  if (apiBaseUrl !== LOCAL_API) manifest.host_permissions = [...new Set([...manifest.host_permissions, `${apiBaseUrl}/*`])];
+  writeFileSync(path.join(root, "dist/manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 await buildBackground();
